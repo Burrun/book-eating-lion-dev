@@ -6,6 +6,7 @@ K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
 
 ## 📁 폴더 구조
 
+```text
 book_eating_lion/
 ├── .github/                       # CI/CD 자동화 전용 폴더
 │   └── workflows/                 # GitHub Actions 파이프라인
@@ -26,6 +27,7 @@ book_eating_lion/
 ├── .env.example                   # 환경 변수 설정 템플릿
 ├── .gitignore                     # Git tracking 제외 대상 목록
 └── docker-compose.yml             # 로컬 개발용 통합 컨테이너 환경
+```
 
 ---
 
