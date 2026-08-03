@@ -1,0 +1,13 @@
+name: Main CD (EKS Production)
+
+on:
+  workflow_run:
+    workflows: ["Main Backend CI", "Main Frontend CI"]
+    types: [completed]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS EKS
+        run: echo "Deploying to Production AWS EKS..."

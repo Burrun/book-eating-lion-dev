@@ -1,0 +1,13 @@
+name: Dev CD
+
+on:
+  workflow_run:
+    workflows: ["Dev Backend CI", "Dev Frontend CI"]
+    types: [completed]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo Deploy Status
+        run: echo "Deploying to Dev Server / EKS..."

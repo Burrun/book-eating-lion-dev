@@ -1,0 +1,7 @@
+rootProject.name = 'final'
+
+include 'modules:common'
+include 'modules:member'
+include 'modules:book'
+include 'modules:order'
+include 'apps:api'
