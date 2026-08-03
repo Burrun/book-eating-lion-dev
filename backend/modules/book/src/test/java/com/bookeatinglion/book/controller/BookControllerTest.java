@@ -7,6 +7,7 @@ import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.service.BookService;
+import com.bookeatinglion.book.service.RecentViewedBookService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,6 +25,9 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -39,6 +43,9 @@ class BookControllerTest {
 
     @MockBean
     private BookService bookService;
+
+    @MockBean
+    private RecentViewedBookService recentViewedBookService;
 
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE);
@@ -121,5 +128,33 @@ class BookControllerTest {
 
         mockMvc.perform(get("/api/books/999/synopsis/detail"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 회원_헤더가_있으면_최근_본_책을_기록한다() throws Exception {
+        BookDetailResponse detail = new BookDetailResponse(
+                1L, "상세책", "저자", "출판사", "9791100000001", "소설", 10000, 5,
+                "cover.jpg", "설명", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1),
+                LocalDateTime.now(), LocalDateTime.now());
+        when(bookService.getBook(1L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/books/1").header("X-Member-Id", "1"))
+                .andExpect(status().isOk());
+
+        verify(recentViewedBookService, times(1)).recordView(1L, 1L);
+    }
+
+    @Test
+    void 회원_헤더가_없으면_최근_본_책을_기록하지_않는다() throws Exception {
+        BookDetailResponse detail = new BookDetailResponse(
+                1L, "상세책", "저자", "출판사", "9791100000001", "소설", 10000, 5,
+                "cover.jpg", "설명", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1),
+                LocalDateTime.now(), LocalDateTime.now());
+        when(bookService.getBook(1L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/books/1"))
+                .andExpect(status().isOk());
+
+        verify(recentViewedBookService, never()).recordView(any(), any());
     }
 }
