@@ -42,9 +42,9 @@ class ReviewRepositoryTest {
         Review review = reviewRepository.save(Review.builder()
                 .book(book).memberId(1L).rating(5).content("최고의 책입니다").build());
 
-        Review found = reviewRepository.findById(review.getId()).orElseThrow();
+        Review found = reviewRepository.findById(review.getReviewId()).orElseThrow();
 
-        assertThat(found.getBook().getId()).isEqualTo(book.getId());
+        assertThat(found.getBook().getBookId()).isEqualTo(book.getBookId());
         assertThat(found.getMemberId()).isEqualTo(1L);
         assertThat(found.getRating()).isEqualTo(5);
         assertThat(found.getContent()).isEqualTo("최고의 책입니다");
@@ -55,7 +55,7 @@ class ReviewRepositoryTest {
         reviewRepository.save(Review.builder().book(book).memberId(1L).rating(5).content("리뷰1").build());
         reviewRepository.save(Review.builder().book(book).memberId(2L).rating(3).content("리뷰2").build());
 
-        Page<Review> result = reviewRepository.findByBookId(book.getId(), PageRequest.of(0, 10));
+        Page<Review> result = reviewRepository.findByBook_BookId(book.getBookId(), PageRequest.of(0, 10));
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent()).extracting(Review::getContent)

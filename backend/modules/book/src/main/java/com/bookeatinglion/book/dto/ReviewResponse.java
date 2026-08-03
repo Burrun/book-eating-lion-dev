@@ -14,8 +14,8 @@ public record ReviewResponse(
 ) {
     public static ReviewResponse from(Review review) {
         return new ReviewResponse(
-                review.getId(),
-                review.getBook().getId(),
+                review.getReviewId(),
+                review.getBook().getBookId(),
                 review.getMemberId(),
                 review.getRating(),
                 review.getContent(),

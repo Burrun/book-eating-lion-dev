@@ -51,20 +51,20 @@ class ReviewServiceTest {
                 .category("소설").price(10000).stockQuantity(5)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
-        setId(book, Book.class, id);
+        setField(book, Book.class, "bookId", id);
         return book;
     }
 
     private Review review(Long id, Book book, Long memberId) throws Exception {
         Review review = Review.builder().book(book).memberId(memberId).rating(5).content("내용").build();
-        setId(review, Review.class, id);
+        setField(review, Review.class, "reviewId", id);
         return review;
     }
 
-    private void setId(Object target, Class<?> type, Long id) throws Exception {
-        Field idField = type.getDeclaredField("id");
-        idField.setAccessible(true);
-        idField.set(target, id);
+    private void setField(Object target, Class<?> type, String fieldName, Long value) throws Exception {
+        Field field = type.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     @Test
@@ -72,7 +72,7 @@ class ReviewServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Book book = book(1L);
         when(bookRepository.existsById(1L)).thenReturn(true);
-        when(reviewRepository.findByBookId(1L, pageable))
+        when(reviewRepository.findByBook_BookId(1L, pageable))
                 .thenReturn(new PageImpl<>(List.of(review(100L, book, 1L))));
 
         Page<ReviewResponse> result = reviewService.getReviews(1L, pageable);
@@ -94,7 +94,7 @@ class ReviewServiceTest {
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
         when(reviewRepository.save(any())).thenAnswer(invocation -> {
             Review saved = invocation.getArgument(0);
-            setId(saved, Review.class, 100L);
+            setField(saved, Review.class, "reviewId", 100L);
             return saved;
         });
 

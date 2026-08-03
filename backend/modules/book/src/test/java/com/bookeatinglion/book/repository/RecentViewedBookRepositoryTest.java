@@ -50,7 +50,7 @@ class RecentViewedBookRepositoryTest {
         recentViewedBookRepository.save(RecentViewedBook.builder()
                 .memberId(1L).book(book1).viewedAt(LocalDateTime.now()).build());
 
-        assertThat(recentViewedBookRepository.findByMemberIdAndBookId(1L, book1.getId())).isPresent();
+        assertThat(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, book1.getBookId())).isPresent();
     }
 
     @Test
@@ -73,8 +73,8 @@ class RecentViewedBookRepositoryTest {
                 .findByMemberIdOrderByViewedAtDesc(1L, PageRequest.of(0, 10));
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getBook().getId()).isEqualTo(book2.getId());
-        assertThat(result.get(1).getId()).isEqualTo(older.getId());
+        assertThat(result.get(0).getBook().getBookId()).isEqualTo(book2.getBookId());
+        assertThat(result.get(1).getRecentBookId()).isEqualTo(older.getRecentBookId());
     }
 
     @Test

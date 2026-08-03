@@ -44,7 +44,7 @@ class WishlistServiceTest {
                 .category("소설").price(10000).stockQuantity(5)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
-        Field idField = Book.class.getDeclaredField("id");
+        Field idField = Book.class.getDeclaredField("bookId");
         idField.setAccessible(true);
         idField.set(book, id);
         return book;
@@ -53,7 +53,7 @@ class WishlistServiceTest {
     @Test
     void 찜하지_않은_책을_찜한다() throws Exception {
         Book book = book(1L);
-        when(wishlistRepository.findByMemberIdAndBookId(1L, 1L)).thenReturn(Optional.empty());
+        when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.empty());
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
 
         wishlistService.addWishlist(1L, 1L);
@@ -64,7 +64,7 @@ class WishlistServiceTest {
     @Test
     void 이미_찜한_책을_다시_찜해도_중복_저장하지_않는다() throws Exception {
         Book book = book(1L);
-        when(wishlistRepository.findByMemberIdAndBookId(1L, 1L))
+        when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 1L))
                 .thenReturn(Optional.of(Wishlist.builder().memberId(1L).book(book).build()));
 
         wishlistService.addWishlist(1L, 1L);
@@ -74,7 +74,7 @@ class WishlistServiceTest {
 
     @Test
     void 존재하지_않는_책을_찜하면_예외를_던진다() {
-        when(wishlistRepository.findByMemberIdAndBookId(1L, 999L)).thenReturn(Optional.empty());
+        when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 999L)).thenReturn(Optional.empty());
         when(bookRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> wishlistService.addWishlist(999L, 1L))
@@ -85,7 +85,7 @@ class WishlistServiceTest {
     void 찜을_삭제한다() {
         wishlistService.removeWishlist(1L, 1L);
 
-        verify(wishlistRepository, times(1)).deleteByMemberIdAndBookId(1L, 1L);
+        verify(wishlistRepository, times(1)).deleteByMemberIdAndBook_BookId(1L, 1L);
     }
 
     @Test

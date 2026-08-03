@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface RecentViewedBookRepository extends JpaRepository<RecentViewedBook, Long> {
 
-    Optional<RecentViewedBook> findByMemberIdAndBookId(Long memberId, Long bookId);
+    Optional<RecentViewedBook> findByMemberIdAndBook_BookId(Long memberId, Long bookId);
 
     List<RecentViewedBook> findByMemberIdOrderByViewedAtDesc(Long memberId, Pageable pageable);
 }

@@ -19,10 +19,10 @@ class ReviewDtoTest {
                 .category("소설").price(10000).stockQuantity(1)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
-        setId(book, Book.class, 10L);
+        setField(book, Book.class, "bookId", 10L);
 
         Review review = Review.builder().book(book).memberId(1L).rating(4).content("괜찮아요").build();
-        setId(review, Review.class, 100L);
+        setField(review, Review.class, "reviewId", 100L);
 
         ReviewResponse response = ReviewResponse.from(review);
 
@@ -33,9 +33,9 @@ class ReviewDtoTest {
         assertThat(response.content()).isEqualTo("괜찮아요");
     }
 
-    private void setId(Object target, Class<?> type, Long id) throws Exception {
-        Field idField = type.getDeclaredField("id");
-        idField.setAccessible(true);
-        idField.set(target, id);
+    private void setField(Object target, Class<?> type, String fieldName, Long value) throws Exception {
+        Field field = type.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }

@@ -41,8 +41,8 @@ class WishlistRepositoryTest {
     void 찜을_저장하고_회원_책_조합으로_조회한다() {
         wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build());
 
-        assertThat(wishlistRepository.findByMemberIdAndBookId(1L, book.getId())).isPresent();
-        assertThat(wishlistRepository.findByMemberIdAndBookId(2L, book.getId())).isEmpty();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId())).isPresent();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(2L, book.getBookId())).isEmpty();
     }
 
     @Test
@@ -60,20 +60,20 @@ class WishlistRepositoryTest {
         List<Wishlist> result = wishlistRepository.findByMemberIdOrderByCreatedAtDesc(1L);
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getBook().getId()).isEqualTo(book.getId());
+        assertThat(result.get(0).getBook().getBookId()).isEqualTo(book.getBookId());
     }
 
     @Test
     void 찜을_삭제한다() {
         wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build());
 
-        wishlistRepository.deleteByMemberIdAndBookId(1L, book.getId());
+        wishlistRepository.deleteByMemberIdAndBook_BookId(1L, book.getBookId());
 
-        assertThat(wishlistRepository.findByMemberIdAndBookId(1L, book.getId())).isEmpty();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId())).isEmpty();
     }
 
     @Test
     void 존재하지_않는_찜을_삭제해도_에러가_나지_않는다() {
-        wishlistRepository.deleteByMemberIdAndBookId(999L, book.getId());
+        wishlistRepository.deleteByMemberIdAndBook_BookId(999L, book.getBookId());
     }
 }

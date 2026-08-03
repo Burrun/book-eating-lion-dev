@@ -38,7 +38,7 @@ class BookPersistenceTest {
         entityManager.flush();
         entityManager.clear();
 
-        Book found = entityManager.find(Book.class, book.getId());
+        Book found = entityManager.find(Book.class, book.getBookId());
 
         assertThat(found.getTitle()).isEqualTo("클라우드 엔지니어링 교재");
         assertThat(found.getAuthor()).isEqualTo("홍길동");

@@ -27,7 +27,7 @@ public class ReviewService {
         if (!bookRepository.existsById(bookId)) {
             throw new BookNotFoundException(bookId);
         }
-        return reviewRepository.findByBookId(bookId, pageable).map(ReviewResponse::from);
+        return reviewRepository.findByBook_BookId(bookId, pageable).map(ReviewResponse::from);
     }
 
     @Transactional

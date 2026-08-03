@@ -22,7 +22,7 @@ public class WishlistService {
 
     @Transactional
     public void addWishlist(Long bookId, Long memberId) {
-        if (wishlistRepository.findByMemberIdAndBookId(memberId, bookId).isPresent()) {
+        if (wishlistRepository.findByMemberIdAndBook_BookId(memberId, bookId).isPresent()) {
             return;
         }
         Book book = bookRepository.findById(bookId)
@@ -32,7 +32,7 @@ public class WishlistService {
 
     @Transactional
     public void removeWishlist(Long bookId, Long memberId) {
-        wishlistRepository.deleteByMemberIdAndBookId(memberId, bookId);
+        wishlistRepository.deleteByMemberIdAndBook_BookId(memberId, bookId);
     }
 
     public List<BookSummaryResponse> getMyWishlist(Long memberId) {

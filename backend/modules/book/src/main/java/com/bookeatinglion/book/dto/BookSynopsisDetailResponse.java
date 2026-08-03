@@ -9,7 +9,7 @@ public record BookSynopsisDetailResponse(
 ) {
     public static BookSynopsisDetailResponse from(Book book) {
         return new BookSynopsisDetailResponse(
-                book.getId(),
+                book.getBookId(),
                 book.getTitle(),
                 book.getDetailedSynopsis()
         );

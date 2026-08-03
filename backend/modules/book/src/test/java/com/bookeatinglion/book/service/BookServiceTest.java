@@ -43,7 +43,7 @@ class BookServiceTest {
                 .category("소설").price(10000).stockQuantity(5)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.of(2026, 1, 1)).salesCount(0)
                 .build();
-        Field idField = Book.class.getDeclaredField("id");
+        Field idField = Book.class.getDeclaredField("bookId");
         idField.setAccessible(true);
         idField.set(book, id);
         return book;

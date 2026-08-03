@@ -25,7 +25,7 @@ public class RecentViewedBookService {
 
     @Transactional
     public void recordView(Long bookId, Long memberId) {
-        recentViewedBookRepository.findByMemberIdAndBookId(memberId, bookId).ifPresentOrElse(
+        recentViewedBookRepository.findByMemberIdAndBook_BookId(memberId, bookId).ifPresentOrElse(
                 existing -> existing.touch(LocalDateTime.now()), // 영속 상태 엔티티라 dirty checking으로 자동 UPDATE, save() 불필요
                 () -> {
                     Book book = bookRepository.findById(bookId)

@@ -24,7 +24,7 @@ public record BookDetailResponse(
 ) {
     public static BookDetailResponse from(Book book) {
         return new BookDetailResponse(
-                book.getId(),
+                book.getBookId(),
                 book.getTitle(),
                 book.getAuthor(),
                 book.getPublisher(),

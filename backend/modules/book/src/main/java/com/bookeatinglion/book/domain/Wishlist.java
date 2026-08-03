@@ -15,7 +15,8 @@ public class Wishlist extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "wishlist_id")
+    private Long wishlistId;
 
     @Column(name = "member_id", nullable = false)
     private Long memberId;

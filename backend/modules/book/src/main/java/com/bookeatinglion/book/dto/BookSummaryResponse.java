@@ -14,7 +14,7 @@ public record BookSummaryResponse(
 ) {
     public static BookSummaryResponse from(Book book) {
         return new BookSummaryResponse(
-                book.getId(),
+                book.getBookId(),
                 book.getTitle(),
                 book.getAuthor(),
                 book.getPrice(),

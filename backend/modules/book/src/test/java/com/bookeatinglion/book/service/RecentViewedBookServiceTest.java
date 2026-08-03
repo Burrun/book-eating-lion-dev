@@ -45,7 +45,7 @@ class RecentViewedBookServiceTest {
                 .category("소설").price(10000).stockQuantity(5)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
-        Field idField = Book.class.getDeclaredField("id");
+        Field idField = Book.class.getDeclaredField("bookId");
         idField.setAccessible(true);
         idField.set(book, id);
         return book;
@@ -54,7 +54,7 @@ class RecentViewedBookServiceTest {
     @Test
     void 처음_보는_책은_새로_기록한다() throws Exception {
         Book book = book(1L);
-        when(recentViewedBookRepository.findByMemberIdAndBookId(1L, 1L)).thenReturn(Optional.empty());
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.empty());
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
 
         recentViewedBookService.recordView(1L, 1L);
@@ -67,7 +67,7 @@ class RecentViewedBookServiceTest {
         Book book = book(1L);
         RecentViewedBook existing = RecentViewedBook.builder()
                 .memberId(1L).book(book).viewedAt(LocalDateTime.now().minusDays(1)).build();
-        when(recentViewedBookRepository.findByMemberIdAndBookId(1L, 1L)).thenReturn(Optional.of(existing));
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.of(existing));
 
         recentViewedBookService.recordView(1L, 1L);
 
@@ -76,7 +76,7 @@ class RecentViewedBookServiceTest {
 
     @Test
     void 존재하지_않는_책_기록은_예외를_던진다() {
-        when(recentViewedBookRepository.findByMemberIdAndBookId(1L, 999L)).thenReturn(Optional.empty());
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 999L)).thenReturn(Optional.empty());
         when(bookRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> recentViewedBookService.recordView(999L, 1L))
