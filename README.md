@@ -25,6 +25,7 @@ book_eating_lion/
 ├── docs/                          # 기획서, 아키텍처 다이어그램, IAM/SG 명세, ERD, API 컬렉션
 │
 ├── .env.example                   # 환경 변수 설정 템플릿
+├── .gitattributes                 # gradlew LF 고정 (Linux 러너 실행 보장)
 ├── .gitignore                     # Git tracking 제외 대상 목록
 └── docker-compose.yml             # 로컬 개발용 통합 컨테이너 환경
 ```
@@ -41,8 +42,11 @@ book_eating_lion/
 
 ## ⚙️ 환경 변수 관리
 
-- **로컬 개발**: `application.yml` 템플릿 기본값(`localhost:3306`) 활용
-- **AWS S3 및 데이터베이스 환경 변수**
+- **로컬 개발**: `docker-compose.yml` 및 `docker-compose-aws.yml` 활용.
+
+- **EKS / 배포 환경**: `k8s/02-configmap.yaml` 및 `k8s/03-secret.yaml`을 통해 Aurora 엔드포인트, DB 계정, S3 버킷명 등을 주입받음.
+
+---
 
 ---
 
