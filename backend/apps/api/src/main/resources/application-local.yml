@@ -23,14 +23,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:}
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
 
 app:
   cognito:
     region: ${AWS_COGNITO_REGION:ap-northeast-2}
-    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:}
-    client-id: ${AWS_COGNITO_CLIENT_ID:}
-    client-secret: ${AWS_COGNITO_CLIENT_SECRET:}
+    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+    client-id: ${AWS_COGNITO_CLIENT_ID:local_dummy_client_id}
+    client-secret: ${AWS_COGNITO_CLIENT_SECRET:local_dummy_client_secret}
 
 springdoc:
   swagger-ui:

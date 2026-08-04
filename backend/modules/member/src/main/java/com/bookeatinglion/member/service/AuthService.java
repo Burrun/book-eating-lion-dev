@@ -10,6 +10,7 @@ import com.bookeatinglion.member.exception.DuplicateEmailException;
 import com.bookeatinglion.member.infra.cognito.CognitoAuthClient;
 import com.bookeatinglion.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AuthenticationResultType;
@@ -29,8 +30,12 @@ public class AuthService {
         }
 
         String cognitoSub = cognitoAuthClient.signUp(request.email(), request.password(), request.name());
-        Member member = memberRepository.save(Member.register(cognitoSub, request.email(), request.name()));
-        return SignupResponse.from(member);
+        try {
+            Member member = memberRepository.save(Member.register(cognitoSub, request.email(), request.name()));
+            return SignupResponse.from(member);
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateEmailException(request.email());
+        }
     }
 
     public TokenResponse login(LoginRequest request) {

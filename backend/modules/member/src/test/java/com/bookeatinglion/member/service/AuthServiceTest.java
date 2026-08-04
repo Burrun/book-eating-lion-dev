@@ -5,6 +5,7 @@ import com.bookeatinglion.member.dto.RefreshRequest;
 import com.bookeatinglion.member.dto.SignupRequest;
 import com.bookeatinglion.member.dto.SignupResponse;
 import com.bookeatinglion.member.dto.TokenResponse;
+import com.bookeatinglion.member.exception.CognitoAuthException;
 import com.bookeatinglion.member.exception.DuplicateEmailException;
 import com.bookeatinglion.member.infra.cognito.CognitoAuthClient;
 import com.bookeatinglion.member.repository.MemberRepository;
@@ -56,6 +57,19 @@ class AuthServiceTest {
                 .isInstanceOf(DuplicateEmailException.class);
 
         verify(cognitoAuthClient, never()).signUp(any(), any(), any());
+    }
+
+    @Test
+    void 회원가입시_Cognito_인증에_실패하면_예외를_전파하고_DB에_저장하지_않는다() {
+        when(memberRepository.existsByEmail("lion@bookeating.com")).thenReturn(false);
+        when(cognitoAuthClient.signUp("lion@bookeating.com", "password1234", "책먹는사자"))
+                .thenThrow(new CognitoAuthException("COGNITO_SIGNUP_FAILED", "Cognito 가입에 실패했습니다."));
+
+        assertThatThrownBy(() -> authService.signup(
+                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자")))
+                .isInstanceOf(CognitoAuthException.class);
+
+        verify(memberRepository, never()).save(any());
     }
 
     @Test

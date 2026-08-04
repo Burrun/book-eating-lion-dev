@@ -7,6 +7,7 @@ import com.bookeatinglion.member.domain.Role;
 import com.bookeatinglion.member.dto.MemberGradeResponse;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
+import com.bookeatinglion.member.exception.MemberNotFoundException;
 import com.bookeatinglion.member.service.MemberService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,16 @@ class MemberControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("책먹는사자"));
+    }
+
+    @Test
+    void 존재하지_않는_회원을_조회하면_404를_반환한다() throws Exception {
+        when(memberService.getMyProfile(SUB)).thenThrow(new MemberNotFoundException(SUB));
+
+        mockMvc.perform(get("/api/members/me").with(jwt().jwt(jwt -> jwt.subject(SUB))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("MEMBER_NOT_FOUND"));
     }
 
     @Test

@@ -64,6 +64,10 @@ public class Member extends BaseEntity {
                 .build();
     }
 
+    /**
+     * 프로필 정보를 부분 수정한다. 각 파라미터가 null이면 해당 필드는 기존 값을 유지하며,
+     * null을 전달하여 값을 삭제(초기화)하는 기능은 지원하지 않는다.
+     */
     public void updateProfile(String name, String phoneNumber, Gender gender, LocalDate birthDate) {
         if (name != null) {
             this.name = name;

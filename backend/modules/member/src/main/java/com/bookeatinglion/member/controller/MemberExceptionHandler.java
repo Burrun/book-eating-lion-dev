@@ -4,6 +4,7 @@ import com.bookeatinglion.common.dto.ApiResponse;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import com.bookeatinglion.member.exception.DuplicateEmailException;
 import com.bookeatinglion.member.exception.MemberNotFoundException;
+import com.bookeatinglion.member.exception.UnauthorizedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -25,6 +26,11 @@ public class MemberExceptionHandler {
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(DuplicateEmailException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(CognitoAuthException.class)
