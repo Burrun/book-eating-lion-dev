@@ -21,6 +21,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/members/me/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/used-books", "/api/used-books/presigned-url").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/orders/*/delivery").authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
