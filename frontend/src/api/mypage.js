@@ -19,7 +19,7 @@ function mockDelay(value, ms = 400) {
 
 export async function fetchProfile() {
   if (USE_MOCK) return mockDelay(MOCK_PROFILE);
-  const { data } = await apiClient.get("/mypage/profile");
+  const { data } = await apiClient.get("/members/me");
   return data;
 }
 
