@@ -5,6 +5,13 @@ on:
     branches: [ "main", "dev" ]
     paths:
       - 'backend/**'
+      - 'k8s/**'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'backend/**'
+      - 'k8s/**'
       - '.github/workflows/backend-ci.yml'
   workflow_dispatch:
 
