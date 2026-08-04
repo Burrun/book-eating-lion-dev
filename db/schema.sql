@@ -291,7 +291,6 @@ CREATE TABLE reviews (
     CONSTRAINT fk_reviews_order_item FOREIGN KEY (order_item_id)
         REFERENCES order_items (order_item_id) ON DELETE RESTRICT,
     CONSTRAINT uk_reviews_member_book UNIQUE (member_id, book_id),
-    CONSTRAINT uk_reviews_order_item UNIQUE (order_item_id),
     CONSTRAINT chk_reviews_rating CHECK (rating BETWEEN 1 AND 5)
 );
 
@@ -332,7 +331,7 @@ CREATE TABLE deliveries (
     CONSTRAINT fk_deliveries_order FOREIGN KEY (order_id)
         REFERENCES orders (order_id) ON DELETE CASCADE,
     CONSTRAINT uk_deliveries_order UNIQUE (order_id),
-    CONSTRAINT uk_deliveries_tracking UNIQUE (tracking_number)
+    CONSTRAINT uk_deliveries_tracking UNIQUE (courier_company, tracking_number)
 );
 
 CREATE TABLE used_books (
@@ -509,7 +508,7 @@ CREATE TABLE subscription_deliveries (
         REFERENCES books (book_id) ON DELETE RESTRICT,
     CONSTRAINT uk_sub_deliveries_round UNIQUE (subscription_id, delivery_round),
     CONSTRAINT uk_sub_deliveries_book UNIQUE (subscription_id, book_id),
-    CONSTRAINT uk_sub_deliveries_tracking UNIQUE (tracking_number)
+    CONSTRAINT uk_sub_deliveries_tracking UNIQUE (courier_company, tracking_number)
 );
 
 CREATE TABLE book_swipes (
@@ -581,3 +580,11 @@ CREATE TABLE audit_logs (
     CONSTRAINT fk_audit_logs_admin FOREIGN KEY (admin_id)
         REFERENCES members (member_id) ON DELETE RESTRICT
 );
+
+CREATE INDEX idx_orders_member_created ON orders (member_id, created_at DESC);
+CREATE INDEX idx_chat_messages_room_created ON chat_messages (chat_room_id, created_at DESC);
+CREATE INDEX idx_books_sales_count ON books (sales_count DESC);
+CREATE INDEX idx_books_published_date ON books (published_date DESC);
+CREATE INDEX idx_recent_books_member_viewed ON recent_books (member_id, viewed_at DESC);
+CREATE INDEX idx_reviews_book_created ON reviews (book_id, created_at DESC);
+CREATE INDEX idx_used_books_status_created ON used_books (status, created_at DESC);
