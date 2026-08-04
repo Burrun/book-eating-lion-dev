@@ -101,8 +101,7 @@ CREATE TABLE books (
     isbn                 CHAR(13) NOT NULL,
     price                BIGINT NOT NULL,
     stock                INT NOT NULL DEFAULT 0,
-    category             VARCHAR(50) NOT NULL,
-    category_id          BIGINT NULL,
+    category_id          BIGINT NOT NULL,
     description          TEXT NULL,
     detailed_synopsis    TEXT NULL,
     image_url            VARCHAR(500) NULL,
@@ -116,7 +115,7 @@ CREATE TABLE books (
     updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uk_books_isbn UNIQUE (isbn),
     CONSTRAINT fk_books_category FOREIGN KEY (category_id)
-        REFERENCES categories (category_id) ON DELETE SET NULL,
+        REFERENCES categories (category_id) ON DELETE RESTRICT,
     CONSTRAINT chk_books_stock CHECK (stock >= 0),
     CONSTRAINT chk_books_price CHECK (price >= 0)
 );
