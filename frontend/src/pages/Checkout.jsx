@@ -1,19 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, Wallet, CreditCard, Landmark, PawPrint } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
+import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
-
-const ORDER_ITEMS = [
-  { id: 1, title: "자바 ORM 표준 JPA 프로그래밍", quantity: 1, price: 38700 },
-  { id: 2, title: "클린 코드 (Clean Code)", quantity: 1, price: 29000 },
-  { id: 3, title: "해리 포터와 마법사의 돌 (중고 A급)", quantity: 1, price: 12000 },
-];
-const SHIPPING_FEE = 3000;
-const COUPON_DISCOUNT = 3000;
-const POINTS_USED = 5000;
+import { fetchCheckoutSummary } from "../api/checkout.js";
 
 const REQUIRED_FIELDS = [
   { key: "receiver", label: "받는 분 이름" },
@@ -70,9 +63,18 @@ export default function Checkout() {
   });
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [summary, setSummary] = useState(null);
 
-  const subtotal = ORDER_ITEMS.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const finalTotal = subtotal + SHIPPING_FEE - COUPON_DISCOUNT - POINTS_USED;
+  useEffect(() => {
+    let ignore = false;
+    fetchCheckoutSummary().then((data) => {
+      if (!ignore) setSummary(data);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === paymentMethod);
 
   const updateField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -122,9 +124,21 @@ export default function Checkout() {
   const handleConfirmPayment = () => {
     setIsConfirmOpen(false);
     toast.success("결제가 완료되었습니다.");
-    // 주문완료 전용 페이지가 아직 없어서 임시로 메인으로 이동
-    setTimeout(() => navigate("/"), 1500);
+    // 주문완료 전용 페이지가 아직 없어서 임시로 마이페이지 주문내역 탭으로 이동
+    setTimeout(() => navigate("/mypage?tab=orders"), 1500);
   };
+
+  if (!summary) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
+        <CheckoutSkeleton />
+      </div>
+    );
+  }
+
+  const subtotal = summary.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const finalTotal = subtotal + summary.shippingFee - summary.couponDiscount - summary.pointsUsed;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -264,7 +278,7 @@ export default function Checkout() {
             <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">최종 주문 내역</h2>
 
             <ul className="flex flex-col gap-2.5 border-b border-[var(--color-forest)]/10 pb-4">
-              {ORDER_ITEMS.map((item) => (
+              {summary.items.map((item) => (
                 <li key={item.id} className="flex items-center justify-between text-sm">
                   <span className="line-clamp-1 text-[var(--color-ink)] opacity-80">
                     {item.title} <span className="opacity-50">x{item.quantity}</span>
@@ -278,9 +292,9 @@ export default function Checkout() {
 
             <dl className="mt-4 space-y-2.5 text-sm">
               <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
-              <Row label="배송비" value={`+${SHIPPING_FEE.toLocaleString()}원`} />
-              <Row label="쿠폰 할인" value={`-${COUPON_DISCOUNT.toLocaleString()}원`} tone="coral" />
-              <Row label="포인트 사용" value={`-${POINTS_USED.toLocaleString()}원`} tone="coral" />
+              <Row label="배송비" value={`+${summary.shippingFee.toLocaleString()}원`} />
+              <Row label="쿠폰 할인" value={`-${summary.couponDiscount.toLocaleString()}원`} tone="coral" />
+              <Row label="포인트 사용" value={`-${summary.pointsUsed.toLocaleString()}원`} tone="coral" />
             </dl>
 
             <div className="mt-4 flex items-baseline justify-between border-t border-[var(--color-forest)]/10 pt-4">
@@ -357,6 +371,18 @@ function Row({ label, value, tone }) {
     <div className="flex items-center justify-between">
       <dt className="text-[var(--color-ink)]/70">{label}</dt>
       <dd className={tone === "coral" ? "text-[var(--color-coral)]" : "text-[var(--color-ink)]"}>{value}</dd>
+    </div>
+  );
+}
+
+function CheckoutSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="flex flex-col gap-6">
+        <Skeleton variant="rectangular" className="h-96 w-full" />
+        <Skeleton variant="rectangular" className="h-40 w-full" />
+      </div>
+      <Skeleton variant="rectangular" className="h-80 w-full" />
     </div>
   );
 }

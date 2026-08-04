@@ -3,6 +3,7 @@ import Header from "./components/Header.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 import Cart from "./pages/Cart.jsx";
 import Checkout from "./pages/Checkout.jsx";
+import MyPage from "./pages/MyPage.jsx";
 
 function Layout() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/" element={null} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/mypage" element={<MyPage />} />
           </Route>
         </Routes>
       </ToastProvider>

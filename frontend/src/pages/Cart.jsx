@@ -1,50 +1,36 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, Ticket, BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
+import Skeleton from "../components/Skeleton.jsx";
+import { fetchCartItems, fetchCartBenefits } from "../api/cart.js";
 
-const INITIAL_ITEMS = [
-  {
-    id: 1,
-    title: "자바 ORM 표준 JPA 프로그래밍",
-    option: "신간 · 개정판",
-    price: 38700,
-    shippingFee: 3000,
-    quantity: 1,
-    coverUrl: null,
-  },
-  {
-    id: 2,
-    title: "클린 코드 (Clean Code)",
-    option: "베스트셀러",
-    price: 29000,
-    shippingFee: 3000,
-    quantity: 1,
-    coverUrl: null,
-  },
-  {
-    id: 3,
-    title: "해리 포터와 마법사의 돌",
-    option: "중고 직거래 증정",
-    condition: "A",
-    price: 12000,
-    shippingFee: 3000,
-    quantity: 1,
-    coverUrl: null,
-  },
-];
-
-const AVAILABLE_COUPON = { label: "신규 가입 3,000원 할인 쿠폰", discount: 3000 };
-const AVAILABLE_POINTS = 5400;
 const FREE_SHIPPING_THRESHOLD = 30000;
 
 export default function Cart() {
   const navigate = useNavigate();
-  const [items, setItems] = useState(INITIAL_ITEMS);
-  const [selectedIds, setSelectedIds] = useState(() => new Set(INITIAL_ITEMS.map((i) => i.id)));
+  const [items, setItems] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [benefits, setBenefits] = useState({ availableCoupon: null, availablePoints: 0 });
   const [couponApplied, setCouponApplied] = useState(false);
   const [pointsUsed, setPointsUsed] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([fetchCartItems(), fetchCartBenefits()]).then(([fetchedItems, fetchedBenefits]) => {
+      if (ignore) return;
+      setItems(fetchedItems);
+      setSelectedIds(new Set(fetchedItems.map((i) => i.id)));
+      setBenefits(fetchedBenefits);
+      setIsLoading(false);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const { availableCoupon, availablePoints } = benefits;
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -54,7 +40,7 @@ export default function Cart() {
     if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
     return Math.max(...selectedItems.map((item) => item.shippingFee));
   }, [selectedItems, subtotal]);
-  const couponDiscount = couponApplied ? Math.min(AVAILABLE_COUPON.discount, subtotal) : 0;
+  const couponDiscount = couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
   const finalTotal = Math.max(subtotal + shippingFee - couponDiscount - pointsUsed, 0);
 
   const toggleSelectAll = () => {
@@ -92,7 +78,7 @@ export default function Cart() {
   };
 
   const togglePoints = () => {
-    setPointsUsed((prev) => (prev > 0 ? 0 : Math.min(AVAILABLE_POINTS, subtotal + shippingFee - couponDiscount)));
+    setPointsUsed((prev) => (prev > 0 ? 0 : Math.min(availablePoints, subtotal + shippingFee - couponDiscount)));
   };
 
   return (
@@ -101,7 +87,9 @@ export default function Cart() {
         장바구니 <span className="text-[var(--color-ink)]/50">({items.length}건)</span>
       </h1>
 
-      {items.length === 0 ? (
+      {isLoading ? (
+        <CartSkeleton />
+      ) : items.length === 0 ? (
         <EmptyCart />
       ) : (
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
@@ -154,7 +142,7 @@ export default function Cart() {
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
                   <p className="text-sm text-[var(--color-ink)]">
                     적용 가능 쿠폰:{" "}
-                    <span className="font-medium">{AVAILABLE_COUPON.label}</span>
+                    <span className="font-medium">{availableCoupon?.label}</span>
                   </p>
                   <Button
                     variant={couponApplied ? "secondary" : "primary"}
@@ -168,7 +156,7 @@ export default function Cart() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
                   <p className="text-sm text-[var(--color-ink)]">
-                    보유 포인트: <span className="font-medium">{AVAILABLE_POINTS.toLocaleString()}P</span>
+                    보유 포인트: <span className="font-medium">{availablePoints.toLocaleString()}P</span>
                     <span className="ml-1 text-[var(--color-ink)]/50">(전액 사용 가능)</span>
                   </p>
                   <Button
@@ -323,6 +311,26 @@ function EmptyCart() {
       <Link to="/">
         <Button variant="primary">책 구경하러 가기</Button>
       </Link>
+    </div>
+  );
+}
+
+function CartSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="flex flex-col gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+            <Skeleton variant="rectangular" className="h-24 w-[72px] shrink-0" />
+            <div className="flex flex-1 flex-col gap-2">
+              <Skeleton variant="text" className="w-2/3" />
+              <Skeleton variant="text" className="w-1/3" />
+              <Skeleton variant="text" className="mt-2 h-8 w-1/4" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <Skeleton variant="rectangular" className="h-80 w-full" />
     </div>
   );
 }
