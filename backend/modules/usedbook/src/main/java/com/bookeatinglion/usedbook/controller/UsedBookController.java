@@ -1,6 +1,7 @@
 package com.bookeatinglion.usedbook.controller;
 
 import com.bookeatinglion.common.dto.ApiResponse;
+import com.bookeatinglion.common.security.SecurityUtils;
 import com.bookeatinglion.s3.dto.PresignedUrlRequest;
 import com.bookeatinglion.s3.dto.PresignedUrlResponse;
 import com.bookeatinglion.s3.service.S3PresignedUrlService;
@@ -15,8 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,17 +35,13 @@ public class UsedBookController {
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
-    public ApiResponse<UsedBookResponse> createUsedBook(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody UsedBookCreateRequest request) {
-        return ApiResponse.success(usedBookService.createUsedBook(jwt.getSubject(), request));
+    public ApiResponse<UsedBookResponse> createUsedBook(@Valid @RequestBody UsedBookCreateRequest request) {
+        return ApiResponse.success(usedBookService.createUsedBook(SecurityUtils.currentMemberSub(), request));
     }
 
     @PostMapping("/presigned-url")
-    public ApiResponse<PresignedUrlResponse> getPresignedUrl(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody PresignedUrlRequest request) {
-        return ApiResponse.success(s3PresignedUrlService.generatePresignedUrl(jwt.getSubject(), request.fileName()));
+    public ApiResponse<PresignedUrlResponse> getPresignedUrl(@Valid @RequestBody PresignedUrlRequest request) {
+        return ApiResponse.success(s3PresignedUrlService.generatePresignedUrl(SecurityUtils.currentMemberSub(), request.fileName()));
     }
 
     @GetMapping

@@ -1,9 +1,11 @@
 package com.bookeatinglion.s3.service;
 
 import com.bookeatinglion.s3.dto.PresignedUrlResponse;
+import com.bookeatinglion.usedbook.exception.S3UploadException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -37,7 +39,12 @@ public class S3PresignedUrlService {
                 .putObjectRequest(objectRequest)
                 .build();
 
-        String uploadUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
+        String uploadUrl;
+        try {
+            uploadUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
+        } catch (SdkException e) {
+            throw new S3UploadException("Presigned URL 발급에 실패했습니다.", e);
+        }
         String fileUrl = "https://" + bucket + ".s3.amazonaws.com/" + key;
         return new PresignedUrlResponse(uploadUrl, fileUrl, key);
     }
