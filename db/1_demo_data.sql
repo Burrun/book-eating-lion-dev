@@ -84,3 +84,26 @@ CREATE TABLE IF NOT EXISTS recent_books (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_recent_books_member_book (member_id, book_id)
 );
+
+CREATE TABLE IF NOT EXISTS used_books (
+    used_book_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    seller_id VARCHAR(255) NOT NULL,
+    isbn VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255),
+    publisher VARCHAR(255),
+    cover_image_url VARCHAR(500),
+    price INT NOT NULL,
+    condition VARCHAR(20) NOT NULL,
+    description TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS used_book_images (
+    used_book_id BIGINT NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    image_order INT NOT NULL,
+    FOREIGN KEY (used_book_id) REFERENCES used_books (used_book_id)
+);

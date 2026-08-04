@@ -31,6 +31,15 @@ app:
     user-pool-id: ${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
     client-id: ${AWS_COGNITO_CLIENT_ID:local_dummy_client_id}
     client-secret: ${AWS_COGNITO_CLIENT_SECRET:local_dummy_client_secret}
+  s3:
+    bucket: ${AWS_S3_BUCKET:book-eating-lion-local}
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    access-key: ${AWS_ACCESS_KEY_ID:local-access-key}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:local-secret-key}
+  kakao:
+    api-key: ${KAKAO_API_KEY:}
+  aladin:
+    api-key: ${ALADIN_API_KEY:}
 
 springdoc:
   swagger-ui:
