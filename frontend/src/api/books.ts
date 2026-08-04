@@ -1,14 +1,14 @@
-import { apiClient, unwrap } from './client.js'
-import { toBook, toBookSummary, toPaged, toWebtoonCuts } from './mappers.js'
+import { apiClient, unwrap } from './client.ts'
+import { toBook, toBookSummary, toPaged, toWebtoonCuts } from './mappers.ts'
 import type {
   ApiResponse,
   BookDetailResponse,
   BookSummaryResponse,
   BookSynopsisDetailResponse,
   Page,
-} from './types.js'
-import type { Book, BookSummary, WebtoonCut } from '../types/book.js'
-import type { Paged } from '../types/common.js'
+} from './types.ts'
+import type { Book, BookSummary, WebtoonCut } from '../types/book.ts'
+import type { Paged } from '../types/common.ts'
 
 // GET /api/books — 도서 목록 (카테고리/페이징)
 export async function getBooks(

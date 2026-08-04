@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, useAnimation, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
-import type { SwipeDeckItem } from '../../types/book.js'
+import type { SwipeDeckItem } from '../../types/book.ts'
 
 const SWIPE_THRESHOLD = 120
 const EXIT_DISTANCE = 600

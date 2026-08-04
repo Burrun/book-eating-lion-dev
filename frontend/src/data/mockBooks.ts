@@ -1,5 +1,5 @@
 // UI 타입은 src/types/book.ts 에 정의되어 있다 (백엔드 DTO와 분리).
-import type { Book, BookSummary, SwipeDeckItem } from '../types/book.js'
+import type { Book, BookSummary, SwipeDeckItem } from '../types/book.ts'
 
 export const bestsellers: BookSummary[] = [
   { id: '1', title: '자바 ORM 표준 JPA 프로그래밍', price: 38700, rating: 4.9 },

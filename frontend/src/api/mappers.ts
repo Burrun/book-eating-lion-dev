@@ -9,10 +9,10 @@ import type {
   MemberResponse,
   Page,
   ReviewResponse,
-} from './types.js'
-import type { Book, BookSummary, Review, WebtoonCut } from '../types/book.js'
-import type { GradeInfo, Member, MemberGrade } from '../types/member.js'
-import type { Paged } from '../types/common.js'
+} from './types.ts'
+import type { Book, BookSummary, Review, WebtoonCut } from '../types/book.ts'
+import type { GradeInfo, Member, MemberGrade } from '../types/member.ts'
+import type { Paged } from '../types/common.ts'
 
 // --- 임시 기본값 (백엔드 미구현 / 미합의) ---
 const DEFAULT_RATING = 0

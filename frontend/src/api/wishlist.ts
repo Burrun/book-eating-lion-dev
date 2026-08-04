@@ -1,7 +1,7 @@
-import { apiClient, unwrap } from './client.js'
-import { toBookSummary } from './mappers.js'
-import type { ApiResponse, BookSummaryResponse } from './types.js'
-import type { BookSummary } from '../types/book.js'
+import { apiClient, unwrap } from './client.ts'
+import { toBookSummary } from './mappers.ts'
+import type { ApiResponse, BookSummaryResponse } from './types.ts'
+import type { BookSummary } from '../types/book.ts'
 
 // GET /api/members/me/wishlist — 찜 목록 (JWT 인증 + X-Member-Id 필요)
 export async function getWishlist(): Promise<BookSummary[]> {

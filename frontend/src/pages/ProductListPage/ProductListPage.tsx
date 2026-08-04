@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom'
-import BookCard from '../../components/BookCard/BookCard.js'
-import SwipeDeck from '../../components/SwipeDeck/SwipeDeck.js'
-import { catalogBooks, swipeDeck, CATEGORIES } from '../../data/mockBooks.js'
+import BookCard from '../../components/BookCard/BookCard.tsx'
+import SwipeDeck from '../../components/SwipeDeck/SwipeDeck.tsx'
+import { catalogBooks, swipeDeck, CATEGORIES } from '../../data/mockBooks.ts'
 
 const PAGE_SIZE = 8
 

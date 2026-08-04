@@ -1,7 +1,7 @@
-import { apiClient, unwrap } from './client.js'
-import { toGradeInfo, toMember } from './mappers.js'
-import type { ApiResponse, MemberGradeResponse, MemberResponse } from './types.js'
-import type { GradeInfo, Member } from '../types/member.js'
+import { apiClient, unwrap } from './client.ts'
+import { toGradeInfo, toMember } from './mappers.ts'
+import type { ApiResponse, MemberGradeResponse, MemberResponse } from './types.ts'
+import type { GradeInfo, Member } from '../types/member.ts'
 
 // GET /api/members/me — 내 정보 조회 (JWT 인증 필요)
 export async function getMyProfile(): Promise<Member> {

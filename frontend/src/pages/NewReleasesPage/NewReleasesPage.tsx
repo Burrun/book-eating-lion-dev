@@ -1,5 +1,5 @@
-import BookCard from '../../components/BookCard/BookCard.js'
-import { newReleases } from '../../data/mockBooks.js'
+import BookCard from '../../components/BookCard/BookCard.tsx'
+import { newReleases } from '../../data/mockBooks.ts'
 
 export default function NewReleasesPage() {
   return (

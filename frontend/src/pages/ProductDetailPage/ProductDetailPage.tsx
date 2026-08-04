@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getBookById } from '../../data/mockBooks.js'
-import type { Review } from '../../types/book.js'
+import { getBookById } from '../../data/mockBooks.ts'
+import type { Review } from '../../types/book.ts'
 
 // 구독(유료) 회원 여부. 백엔드 구독 API 연동 전까지 임시 상수로 둔다.
 // true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도

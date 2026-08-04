@@ -1,5 +1,5 @@
-import BookCard from '../../components/BookCard/BookCard.js'
-import { bestsellers } from '../../data/mockBooks.js'
+import BookCard from '../../components/BookCard/BookCard.tsx'
+import { bestsellers } from '../../data/mockBooks.ts'
 
 export default function BestsellersPage() {
   return (

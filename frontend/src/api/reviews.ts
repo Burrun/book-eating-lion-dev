@@ -1,8 +1,8 @@
-import { apiClient, unwrap } from './client.js'
-import { toPaged, toReview } from './mappers.js'
-import type { ApiResponse, Page, ReviewRequest, ReviewResponse } from './types.js'
-import type { Review } from '../types/book.js'
-import type { Paged } from '../types/common.js'
+import { apiClient, unwrap } from './client.ts'
+import { toPaged, toReview } from './mappers.ts'
+import type { ApiResponse, Page, ReviewRequest, ReviewResponse } from './types.ts'
+import type { Review } from '../types/book.ts'
+import type { Paged } from '../types/common.ts'
 
 // GET /api/books/{bookId}/reviews — 리뷰 목록
 export async function getReviews(
