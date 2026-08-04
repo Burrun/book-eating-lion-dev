@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-paper text-forest font-body antialiased;
+}
+
+h1,
+h2,
+h3 {
+  @apply font-heading;
+}
