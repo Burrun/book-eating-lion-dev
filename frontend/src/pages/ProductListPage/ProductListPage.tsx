@@ -8,7 +8,8 @@ const PAGE_SIZE = 8
 export default function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const category = searchParams.get('category') ?? ''
-  const page = Number(searchParams.get('page') ?? '0')
+  const rawPage = Number(searchParams.get('page') ?? '0')
+  const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0
 
   const filteredBooks = category ? catalogBooks.filter((b) => b.category === category) : catalogBooks
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE))

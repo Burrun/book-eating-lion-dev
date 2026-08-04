@@ -19,7 +19,13 @@ export function setAccessToken(token: string | null) {
 }
 
 // ApiResponse<T> 껍데기를 벗겨 data만 반환한다.
+// success: false (HTTP 200이어도 논리적으로 실패한 응답)면 error 정보로 예외를 던져
+// react-query 등 호출측이 실패로 인식하게 한다.
 export async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
   const res = await promise
-  return res.data.data
+  const body = res.data
+  if (!body.success) {
+    throw new Error(body.error?.message ?? body.message ?? 'API request failed')
+  }
+  return body.data
 }

@@ -1,16 +1,22 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getBookById } from '../../data/mockBooks.ts'
+import { getMyGrade } from '../../api/member.ts'
 import type { Review } from '../../types/book.ts'
-
-// 구독(유료) 회원 여부. 백엔드 구독 API 연동 전까지 임시 상수로 둔다.
-// true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도
-const isPremiumUser = false
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const book = getBookById(id)
   const [reviews, setReviews] = useState<Review[]>(book.reviews)
+
+  // 구독(유료) 회원 여부. 조회 실패/로딩 중에는 무료로 취급한다(fail-safe).
+  // true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도
+  const { data: gradeInfo } = useQuery({
+    queryKey: ['myGrade'],
+    queryFn: getMyGrade,
+  })
+  const isPremiumUser = gradeInfo?.isPremium ?? false
   const [draftRating, setDraftRating] = useState(5)
   const [draftText, setDraftText] = useState('')
 
