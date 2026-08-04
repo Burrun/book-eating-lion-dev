@@ -1,3 +1,9 @@
 dependencies {
     implementation project(':modules:common')
+
+    // AWS Cognito
+    implementation 'software.amazon.awssdk:cognitoidentityprovider:2.25.20'
+
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
