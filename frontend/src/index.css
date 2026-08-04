@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "GmarketSansBold";
+  src: url("https://cdn.jsdelivr.net/gh/webfontworld/gmarket/GmarketSansBold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/woff2/PretendardVariable.woff2") format("woff2-variations");
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-forest: #1b3b36;
+  --color-honey: #f2a93b;
+  --color-paper: #fbf6ec;
+  --color-coral: #e8563f;
+  --color-ink: #2d2a26;
+}
+
+@theme {
+  --color-forest: #1b3b36;
+  --color-honey: #f2a93b;
+  --color-paper: #fbf6ec;
+  --color-coral: #e8563f;
+  --color-ink: #2d2a26;
+  --font-display: "GmarketSansBold", "Pretendard", sans-serif;
+  --font-sans: "Pretendard", -apple-system, sans-serif;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-display {
+  font-family: "GmarketSansBold", "Pretendard", sans-serif;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--color-forest) 8%, transparent);
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: skeleton-shimmer 1.6s infinite;
+}
