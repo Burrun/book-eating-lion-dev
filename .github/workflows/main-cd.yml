@@ -1,14 +1,12 @@
 name: Main CD (EKS Production)
 
-# main 브랜치에 PR이 머지(Push)되면 즉시 자동으로 배포(CD)가 실행된다.
+# Backend CI / Frontend CI 가 main 브랜치에서 성공적으로 완료된 뒤에만 배포한다.
+# (workflow_run 게이팅 — 실패한 빌드가 그대로 배포되는 것을 방지)
 on:
-  push:
+  workflow_run:
+    workflows: [ "Backend CI", "Frontend CI" ]
+    types: [ completed ]
     branches: [ "main" ]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'k8s/**'
-      - '.github/workflows/main-cd.yml'
   workflow_dispatch:
 
 permissions:
@@ -17,39 +15,27 @@ permissions:
 
 concurrency:
   group: main-cd
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
-  changes:
-    name: Detect changed paths
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend/**'
-              - 'k8s/**'
-            frontend:
-              - 'frontend/**'
-
   deploy-backend:
     name: Backend → ECR & EKS
-    needs: changes
-    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.name == 'Backend CI' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'lion-app' }}
       K8S_DEPLOYMENT: ${{ vars.K8S_DEPLOYMENT || 'backend-deployment' }}
       K8S_CONTAINER: ${{ vars.K8S_CONTAINER || 'backend' }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -69,12 +55,12 @@ jobs:
         run: |
           IMAGE="$REGISTRY/$REPOSITORY"
           docker build \
-            -t "$IMAGE:${{ github.sha }}" \
+            -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
             -t "$IMAGE:main-${{ github.run_number }}" \
             -f backend/apps/api/Dockerfile backend
-          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
           docker push "$IMAGE:main-${{ github.run_number }}"
-          echo "IMAGE_URI=$IMAGE:${{ github.sha }}" >> "$GITHUB_ENV"
+          echo "IMAGE_URI=$IMAGE:${{ env.DEPLOY_SHA }}" >> "$GITHUB_ENV"
 
       - name: Update EKS kubeconfig
         run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
@@ -85,9 +71,10 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           ECR_BACKEND_REPO: ${{ vars.ECR_BACKEND_REPO }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ env.DEPLOY_SHA }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
           DB_NAME: ${{ vars.DB_NAME }}
+          DB_PORT: ${{ vars.DB_PORT || '3306' }}
           RDS_ENDPOINT: ${{ vars.RDS_ENDPOINT }}
           S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
           API_HOST: ${{ vars.API_HOST }}
@@ -98,7 +85,7 @@ jobs:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
-          for v in ECR_BACKEND_REPO DB_NAME RDS_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR DB_USERNAME DB_PASSWORD; do
+          for v in ECR_BACKEND_REPO DB_NAME RDS_ENDPOINT S3_BUCKET_NAME API_HOST FRONTEND_ORIGIN VPC_CIDR DB_USERNAME DB_PASSWORD; do
             if [ -z "${!v}" ]; then
               echo "::error::필수 값 $v 가 비어 있습니다. environment 의 Variables/Secrets 를 확인하세요."
               exit 1
@@ -128,13 +115,19 @@ jobs:
 
   deploy-frontend:
     name: Frontend → S3 & CloudFront
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.name == 'Frontend CI' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
