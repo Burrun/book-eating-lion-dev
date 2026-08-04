@@ -2,8 +2,15 @@
 
 CREATE TABLE IF NOT EXISTS members (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    cognito_sub VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(20),
+    gender VARCHAR(10),
+    birth_date DATE,
+    role VARCHAR(20) NOT NULL DEFAULT 'USER',
+    grade VARCHAR(20) NOT NULL DEFAULT 'BRONZE',
+    point INT NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -27,7 +34,8 @@ CREATE TABLE IF NOT EXISTS books (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-INSERT INTO members (email, name) VALUES ('test@lion.com', '테스트유저');
+INSERT INTO members (cognito_sub, email, name, role, grade)
+VALUES ('00000000-0000-0000-0000-000000000001', 'test@lion.com', '테스트유저', 'USER', 'BRONZE');
 
 INSERT INTO books (
     title, author, publisher, isbn, category, price, stock_quantity,
@@ -75,4 +83,27 @@ CREATE TABLE IF NOT EXISTS recent_books (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_recent_books_member_book (member_id, book_id)
+);
+
+CREATE TABLE IF NOT EXISTS used_books (
+    used_book_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    seller_id VARCHAR(255) NOT NULL,
+    isbn VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255),
+    publisher VARCHAR(255),
+    cover_image_url VARCHAR(500),
+    price INT NOT NULL,
+    condition VARCHAR(20) NOT NULL,
+    description TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS used_book_images (
+    used_book_id BIGINT NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    image_order INT NOT NULL,
+    FOREIGN KEY (used_book_id) REFERENCES used_books (used_book_id)
 );
