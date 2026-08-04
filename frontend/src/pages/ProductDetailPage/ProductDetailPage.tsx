@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getBookById, type Review } from '../../data/mockBooks.js'
+import { getBookById } from '../../data/mockBooks.js'
+import type { Review } from '../../types/book.js'
 
-const isPurchaseVerified = false
+// 구독(유료) 회원 여부. 백엔드 구독 API 연동 전까지 임시 상수로 둔다.
+// true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도
+const isPremiumUser = false
 
 export default function ProductDetailPage() {
   const { id } = useParams()
@@ -38,9 +41,7 @@ export default function ProductDetailPage() {
           <p className="text-sm text-forest/60">
             저자: {book.author} | 출판사: {book.publisher} | ISBN: {book.isbn}
           </p>
-          <p className="text-lg font-semibold text-coral">
-            정가: {book.listPrice.toLocaleString()}원 &rarr; 판매가: {book.salePrice.toLocaleString()}원
-          </p>
+          <p className="text-lg font-semibold text-coral">{book.price.toLocaleString()}원</p>
           <p className="text-sm text-forest/60">
             ⭐ {book.rating}점 (리뷰 {book.reviewCount}개) | {book.shippingNote}
           </p>
@@ -51,35 +52,37 @@ export default function ProductDetailPage() {
             <button className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40">
               ❤️ 찜하기
             </button>
-            <button className="rounded-full border border-forest/20 px-6 py-2.5 font-semibold text-forest transition hover:bg-paper">
-              📦 중고 매물 등록
-            </button>
           </div>
         </div>
       </section>
 
       <section className="flex flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6">
-        <h2 className="text-xl font-bold">🔒 구매 인증 사용자 전용 웹툰 요약 컷</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {book.webtoonCuts.map((cut) => (
-            <div key={cut.id} className="relative overflow-hidden rounded-xl border border-forest/10">
-              <div
-                className={`flex h-48 items-center justify-center bg-paper text-4xl ${
-                  isPurchaseVerified ? '' : 'blur-sm'
-                }`}
-              >
-                🖼️
-              </div>
-              <p className={`p-3 text-sm text-forest/70 ${isPurchaseVerified ? '' : 'blur-sm'}`}>{cut.caption}</p>
-              {!isPurchaseVerified && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-forest/60 text-center text-paper">
-                  <span className="text-2xl">🔒</span>
-                  <p className="px-4 text-sm font-semibold">구매 인증 후 열람 가능</p>
+        {isPremiumUser ? (
+          <>
+            <h2 className="text-xl font-bold">🎨 웹툰 요약 컷</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {book.webtoonCuts.map((cut) => (
+                <div key={cut.id} className="overflow-hidden rounded-xl border border-forest/10">
+                  <div className="flex h-48 items-center justify-center bg-paper text-4xl">🖼️</div>
+                  <p className="p-3 text-sm text-forest/70">{cut.caption}</p>
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold">📖 줄거리</h2>
+            <p className="text-sm leading-relaxed text-forest/80">{book.synopsis}</p>
+            <div className="flex flex-col gap-3 rounded-xl border border-honey/40 bg-honey/15 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-forest">
+                🎨 구독 회원이 되면 이 책의 웹툰 요약 컷을 볼 수 있어요
+              </p>
+              <button className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light">
+                구독하기 &gt;
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="flex flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6">

@@ -1,60 +1,14 @@
-export interface Bestseller {
-  id: string
-  title: string
-  price: number
-  rating: number
-}
+// UI 타입은 src/types/book.ts 에 정의되어 있다 (백엔드 DTO와 분리).
+import type { Book, BookSummary, SwipeDeckItem } from '../types/book.js'
 
-export interface CatalogBook {
-  id: string
-  title: string
-  price: number
-  rating: number
-  category: string
-}
-
-export interface SwipeDeckItem {
-  id: string
-  title: string
-  reason: string
-}
-
-export interface WebtoonCut {
-  id: string
-  caption: string
-}
-
-export interface Review {
-  id: string
-  author: string
-  rating: number
-  date: string
-  text: string
-}
-
-export interface Book {
-  id: string
-  title: string
-  author: string
-  publisher: string
-  isbn: string
-  listPrice: number
-  salePrice: number
-  rating: number
-  reviewCount: number
-  shippingNote: string
-  webtoonCuts: WebtoonCut[]
-  reviews: Review[]
-}
-
-export const bestsellers: Bestseller[] = [
+export const bestsellers: BookSummary[] = [
   { id: '1', title: '자바 ORM 표준 JPA 프로그래밍', price: 38700, rating: 4.9 },
   { id: '2', title: '클린 코드 (Clean Code)', price: 29000, rating: 4.8 },
   { id: '3', title: '해리 포터와 마법사의 돌', price: 15400, rating: 4.8 },
   { id: '4', title: '스프링 부트 실전 활용', price: 32000, rating: 4.7 },
 ]
 
-export const newReleases: Bestseller[] = [
+export const newReleases: BookSummary[] = [
   { id: 'n1', title: '트렌드 코리아 2026', price: 19000, rating: 4.3 },
   { id: 'n2', title: '역행자', price: 18000, rating: 4.7 },
   { id: 'n3', title: '이펙티브 자바', price: 36000, rating: 4.8 },
@@ -63,7 +17,7 @@ export const newReleases: Bestseller[] = [
 
 export const CATEGORIES = ['소설', 'IT/개발', '인문', '자기계발', '에세이']
 
-export const catalogBooks: CatalogBook[] = [
+export const catalogBooks: BookSummary[] = [
   { id: 'c1', title: '자바 ORM 표준 JPA 프로그래밍', price: 38700, rating: 4.9, category: 'IT/개발' },
   { id: 'c2', title: '클린 코드 (Clean Code)', price: 29000, rating: 4.8, category: 'IT/개발' },
   { id: 'c3', title: '스프링 부트 실전 활용', price: 32000, rating: 4.7, category: 'IT/개발' },
@@ -123,15 +77,16 @@ export const books: Record<string, Book> = {
     author: '김영한',
     publisher: '에이콘출판사',
     isbn: '9788960777330',
-    listPrice: 43000,
-    salePrice: 38700,
+    price: 38700,
     rating: 4.9,
     reviewCount: 128,
     shippingNote: '배송비 3,000원 (3만원 이상 구매시 무료배송)',
+    synopsis:
+      'JPA의 핵심인 영속성 컨텍스트부터 연관관계 매핑, 프록시와 지연 로딩, JPQL까지 실무에서 마주치는 문제를 단계적으로 다룬다. ORM이 왜 필요한지부터 시작해 스프링 데이터 JPA로 자연스럽게 이어진다.',
     webtoonCuts: [
-      { id: 'w1', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약 (구매자 전용)' },
-      { id: 'w2', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약 (구매자 전용)' },
-      { id: 'w3', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약 (구매자 전용)' },
+      { id: 'w1', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약' },
+      { id: 'w2', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약' },
+      { id: 'w3', caption: '핵심 개념 및 캐릭터 대화형 인포그래픽 컷 요약' },
     ],
     reviews: [
       {
@@ -149,15 +104,16 @@ export const books: Record<string, Book> = {
     author: '로버트 C. 마틴',
     publisher: '인사이트',
     isbn: '9788966263158',
-    listPrice: 33000,
-    salePrice: 29000,
+    price: 29000,
     rating: 4.8,
     reviewCount: 96,
     shippingNote: '배송비 3,000원 (3만원 이상 구매시 무료배송)',
+    synopsis:
+      '읽기 좋은 코드란 무엇인가를 의미 있는 이름, 작은 함수, 주석의 역할, 오류 처리 같은 구체적인 규칙으로 풀어낸다. 나쁜 코드를 단계적으로 리팩터링하는 실제 사례가 책의 절반을 차지한다.',
     webtoonCuts: [
-      { id: 'w1', caption: '핵심 개념 요약 인포그래픽 컷 (구매자 전용)' },
-      { id: 'w2', caption: '핵심 개념 요약 인포그래픽 컷 (구매자 전용)' },
-      { id: 'w3', caption: '핵심 개념 요약 인포그래픽 컷 (구매자 전용)' },
+      { id: 'w1', caption: '핵심 개념 요약 인포그래픽 컷' },
+      { id: 'w2', caption: '핵심 개념 요약 인포그래픽 컷' },
+      { id: 'w3', caption: '핵심 개념 요약 인포그래픽 컷' },
     ],
     reviews: [
       {
@@ -175,15 +131,16 @@ export const books: Record<string, Book> = {
     author: 'J.K. 롤링',
     publisher: '문학수첩',
     isbn: '9788932917245',
-    listPrice: 16500,
-    salePrice: 15400,
+    price: 15400,
     rating: 4.8,
     reviewCount: 214,
     shippingNote: '배송비 3,000원 (3만원 이상 구매시 무료배송)',
+    synopsis:
+      '계단 밑 벽장에서 자란 열한 살 해리는 자신이 마법사라는 사실을 알게 되고 호그와트에 입학한다. 론, 헤르미온느와 함께 학교에 숨겨진 마법사의 돌을 둘러싼 비밀에 다가간다.',
     webtoonCuts: [
-      { id: 'w1', caption: '주요 장면 인포그래픽 컷 (구매자 전용)' },
-      { id: 'w2', caption: '주요 장면 인포그래픽 컷 (구매자 전용)' },
-      { id: 'w3', caption: '주요 장면 인포그래픽 컷 (구매자 전용)' },
+      { id: 'w1', caption: '주요 장면 인포그래픽 컷' },
+      { id: 'w2', caption: '주요 장면 인포그래픽 컷' },
+      { id: 'w3', caption: '주요 장면 인포그래픽 컷' },
     ],
     reviews: [
       {
@@ -191,7 +148,7 @@ export const books: Record<string, Book> = {
         author: 'user_45',
         rating: 5,
         date: '2026-07-18',
-        text: '중고매물로 저렴하게 잘 구해서 읽었습니다. 채팅 직거래도 안전하게 완료!',
+        text: '저렴하게 잘 구해서 읽었습니다.',
       },
     ],
   },
