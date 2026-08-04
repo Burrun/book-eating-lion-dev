@@ -19,6 +19,19 @@ spring:
       host: localhost
       port: 6379
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:}
+
+app:
+  cognito:
+    region: ${AWS_COGNITO_REGION:ap-northeast-2}
+    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:}
+    client-id: ${AWS_COGNITO_CLIENT_ID:}
+    client-secret: ${AWS_COGNITO_CLIENT_SECRET:}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
