@@ -75,10 +75,12 @@ CREATE TABLE addresses (
     address         VARCHAR(255) NOT NULL,
     address_detail  VARCHAR(255) NULL,
     is_default      TINYINT(1) NOT NULL DEFAULT 0,
+    default_flag    TINYINT GENERATED ALWAYS AS (IF(is_default = 1, 1, NULL)) STORED,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_addresses_member FOREIGN KEY (member_id)
-        REFERENCES members (member_id) ON DELETE CASCADE
+        REFERENCES members (member_id) ON DELETE CASCADE,
+    CONSTRAINT uk_addresses_default UNIQUE (member_id, default_flag)
 );
 
 CREATE TABLE categories (
@@ -154,6 +156,7 @@ CREATE TABLE cards (
     current_usage      BIGINT NOT NULL DEFAULT 0,
     virtual_balance    BIGINT NOT NULL DEFAULT 0,
     is_default         TINYINT(1) NOT NULL DEFAULT 0,
+    default_flag       TINYINT GENERATED ALWAYS AS (IF(is_default = 1, 1, NULL)) STORED,
     issued_date        DATE NOT NULL,
     expiry_date        DATE NOT NULL,
     is_deleted         TINYINT(1) NOT NULL DEFAULT 0,
@@ -164,7 +167,8 @@ CREATE TABLE cards (
     CONSTRAINT fk_cards_member FOREIGN KEY (member_id)
         REFERENCES members (member_id) ON DELETE CASCADE,
     CONSTRAINT chk_cards_balance CHECK (virtual_balance >= 0),
-    CONSTRAINT chk_cards_expiry CHECK (expiry_date > issued_date)
+    CONSTRAINT chk_cards_expiry CHECK (expiry_date > issued_date),
+    CONSTRAINT uk_cards_default UNIQUE (member_id, default_flag)
 );
 
 CREATE TABLE coupons (
@@ -507,7 +511,6 @@ CREATE TABLE subscription_deliveries (
     CONSTRAINT fk_sub_deliveries_book FOREIGN KEY (book_id)
         REFERENCES books (book_id) ON DELETE RESTRICT,
     CONSTRAINT uk_sub_deliveries_round UNIQUE (subscription_id, delivery_round),
-    CONSTRAINT uk_sub_deliveries_book UNIQUE (subscription_id, book_id),
     CONSTRAINT uk_sub_deliveries_tracking UNIQUE (courier_company, tracking_number)
 );
 
