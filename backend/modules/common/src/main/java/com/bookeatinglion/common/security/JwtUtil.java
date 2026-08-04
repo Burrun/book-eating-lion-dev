@@ -54,11 +54,29 @@ public class JwtUtil {
      */
     @PostConstruct
     public void init() {
-        byte[] accessKeyBytes = Base64.getDecoder().decode(secretKey);
-        byte[] refreshKeyBytes = Base64.getDecoder().decode(secretKeyRt);
-        this.accessKey = Keys.hmacShaKeyFor(accessKeyBytes);
-        this.refreshKey = Keys.hmacShaKeyFor(refreshKeyBytes);
+        try {
+            byte[] accessKeyBytes = Base64.getDecoder().decode(secretKey);
+            this.accessKey = Keys.hmacShaKeyFor(accessKeyBytes);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                    "Invalid Base64 value for JWT secret key 'JWT_SECRET_KEY'. " +
+                            "Please ensure the property is a valid Base64-encoded HMAC key.",
+                    e
+            );
+        }
+
+        try {
+            byte[] refreshKeyBytes = Base64.getDecoder().decode(secretKeyRt);
+            this.refreshKey = Keys.hmacShaKeyFor(refreshKeyBytes);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                    "Invalid Base64 value for JWT refresh secret key 'JWT_SECRET_KEY_RT'. " +
+                            "Please ensure the property is a valid Base64-encoded HMAC key.",
+                    e
+            );
+        }
     }
+
 
     /**
      * 로그인/토큰 재발급 시 사용할 Access Token을 발급한다.

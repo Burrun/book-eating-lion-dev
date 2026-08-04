@@ -72,6 +72,7 @@ public class GlobalExceptionHandler {
         log.error("Unhandled exception occurred", ex);
         ErrorResponse errorResponse = new ErrorResponse(
                 ErrorCode.INTERNAL_ERROR.name(), ErrorCode.INTERNAL_ERROR.getDefaultMessage());
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.error(errorResponse));
+        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getStatus()).body(ApiResponse.error(errorResponse));
     }
+}
 }
