@@ -49,7 +49,8 @@ export async function getBook(bookId: number | string): Promise<Book> {
   return toBook(await unwrap(apiClient.get<ApiResponse<BookDetailResponse>>(`/books/${bookId}`)))
 }
 
-// GET /api/books/{bookId}/synopsis/detail — 구독 회원 전용 웹툰 요약 컷
+// GET /api/books/{bookId}/synopsis/detail — 구독 회원 전용. 줄거리는 기본 제공되고,
+// 구독 시 줄거리 + 웹툰 요약 컷까지 함께 제공된다.
 export async function getWebtoonCuts(bookId: number | string): Promise<WebtoonCut[]> {
   return toWebtoonCuts(
     await unwrap(apiClient.get<ApiResponse<BookSynopsisDetailResponse>>(`/books/${bookId}/synopsis/detail`)),

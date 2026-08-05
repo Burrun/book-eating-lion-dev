@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getBookById } from '../../data/mockBooks.ts'
-import { getMyGrade } from '../../api/member.ts'
+import { getMySubscription } from '../../api/member.ts'
 import type { Review } from '../../types/book.ts'
 
 export default function ProductDetailPage() {
@@ -10,13 +10,13 @@ export default function ProductDetailPage() {
   const book = getBookById(id)
   const [reviews, setReviews] = useState<Review[]>(book.reviews)
 
-  // 구독(유료) 회원 여부. 조회 실패/로딩 중에는 무료로 취급한다(fail-safe).
+  // 구독 회원 전용 웹툰 요약 컷. 조회 실패/로딩 중에는 비구독으로 취급한다(fail-safe).
   // true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도
-  const { data: gradeInfo } = useQuery({
-    queryKey: ['myGrade'],
-    queryFn: getMyGrade,
+  const { data: subscription } = useQuery({
+    queryKey: ['mySubscription'],
+    queryFn: getMySubscription,
   })
-  const isPremiumUser = gradeInfo?.isPremium ?? false
+  const hasWebtoonAccess = subscription?.isActive ?? false
   const [draftRating, setDraftRating] = useState(5)
   const [draftText, setDraftText] = useState('')
 
@@ -63,7 +63,7 @@ export default function ProductDetailPage() {
       </section>
 
       <section className="flex flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6">
-        {isPremiumUser ? (
+        {hasWebtoonAccess ? (
           <>
             <h2 className="text-xl font-bold">🎨 웹툰 요약 컷</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

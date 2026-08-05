@@ -36,7 +36,7 @@ export interface Book {
   shippingNote: string
   /** 무료 회원에게 보여주는 줄거리 텍스트 */
   synopsis: string
-  /** 유료(구독) 회원 전용 웹툰 요약 컷 */
+  /** 구독 회원 전용 웹툰 요약 컷 */
   webtoonCuts: WebtoonCut[]
   reviews: Review[]
 }

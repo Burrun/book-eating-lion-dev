@@ -9,18 +9,16 @@ import type {
   MemberResponse,
   Page,
   ReviewResponse,
+  SubscriptionResponse,
 } from './types.ts'
 import type { Book, BookSummary, Review, WebtoonCut } from '../types/book.ts'
-import type { GradeInfo, Member, MemberGrade } from '../types/member.ts'
+import type { GradeInfo, Member, Subscription } from '../types/member.ts'
 import type { Paged } from '../types/common.ts'
 
 // --- 임시 기본값 (백엔드 미구현 / 미합의) ---
 const DEFAULT_RATING = 0
 const DEFAULT_REVIEW_COUNT = 0
 const DEFAULT_SHIPPING_NOTE = '배송비 3,000원 (3만원 이상 구매시 무료배송)'
-
-// 구독 등급 중 BRONZE는 가입 시 기본값(= 미구독)이고, 나머지가 유료 구독 티어다.
-const FREE_GRADE: MemberGrade = 'BRONZE'
 
 /** Spring Page<T> -> UI Paged<U> */
 export function toPaged<T, U>(page: Page<T>, mapItem: (item: T) => U): Paged<U> {
@@ -73,7 +71,7 @@ export function toGradeInfo(dto: MemberGradeResponse): GradeInfo {
   return {
     grade: dto.grade,
     point: dto.point,
-    isPremium: dto.grade !== FREE_GRADE,
+    isPremium: dto.grade === 'PREMIUM',
   }
 }
 
@@ -85,6 +83,11 @@ export function toMember(dto: MemberResponse): Member {
     grade: dto.grade,
     point: dto.point,
   }
+}
+
+// 구독 이력이 없으면 dto가 null(=비구독)이다.
+export function toSubscription(dto: SubscriptionResponse | null): Subscription {
+  return { isActive: dto?.status === 'ACTIVE' }
 }
 
 export function toReview(dto: ReviewResponse): Review {
