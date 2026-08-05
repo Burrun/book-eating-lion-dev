@@ -30,16 +30,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 아래 "변경된 파일만" 포맷 검사가 origin/main 과 비교하려면 전체 히스토리가 필요하다.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # 기존 코드를 한 번에 재포맷하지 않기 위해 origin/main 이후 변경된 파일만 검사한다.
+      # (backend spotless 의 ratchetFrom 과 같은 기준)
+      - name: Check formatting (Prettier, 변경된 파일만)
+        run: |
+          FILES=$(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- . | sed 's|^frontend/||')
+          if [ -z "$FILES" ]; then
+            echo "변경된 프론트엔드 파일 없음 - 건너뜀"
+            exit 0
+          fi
+          echo "검사 대상:"; echo "$FILES"
+          npx prettier --check --ignore-unknown $FILES
+
+      - name: Lint (ESLint)
+        run: npm run lint
 
       - name: Build
         run: npm run build
