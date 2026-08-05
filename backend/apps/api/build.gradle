@@ -17,6 +17,7 @@ dependencies {
     implementation project(':modules:order')
     implementation project(':modules:usedbook')
     implementation project(':modules:delivery')
+    implementation project(':modules:admin')
 
     // Flyway DB Migration
     implementation 'org.flywaydb:flyway-core'
