@@ -1,0 +1,7 @@
+# Gradle Wrapper 는 Linux 러너(GitHub Actions / Docker)에서 실행되므로 LF 를 강제한다.
+# CRLF 로 커밋되면 "bad interpreter: /bin/sh^M" 으로 빌드가 깨진다.
+gradlew     text eol=lf
+*.sh        text eol=lf
+gradlew.bat text eol=crlf
+
+gradle/wrapper/gradle-wrapper.jar binary
