@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, Ticket, BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Skeleton from "../components/Skeleton.jsx";
-import { fetchCartItems, fetchCartBenefits } from "../api/cart.js";
+import { fetchCartItems, fetchCartBenefits, updateQuantity, removeFromCart } from "../api/cart.js";
 
 const FREE_SHIPPING_THRESHOLD = 30000;
 
@@ -56,11 +56,13 @@ export default function Cart() {
   };
 
   const changeQuantity = (id, delta) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
-      )
-    );
+    const target = items.find((item) => item.id === id);
+    if (!target) return;
+    const newQuantity = Math.max(1, target.quantity + delta);
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)));
+    // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다
+    // (백엔드 cart 모듈 미구현으로 로그인 상태의 실API 호출은 항상 실패할 수 있음 — BOO-23 TODO).
+    updateQuantity(id, newQuantity).catch(() => {});
   };
 
   const removeItem = (id) => {
@@ -70,11 +72,14 @@ export default function Cart() {
       next.delete(id);
       return next;
     });
+    removeFromCart(id).catch(() => {});
   };
 
   const removeSelected = () => {
+    const idsToRemove = [...selectedIds];
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
+    idsToRemove.forEach((id) => removeFromCart(id).catch(() => {}));
   };
 
   const togglePoints = () => {
@@ -256,7 +261,7 @@ function CartItemRow({ item, selected, onToggleSelect, onChangeQuantity, onRemov
                 </span>
               )}
               <span className="text-sm text-[var(--color-ink)] opacity-70">
-                {item.option} · 배송비 {item.shippingFee.toLocaleString()}원
+                {item.option ? `${item.option} · ` : ""}배송비 {item.shippingFee.toLocaleString()}원
               </span>
             </div>
           </div>
