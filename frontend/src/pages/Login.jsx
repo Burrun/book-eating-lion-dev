@@ -13,7 +13,7 @@ export default function Login() {
   const toast = useToast();
   const { login: authLogin } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(location.state?.prefillEmail ?? "");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 

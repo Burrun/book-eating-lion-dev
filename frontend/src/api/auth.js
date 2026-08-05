@@ -1,5 +1,5 @@
 import apiClient from "./client.js";
-import { mockLogin } from "../mocks/auth.js";
+import { mockLogin, mockSignup } from "../mocks/auth.js";
 import { getCart, addToCart, updateQuantity } from "./cart.js";
 
 // 참고: 기존 mypage.js/checkout.js/cart.js는 apiClient 응답(ApiResponse<T> envelope)을
@@ -10,6 +10,12 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 export async function login(email, password) {
   if (USE_MOCK) return mockLogin(email, password);
   const { data } = await apiClient.post("/auth/login", { email, password });
+  return data.data;
+}
+
+export async function signup(email, password, name) {
+  if (USE_MOCK) return mockSignup(email, password, name);
+  const { data } = await apiClient.post("/auth/signup", { email, password, name });
   return data.data;
 }
 
