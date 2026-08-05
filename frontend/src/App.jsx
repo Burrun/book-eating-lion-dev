@@ -1,4 +1,3 @@
-@'
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Header from "./components/Header.jsx";
@@ -6,6 +5,7 @@ import { ToastProvider } from "./components/Toast.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Login from "./pages/Login.jsx";
+import Signup from "./pages/Signup.jsx";
 import Cart from "./pages/Cart.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import MyPage from "./pages/MyPage.jsx";
@@ -39,6 +39,7 @@ export default function App() {
                 <Route path="/new" element={<NewReleasesPage />} />
                 <Route path="/books/:id" element={<ProductDetailPage />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
                 <Route path="/cart" element={<Cart />} />
                 <Route
                   path="/checkout"
@@ -64,4 +65,3 @@ export default function App() {
     </QueryClientProvider>
   );
 }
-'@ | Set-Content -Encoding UTF8 frontend/src/App.jsx
