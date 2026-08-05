@@ -1,17 +1,23 @@
 import { apiClient, unwrap } from './client.ts'
 import { toPaged, toReview } from './mappers.ts'
+import { mockDelay } from '../mocks/delay.ts'
+import { mockGetReviews } from '../mocks/reviews.ts'
 import type { ApiResponse, Page, ReviewRequest, ReviewResponse } from './types.ts'
 import type { Review } from '../types/book.ts'
 import type { Paged } from '../types/common.ts'
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 // GET /api/books/{bookId}/reviews — 리뷰 목록
 export async function getReviews(
   bookId: number | string,
   params: { page?: number; size?: number } = {},
 ): Promise<Paged<Review>> {
-  const page = await unwrap(
-    apiClient.get<ApiResponse<Page<ReviewResponse>>>(`/books/${bookId}/reviews`, { params }),
-  )
+  const page = USE_MOCK
+    ? await mockDelay(mockGetReviews(bookId, params.page, params.size))
+    : await unwrap(
+        apiClient.get<ApiResponse<Page<ReviewResponse>>>(`/books/${bookId}/reviews`, { params }),
+      )
   return toPaged(page, toReview)
 }
 
