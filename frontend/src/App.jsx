@@ -1,9 +1,16 @@
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Header from "./components/Header.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 import Cart from "./pages/Cart.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import MyPage from "./pages/MyPage.jsx";
+import ProductListPage from "./pages/ProductListPage/ProductListPage.tsx";
+import ProductDetailPage from "./pages/ProductDetailPage/ProductDetailPage.tsx";
+import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
+import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
+
+const queryClient = new QueryClient();
 
 function Layout() {
   return (
@@ -16,18 +23,23 @@ function Layout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ToastProvider>
-        <Routes>
-          <Route element={<Layout />}>
-            {/* ProductList는 오현님 작업 예정 - 지금은 Header만 노출 */}
-            <Route path="/" element={null} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/mypage" element={<MyPage />} />
-          </Route>
-        </Routes>
-      </ToastProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ToastProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<ProductListPage />} />
+              <Route path="/category" element={<ProductListPage />} />
+              <Route path="/best" element={<BestsellersPage />} />
+              <Route path="/new" element={<NewReleasesPage />} />
+              <Route path="/books/:id" element={<ProductDetailPage />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/mypage" element={<MyPage />} />
+            </Route>
+          </Routes>
+        </ToastProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
