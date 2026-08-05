@@ -154,12 +154,14 @@ CREATE TABLE recent_books (
     recent_book_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     member_id      BIGINT NOT NULL,
     book_id        BIGINT NOT NULL,
+    view_count     INT NOT NULL DEFAULT 1,
     viewed_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_recent_books_member FOREIGN KEY (member_id)
         REFERENCES members (member_id) ON DELETE CASCADE,
     CONSTRAINT fk_recent_books_book FOREIGN KEY (book_id)
         REFERENCES books (book_id) ON DELETE CASCADE,
-    CONSTRAINT uk_recent_books_member_book UNIQUE (member_id, book_id)
+    CONSTRAINT uk_recent_books_member_book UNIQUE (member_id, book_id),
+    CONSTRAINT chk_recent_books_view_count CHECK (view_count > 0)
 );
 
 CREATE TABLE wishlists (
@@ -355,7 +357,7 @@ CREATE TABLE reviews (
         REFERENCES books (book_id) ON DELETE CASCADE,
     CONSTRAINT fk_reviews_order_item FOREIGN KEY (order_item_id)
         REFERENCES order_items (order_item_id) ON DELETE RESTRICT,
-    CONSTRAINT uk_reviews_order_item UNIQUE (order_item_id),
+    CONSTRAINT uk_reviews_member_book UNIQUE (member_id, book_id),
     CONSTRAINT chk_reviews_rating CHECK (rating BETWEEN 1 AND 5)
 );
 
