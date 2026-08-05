@@ -45,7 +45,10 @@ export default function Signup() {
       toast.success("회원가입이 완료되었습니다. 로그인해주세요.");
       // 가입 API가 토큰을 돌려주지 않아(백엔드 명세 확인 결과) 자동 로그인은 하지 않고
       // 로그인 페이지로 보낸다. 원래 진입 경로(from)가 있었다면 그대로 이어서 전달한다.
-      navigate("/login", { state: { from: location.state?.from, prefillEmail: email }, replace: true });
+      navigate("/login", {
+        state: { from: location.state?.from, prefillEmail: email },
+        replace: true,
+      });
     } catch (err) {
       const message =
         err.response?.data?.error?.message ??
@@ -108,7 +111,9 @@ export default function Signup() {
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">비밀번호</span>
+              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">
+                비밀번호
+              </span>
               <input
                 type="password"
                 value={password}
@@ -120,7 +125,9 @@ export default function Signup() {
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">비밀번호 확인</span>
+              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">
+                비밀번호 확인
+              </span>
               <input
                 type="password"
                 value={passwordConfirm}
@@ -131,7 +138,14 @@ export default function Signup() {
               />
             </label>
 
-            <Button type="submit" variant="primary" size="lg" fullWidth loading={isSubmitting} className="mt-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={isSubmitting}
+              className="mt-2"
+            >
               회원가입
             </Button>
           </form>

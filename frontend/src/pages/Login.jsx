@@ -91,7 +91,9 @@ export default function Login() {
             </label>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">비밀번호</span>
+              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">
+                비밀번호
+              </span>
               <input
                 type="password"
                 value={password}
@@ -102,7 +104,14 @@ export default function Login() {
               />
             </label>
 
-            <Button type="submit" variant="primary" size="lg" fullWidth loading={isSubmitting} className="mt-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={isSubmitting}
+              className="mt-2"
+            >
               로그인
             </Button>
           </form>

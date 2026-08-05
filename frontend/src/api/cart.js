@@ -41,11 +41,23 @@ export function clearGuestCart() {
 // mock 모드에선 실제 book API 대신 MOCK_BOOK_CATALOG로 대체한다.
 async function fetchBookSummary(bookId) {
   if (USE_MOCK) {
-    return MOCK_BOOK_CATALOG[bookId] ?? { bookId, title: `도서 #${bookId}`, price: 0, coverImageUrl: null };
+    return (
+      MOCK_BOOK_CATALOG[bookId] ?? {
+        bookId,
+        title: `도서 #${bookId}`,
+        price: 0,
+        coverImageUrl: null,
+      }
+    );
   }
   const { data } = await apiClient.get(`/books/${bookId}`);
   const book = data.data;
-  return { bookId: book.id, title: book.title, price: book.price, coverImageUrl: book.coverImageUrl };
+  return {
+    bookId: book.id,
+    title: book.title,
+    price: book.price,
+    coverImageUrl: book.coverImageUrl,
+  };
 }
 
 // 게스트 카트는 "한 책당 한 줄만 존재한다"는 전제 하에 서버 PK가 없는 bookId를
@@ -64,7 +76,7 @@ async function getGuestCart() {
         price: book.price,
         quantity,
       };
-    })
+    }),
   );
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   return { items, totalPrice };

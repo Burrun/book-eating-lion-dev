@@ -60,7 +60,12 @@ export function mockAddToCart(bookId, quantity) {
     existing.quantity += quantity;
     return { ...existing };
   }
-  const book = MOCK_BOOK_CATALOG[bookId] ?? { bookId, title: `도서 #${bookId}`, price: 0, coverImageUrl: null };
+  const book = MOCK_BOOK_CATALOG[bookId] ?? {
+    bookId,
+    title: `도서 #${bookId}`,
+    price: 0,
+    coverImageUrl: null,
+  };
   const item = {
     cartItemId: nextMockCartItemId++,
     bookId,

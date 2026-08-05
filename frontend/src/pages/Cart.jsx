@@ -40,7 +40,8 @@ export default function Cart() {
     if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
     return Math.max(...selectedItems.map((item) => item.shippingFee));
   }, [selectedItems, subtotal]);
-  const couponDiscount = couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
+  const couponDiscount =
+    couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
   const finalTotal = Math.max(subtotal + shippingFee - couponDiscount - pointsUsed, 0);
 
   const toggleSelectAll = () => {
@@ -59,7 +60,9 @@ export default function Cart() {
     const target = items.find((item) => item.id === id);
     if (!target) return;
     const newQuantity = Math.max(1, target.quantity + delta);
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)));
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)),
+    );
     // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다
     // (백엔드 cart 모듈 미구현으로 로그인 상태의 실API 호출은 항상 실패할 수 있음 — BOO-23 TODO).
     updateQuantity(id, newQuantity).catch(() => {});
@@ -83,7 +86,9 @@ export default function Cart() {
   };
 
   const togglePoints = () => {
-    setPointsUsed((prev) => (prev > 0 ? 0 : Math.min(availablePoints, subtotal + shippingFee - couponDiscount)));
+    setPointsUsed((prev) =>
+      prev > 0 ? 0 : Math.min(availablePoints, subtotal + shippingFee - couponDiscount),
+    );
   };
 
   return (
@@ -146,8 +151,7 @@ export default function Cart() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
                   <p className="text-sm text-[var(--color-ink)]">
-                    적용 가능 쿠폰:{" "}
-                    <span className="font-medium">{availableCoupon?.label}</span>
+                    적용 가능 쿠폰: <span className="font-medium">{availableCoupon?.label}</span>
                   </p>
                   <Button
                     variant={couponApplied ? "secondary" : "primary"}
@@ -161,7 +165,8 @@ export default function Cart() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
                   <p className="text-sm text-[var(--color-ink)]">
-                    보유 포인트: <span className="font-medium">{availablePoints.toLocaleString()}P</span>
+                    보유 포인트:{" "}
+                    <span className="font-medium">{availablePoints.toLocaleString()}P</span>
                     <span className="ml-1 text-[var(--color-ink)]/50">(전액 사용 가능)</span>
                   </p>
                   <Button
@@ -185,7 +190,10 @@ export default function Cart() {
               </h2>
               <dl className="space-y-2.5 text-sm">
                 <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
-                <Row label="배송비" value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"} />
+                <Row
+                  label="배송비"
+                  value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}
+                />
                 <Row
                   label="쿠폰 할인"
                   value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
@@ -227,7 +235,9 @@ function Row({ label, value, tone }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-[var(--color-ink)]/70">{label}</dt>
-      <dd className={tone === "coral" ? "text-[var(--color-coral)]" : "text-[var(--color-ink)]"}>{value}</dd>
+      <dd className={tone === "coral" ? "text-[var(--color-coral)]" : "text-[var(--color-ink)]"}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -325,7 +335,10 @@ function CartSkeleton() {
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+          <div
+            key={i}
+            className="flex gap-4 rounded-2xl bg-white p-4 shadow-[0_1px_3px_rgba(27,59,54,0.08)]"
+          >
             <Skeleton variant="rectangular" className="h-24 w-[72px] shrink-0" />
             <div className="flex flex-1 flex-col gap-2">
               <Skeleton variant="text" className="w-2/3" />
