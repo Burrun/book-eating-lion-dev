@@ -9,6 +9,8 @@ import ProductListPage from "./pages/ProductListPage/ProductListPage.tsx";
 import ProductDetailPage from "./pages/ProductDetailPage/ProductDetailPage.tsx";
 import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
 import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
+import WishlistPage from "./pages/WishlistPage/WishlistPage.tsx";
+import CardsPage from "./pages/CardsPage/CardsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,8 @@ export default function App() {
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/mypage" element={<MyPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/cards" element={<CardsPage />} />
             </Route>
           </Routes>
         </ToastProvider>
