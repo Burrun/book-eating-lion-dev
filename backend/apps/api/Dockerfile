@@ -2,7 +2,7 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
-RUN ./gradlew :apps:api:build -x test
+RUN ./gradlew :apps:api:build -x test -x spotlessCheck
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

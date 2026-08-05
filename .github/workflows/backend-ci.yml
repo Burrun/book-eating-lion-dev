@@ -32,6 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # spotless ratchetFrom 'origin/main' 이 비교 대상을 찾으려면 전체 히스토리가 필요하다.
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -42,6 +45,9 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
+
+      - name: Check formatting (Spotless)
+        run: ./gradlew spotlessCheck
 
       - name: Build & Test
         run: ./gradlew build
