@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS used_books (
     publisher VARCHAR(255),
     cover_image_url VARCHAR(500),
     price INT NOT NULL,
-    condition VARCHAR(20) NOT NULL,
+    `condition` VARCHAR(20) NOT NULL,   -- MySQL 예약어라 백틱 필수
     description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

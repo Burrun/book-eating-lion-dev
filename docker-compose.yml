@@ -2,6 +2,12 @@ services:
   mysql:
     image: mysql:8.0
     container_name: final-mysql
+    # mysql 클라이언트의 기본 연결 charset 이 latin1 이라 UTF-8 한글이 이중 인코딩된다.
+    # skip-character-set-client-handshake 로 클라이언트 선언을 무시하고 서버 charset 을 쓰게 한다.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
     ports:
       - "3306:3306"
     environment:
@@ -11,6 +17,16 @@ services:
       MYSQL_PASSWORD: devpassword
     volumes:
       - mysql-data:/var/lib/mysql
+      # 볼륨이 비어 있을 때(최초 기동)만 실행된다. 기존 볼륨에는 반영되지 않으므로
+      # 이미 만들어진 DB에 넣으려면 직접 실행해야 한다.
+      # schema.sql 은 DROP TABLE 로 시작해 데모 데이터를 지우므로 넣지 않는다(스키마는 JPA ddl-auto 담당).
+      - ./db/1_demo_data.sql:/docker-entrypoint-initdb.d/01-demo-data.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -25,9 +41,12 @@ services:
     container_name: final-backend
     ports:
       - "8080:8080"
+    # MySQL 이 접속을 받을 준비가 되기 전에 붙으면 Connection refused 로 죽는다.
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/bookdb?useSSL=false&allowPublicKeyRetrieval=true

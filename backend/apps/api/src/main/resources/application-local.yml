@@ -14,6 +14,12 @@ spring:
         format_sql: true
         default_batch_fetch_size: 100
 
+  flyway:
+    # db/migration 스크립트가 아직 없으므로 비활성화 (application-prod.yml 과 동일).
+    # 켜져 있으면 스키마가 이미 있는 DB(초기 데모 데이터 적재 등)에서
+    # "Found non-empty schema but no schema history table" 로 기동이 실패한다.
+    enabled: false
+
   data:
     redis:
       host: localhost
