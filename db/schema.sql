@@ -24,11 +24,13 @@ DROP TABLE IF EXISTS recent_books;
 DROP TABLE IF EXISTS point_histories;
 DROP TABLE IF EXISTS member_coupons;
 DROP TABLE IF EXISTS coupons;
+DROP TABLE IF EXISTS premium_memberships;
 DROP TABLE IF EXISTS cards;
+DROP TABLE IF EXISTS webtoon_cuts;
+DROP TABLE IF EXISTS book_webtoons;
 DROP TABLE IF EXISTS books;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS addresses;
-DROP TABLE IF EXISTS premium_memberships;
 DROP TABLE IF EXISTS faqs;
 DROP TABLE IF EXISTS members;
 
@@ -37,6 +39,9 @@ CREATE TABLE members (
     username      VARCHAR(50)  NOT NULL,
     password      VARCHAR(255) NOT NULL,
     name          VARCHAR(100) NOT NULL,
+    nickname      VARCHAR(50)  NOT NULL,
+    email         VARCHAR(255) NOT NULL,
+    phone         VARCHAR(30)  NULL,
     gender        ENUM('MALE', 'FEMALE') DEFAULT 'MALE',
     age           INT NULL,
     role          ENUM('USER', 'ADMIN')     NOT NULL DEFAULT 'USER',
@@ -47,23 +52,9 @@ CREATE TABLE members (
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uk_members_username UNIQUE (username),
+    CONSTRAINT uk_members_nickname UNIQUE (nickname),
+    CONSTRAINT uk_members_email    UNIQUE (email),
     CONSTRAINT chk_members_age CHECK (age IS NULL OR age BETWEEN 1 AND 150)
-);
-
-CREATE TABLE premium_memberships (
-    membership_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    member_id      BIGINT NOT NULL,
-    plan_type      ENUM('MONTHLY', 'YEARLY') NOT NULL,
-    payment_amount BIGINT NOT NULL,
-    start_at       TIMESTAMP NOT NULL,
-    end_at         TIMESTAMP NOT NULL,
-    auto_renew     TINYINT(1) NOT NULL DEFAULT 0,
-    status         ENUM('ACTIVE', 'EXPIRED', 'CANCELLED') NOT NULL DEFAULT 'ACTIVE',
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_premium_member FOREIGN KEY (member_id)
-        REFERENCES members (member_id) ON DELETE RESTRICT,
-    CONSTRAINT chk_premium_period CHECK (end_at > start_at)
 );
 
 CREATE TABLE addresses (
@@ -105,10 +96,11 @@ CREATE TABLE books (
     description          TEXT NULL,
     detailed_synopsis    TEXT NULL,
     image_url            VARCHAR(500) NULL,
-    synopsis_webtoon_url VARCHAR(500) NULL,
     sale_status          ENUM('ON_SALE', 'STOPPED', 'OUT_OF_STOCK') NOT NULL DEFAULT 'ON_SALE',
     published_date       DATE NULL,
     sales_count          INT NOT NULL DEFAULT 0,
+    rating_avg           DECIMAL(3, 2) NOT NULL DEFAULT 0.00,
+    review_count         INT NOT NULL DEFAULT 0,
     is_deleted           TINYINT(1) NOT NULL DEFAULT 0,
     deleted_at           TIMESTAMP NULL,
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -117,7 +109,45 @@ CREATE TABLE books (
     CONSTRAINT fk_books_category FOREIGN KEY (category_id)
         REFERENCES categories (category_id) ON DELETE RESTRICT,
     CONSTRAINT chk_books_stock CHECK (stock >= 0),
-    CONSTRAINT chk_books_price CHECK (price >= 0)
+    CONSTRAINT chk_books_price CHECK (price >= 0),
+    CONSTRAINT chk_books_rating_avg CHECK (rating_avg BETWEEN 0 AND 5),
+    CONSTRAINT chk_books_review_count CHECK (review_count >= 0)
+);
+
+CREATE TABLE book_webtoons (
+    webtoon_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    book_id           BIGINT NOT NULL,
+    version           INT    NOT NULL DEFAULT 1,
+    generation_status ENUM('PENDING', 'GENERATING', 'COMPLETED', 'FAILED') NOT NULL DEFAULT 'PENDING',
+    ai_model          VARCHAR(100) NULL,
+    source_prompt     TEXT         NULL,
+    total_cuts        INT NOT NULL DEFAULT 0,
+    access_level      ENUM('PUBLIC', 'PURCHASER', 'PREMIUM') NOT NULL DEFAULT 'PREMIUM',
+    is_active         TINYINT(1) NOT NULL DEFAULT 0,
+    active_flag       TINYINT GENERATED ALWAYS AS (IF(is_active = 1, 1, NULL)) STORED,
+    failure_reason    VARCHAR(500) NULL,
+    generated_at      TIMESTAMP NULL,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_book_webtoons_book FOREIGN KEY (book_id)
+        REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT uk_book_webtoons_version UNIQUE (book_id, version),
+    CONSTRAINT uk_book_webtoons_active  UNIQUE (book_id, active_flag),
+    CONSTRAINT chk_book_webtoons_version CHECK (version > 0)
+);
+
+CREATE TABLE webtoon_cuts (
+    webtoon_cut_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    webtoon_id     BIGINT       NOT NULL,
+    cut_order      INT          NOT NULL,
+    image_url      VARCHAR(500) NOT NULL,
+    dialogue       VARCHAR(500) NULL,
+    scene_prompt   TEXT         NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_webtoon_cuts_webtoon FOREIGN KEY (webtoon_id)
+        REFERENCES book_webtoons (webtoon_id) ON DELETE CASCADE,
+    CONSTRAINT uk_webtoon_cuts_order UNIQUE (webtoon_id, cut_order),
+    CONSTRAINT chk_webtoon_cuts_order CHECK (cut_order > 0)
 );
 
 CREATE TABLE recent_books (
@@ -170,6 +200,32 @@ CREATE TABLE cards (
     CONSTRAINT uk_cards_default UNIQUE (member_id, default_flag)
 );
 
+CREATE TABLE premium_memberships (
+    membership_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id      BIGINT NOT NULL,
+    card_id        BIGINT NULL,
+    plan_type      ENUM('MONTHLY', 'YEARLY') NOT NULL,
+    payment_amount BIGINT NOT NULL,
+    payment_method  ENUM('CARD', 'KAKAOPAY') NOT NULL DEFAULT 'CARD',
+    pg_tid          VARCHAR(100) NULL,
+    approval_number VARCHAR(50)  NULL,
+    payment_status  ENUM('APPROVED', 'DECLINED', 'CANCELLED') NOT NULL DEFAULT 'APPROVED',
+    idempotency_key VARCHAR(64)  NULL,
+    start_at       TIMESTAMP NOT NULL,
+    end_at         TIMESTAMP NOT NULL,
+    auto_renew     TINYINT(1) NOT NULL DEFAULT 0,
+    status         ENUM('ACTIVE', 'EXPIRED', 'CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_premium_member FOREIGN KEY (member_id)
+        REFERENCES members (member_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_premium_card FOREIGN KEY (card_id)
+        REFERENCES cards (card_id) ON DELETE SET NULL,
+    CONSTRAINT uk_premium_approval    UNIQUE (approval_number),
+    CONSTRAINT uk_premium_idempotency UNIQUE (idempotency_key),
+    CONSTRAINT chk_premium_period CHECK (end_at > start_at)
+);
+
 CREATE TABLE coupons (
     coupon_id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     coupon_code          VARCHAR(100) NOT NULL,
@@ -201,6 +257,8 @@ CREATE TABLE point_histories (
     point_history_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     member_id        BIGINT NOT NULL,
     amount           BIGINT NOT NULL,
+    ref_type         ENUM('ORDER', 'ORDER_CANCEL', 'REVIEW', 'MEMBERSHIP', 'EVENT', 'ADMIN') NULL,
+    ref_id           BIGINT NULL,
     reason           VARCHAR(500) NOT NULL,
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_point_histories_member FOREIGN KEY (member_id)
@@ -232,6 +290,7 @@ CREATE TABLE orders (
     postal_code            VARCHAR(20)  NOT NULL,
     address                VARCHAR(255) NOT NULL,
     address_detail         VARCHAR(255) NULL,
+    items_subtotal         BIGINT NOT NULL DEFAULT 0,
     total_amount           BIGINT NOT NULL,
     coupon_discount_amount BIGINT NOT NULL DEFAULT 0,
     used_point             BIGINT NOT NULL DEFAULT 0,
@@ -260,7 +319,10 @@ CREATE TABLE orders (
     CONSTRAINT fk_orders_member_coupon FOREIGN KEY (member_coupon_id)
         REFERENCES member_coupons (member_coupon_id) ON DELETE SET NULL,
     CONSTRAINT chk_orders_amount CHECK (total_amount >= 0),
-    CONSTRAINT chk_orders_discount CHECK (coupon_discount_amount >= 0 AND used_point >= 0)
+    CONSTRAINT chk_orders_discount CHECK (coupon_discount_amount >= 0 AND used_point >= 0),
+    CONSTRAINT chk_orders_subtotal CHECK (items_subtotal >= 0),
+    CONSTRAINT chk_orders_total
+        CHECK (total_amount = items_subtotal - coupon_discount_amount - used_point)
 );
 
 CREATE TABLE order_items (
@@ -293,7 +355,7 @@ CREATE TABLE reviews (
         REFERENCES books (book_id) ON DELETE CASCADE,
     CONSTRAINT fk_reviews_order_item FOREIGN KEY (order_item_id)
         REFERENCES order_items (order_item_id) ON DELETE RESTRICT,
-    CONSTRAINT uk_reviews_member_book UNIQUE (member_id, book_id),
+    CONSTRAINT uk_reviews_order_item UNIQUE (order_item_id),
     CONSTRAINT chk_reviews_rating CHECK (rating BETWEEN 1 AND 5)
 );
 
@@ -589,4 +651,10 @@ CREATE INDEX idx_books_sales_count ON books (sales_count DESC);
 CREATE INDEX idx_books_published_date ON books (published_date DESC);
 CREATE INDEX idx_recent_books_member_viewed ON recent_books (member_id, viewed_at DESC);
 CREATE INDEX idx_reviews_book_created ON reviews (book_id, created_at DESC);
+CREATE INDEX idx_books_rating_avg ON books (rating_avg DESC, review_count DESC);
+CREATE INDEX idx_book_swipes_member_created ON book_swipes (member_id, created_at DESC);
+CREATE INDEX idx_used_books_status_created ON used_books (status, created_at DESC);
+CREATE INDEX idx_member_coupons_member_used ON member_coupons (member_id, is_used);
+CREATE INDEX idx_point_histories_member_created ON point_histories (member_id, created_at DESC);
+CREATE INDEX idx_book_webtoons_book_active ON book_webtoons (book_id, is_active, generation_status);
 CREATE INDEX idx_used_books_status_created ON used_books (status, created_at DESC);
