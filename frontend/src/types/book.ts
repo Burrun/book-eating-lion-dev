@@ -4,45 +4,45 @@
 // 백엔드 필드가 바뀌어도 매퍼만 고치면 컴포넌트는 손대지 않는다.
 
 export interface BookSummary {
-  id: string
-  title: string
-  price: number
-  rating: number
-  category?: string
+  id: string;
+  title: string;
+  price: number;
+  rating: number;
+  category?: string;
 }
 
 export interface WebtoonCut {
-  id: string
-  caption: string
+  id: string;
+  caption: string;
 }
 
 export interface Review {
-  id: string
-  author: string
-  rating: number
-  date: string
-  text: string
+  id: string;
+  author: string;
+  rating: number;
+  date: string;
+  text: string;
 }
 
 export interface Book {
-  id: string
-  title: string
-  author: string
-  publisher: string
-  isbn: string
-  price: number
-  rating: number
-  reviewCount: number
-  shippingNote: string
+  id: string;
+  title: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  price: number;
+  rating: number;
+  reviewCount: number;
+  shippingNote: string;
   /** 무료 회원에게 보여주는 줄거리 텍스트 */
-  synopsis: string
+  synopsis: string;
   /** 구독 회원 전용 웹툰 요약 컷 */
-  webtoonCuts: WebtoonCut[]
-  reviews: Review[]
+  webtoonCuts: WebtoonCut[];
+  reviews: Review[];
 }
 
 export interface SwipeDeckItem {
-  id: string
-  title: string
-  reason: string
+  id: string;
+  title: string;
+  reason: string;
 }

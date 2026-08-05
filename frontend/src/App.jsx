@@ -13,6 +13,8 @@ import ProductListPage from "./pages/ProductListPage/ProductListPage.tsx";
 import ProductDetailPage from "./pages/ProductDetailPage/ProductDetailPage.tsx";
 import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
 import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
+import WishlistPage from "./pages/WishlistPage/WishlistPage.tsx";
+import CardsPage from "./pages/CardsPage/CardsPage.tsx";
 
 const queryClient = new QueryClient();
 
