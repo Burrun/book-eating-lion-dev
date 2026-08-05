@@ -2,6 +2,10 @@ import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Header from "./components/Header.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
+import { AuthProvider } from "./context/AuthContext.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import Login from "./pages/Login.jsx";
+import Signup from "./pages/Signup.jsx";
 import Cart from "./pages/Cart.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import MyPage from "./pages/MyPage.jsx";
@@ -28,20 +32,36 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ToastProvider>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<ProductListPage />} />
-              <Route path="/category" element={<ProductListPage />} />
-              <Route path="/best" element={<BestsellersPage />} />
-              <Route path="/new" element={<NewReleasesPage />} />
-              <Route path="/books/:id" element={<ProductDetailPage />} />
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/mypage" element={<MyPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/cards" element={<CardsPage />} />
-            </Route>
-          </Routes>
+          <AuthProvider>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<ProductListPage />} />
+                <Route path="/category" element={<ProductListPage />} />
+                <Route path="/best" element={<BestsellersPage />} />
+                <Route path="/new" element={<NewReleasesPage />} />
+                <Route path="/books/:id" element={<ProductDetailPage />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route
+                  path="/checkout"
+                  element={
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/mypage"
+                  element={
+                    <ProtectedRoute>
+                      <MyPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+            </Routes>
+          </AuthProvider>
         </ToastProvider>
       </BrowserRouter>
     </QueryClientProvider>

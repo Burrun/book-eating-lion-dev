@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const NAV_LINKS = [
   { label: "베스트셀러", to: "/best" },
@@ -11,6 +12,13 @@ const NAV_LINKS = [
 
 export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-[var(--color-paper)]">
@@ -75,6 +83,22 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
                 </span>
               )}
             </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그아웃
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그인
+              </Link>
+            )}
             <Link
               to="/mypage"
               aria-label="마이페이지"
