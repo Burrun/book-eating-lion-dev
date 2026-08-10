@@ -53,7 +53,6 @@ export const MOCK_ORDERS = [
 ];
 
 export const MOCK_COUPON_STATE = {
-  pointBalance: 5400,
   coupons: [
     { id: 1, label: "신규 가입 3,000원 할인 쿠폰", expiresAt: "2026-08-31", status: "available" },
     { id: 2, label: "여름 독서 페스티벌 10% 할인", expiresAt: "2026-08-15", status: "available" },
@@ -90,6 +89,6 @@ export const MOCK_REVIEWS = [
     book: "해리 포터와 마법사의 돌",
     rating: 5,
     date: "2026-07-18",
-    content: "중고매물로 저렴하게 잘 구매했어요. 책 상태도 생각보다 깨끗해서 만족스러운 구매였습니다.",
+    content: "가격도 합리적이고 배송도 빨라서 만족스러운 구매였습니다.",
   },
 ];

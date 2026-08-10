@@ -12,7 +12,7 @@ export default function BookCard({
   onToggleWishlist,
   onAddToCart,
 }) {
-  const { id, title, author, coverUrl, price, originalPrice, badge, condition } = book;
+  const { id, title, author, coverUrl, price, originalPrice, badge } = book;
   const discountRate =
     originalPrice && originalPrice > price
       ? Math.round((1 - price / originalPrice) * 100)
@@ -40,12 +40,6 @@ export default function BookCard({
             className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${BADGE_STYLES[badge] ?? BADGE_STYLES.new}`}
           >
             {badge === "best" ? "BEST" : "NEW"}
-          </span>
-        )}
-
-        {condition && (
-          <span className="absolute bottom-2 left-2 rounded-full border border-[var(--color-forest)]/30 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)] backdrop-blur-sm">
-            중고 · <span className="font-bold">{condition}급</span>
           </span>
         )}
 

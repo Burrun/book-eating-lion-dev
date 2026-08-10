@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { Award, BookOpen, Flame, Quote, Send, Star } from "lucide-react";
@@ -24,9 +24,10 @@ const EXP_PER_BOOK = 15;
 
 const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
-  { id: "coupons", label: "쿠폰/포인트 현황" },
+  { id: "coupons", label: "쿠폰 현황" },
   { id: "returns", label: "취소/교환/반품/환불" },
   { id: "restock", label: "재입고 알림 신청" },
+  { id: "cards", label: "카드 관리" },
 ];
 
 const ORDER_STATUS_META = {
@@ -379,11 +380,24 @@ function LionRagCard() {
 }
 
 function OrdersSection() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const activeTab = ORDER_TABS.some((t) => t.id === requestedTab) ? requestedTab : "orders";
 
+  // 카드 관리는 이 안에 임베드하지 않고 기존 /cards 라우트를 그대로 쓴다
+  // (CardsPage는 자체 <main>과 섹션 레이아웃을 가진 독립 페이지라 탭 패널에 끼워 넣기엔 구조가 맞지 않는다).
+  useEffect(() => {
+    if (activeTab === "cards") {
+      navigate("/cards", { replace: true });
+    }
+  }, [activeTab, navigate]);
+
   const setTab = (id) => {
+    if (id === "cards") {
+      navigate("/cards");
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("tab", id);
@@ -393,7 +407,7 @@ function OrdersSection() {
 
   return (
     <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">주문 / 배송 소식</h2>
+      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">주문 · 결제 관리</h2>
 
       <div className="mt-3 flex flex-wrap gap-1 border-b border-[var(--color-forest)]/10">
         {ORDER_TABS.map((tab) => (
@@ -519,12 +533,6 @@ function CouponsTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-xl bg-[var(--color-honey)]/10 p-4">
-        <p className="text-sm text-[var(--color-ink)] opacity-70">보유 포인트</p>
-        <p className="font-display text-2xl text-[var(--color-forest)]">
-          {state.pointBalance.toLocaleString()}P
-        </p>
-      </div>
       <ul className="flex flex-col gap-2">
         {state.coupons.map((coupon) => (
           <li

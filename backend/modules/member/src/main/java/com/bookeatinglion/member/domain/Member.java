@@ -17,6 +17,7 @@ public class Member extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "member_id")
     private Long id;
 
     @Column(nullable = false, unique = true)
@@ -39,21 +40,12 @@ public class Member extends BaseEntity {
     @Column(nullable = false)
     private Role role;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MemberGrade grade;
-
-    @Column(nullable = false)
-    private int point;
-
     @Builder
     public Member(String cognitoSub, String email, String name) {
         this.cognitoSub = cognitoSub;
         this.email = email;
         this.name = name;
         this.role = Role.USER;
-        this.grade = MemberGrade.BRONZE;
-        this.point = 0;
     }
 
     public static Member register(String cognitoSub, String email, String name) {

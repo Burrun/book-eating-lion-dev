@@ -2,7 +2,6 @@ package com.bookeatinglion.member.controller;
 
 import com.bookeatinglion.common.dto.ApiResponse;
 import com.bookeatinglion.common.security.SecurityUtils;
-import com.bookeatinglion.member.dto.MemberGradeResponse;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
 import com.bookeatinglion.member.service.MemberService;
@@ -28,10 +27,5 @@ public class MemberController {
     @PatchMapping("/me")
     public ApiResponse<MemberResponse> updateMyProfile(@RequestBody MemberUpdateRequest request) {
         return ApiResponse.success(memberService.updateProfile(SecurityUtils.currentMemberSub(), request));
-    }
-
-    @GetMapping("/me/grade")
-    public ApiResponse<MemberGradeResponse> getMyGrade() {
-        return ApiResponse.success(memberService.getGrade(SecurityUtils.currentMemberSub()));
     }
 }

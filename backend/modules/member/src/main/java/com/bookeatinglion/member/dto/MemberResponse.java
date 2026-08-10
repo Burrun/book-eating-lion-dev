@@ -2,7 +2,6 @@ package com.bookeatinglion.member.dto;
 
 import com.bookeatinglion.member.domain.Gender;
 import com.bookeatinglion.member.domain.Member;
-import com.bookeatinglion.member.domain.MemberGrade;
 import com.bookeatinglion.member.domain.Role;
 
 import java.time.LocalDate;
@@ -14,9 +13,7 @@ public record MemberResponse(
         String phoneNumber,
         Gender gender,
         LocalDate birthDate,
-        Role role,
-        MemberGrade grade,
-        int point
+        Role role
 ) {
     public static MemberResponse from(Member member) {
         return new MemberResponse(
@@ -26,9 +23,7 @@ public record MemberResponse(
                 member.getPhoneNumber(),
                 member.getGender(),
                 member.getBirthDate(),
-                member.getRole(),
-                member.getGrade(),
-                member.getPoint()
+                member.getRole()
         );
     }
 }

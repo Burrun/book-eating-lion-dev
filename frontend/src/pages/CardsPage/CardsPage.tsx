@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMyCards, issueCard, updateCard } from "../../api/cards.ts";
+import { useToast } from "../../components/Toast.jsx";
 import type { Card, CardStatus } from "../../types/card.ts";
 
 const CARDS_QUERY_KEY = ["cards"];
@@ -112,35 +113,63 @@ function useManInput(initialWon: number) {
 }
 
 interface IssueCardFormProps {
-  onSubmit: (body: { monthlyLimit: number }) => void;
+  onSubmit: (body: { monthlyLimit: number; virtualBalance: number }) => void;
   isSubmitting: boolean;
 }
 
 function IssueCardForm({ onSubmit, isSubmitting }: IssueCardFormProps) {
+  // useToast()는 지금까지 .jsx 파일에서만 쓰여서(checkJs: false) 드러나지 않았지만,
+  // Toast.jsx의 createContext(null) + if(!ctx) throw 패턴이 TS 제어 흐름상 반환 타입을
+  // never로 좁힌다. 공용 파일을 건드리는 대신 여기서만 실제 형태로 타입을 명시한다.
+  const toast = useToast() as { error: (message: string) => void };
   const limit = useManInput(1000000);
+  const balance = useManInput(500000);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!limit.isValid) {
+      toast.error("월 한도를 입력해주세요.");
+      return;
+    }
+    if (!balance.isValid) {
+      toast.error("충전 금액을 입력해주세요.");
+      return;
+    }
+    onSubmit({ monthlyLimit: limit.won, virtualBalance: balance.won });
+  };
 
   return (
     <form
       className="flex flex-col gap-3 rounded-xl border border-forest/10 bg-paper p-4 sm:flex-row sm:items-end"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (limit.isValid) onSubmit({ monthlyLimit: limit.won });
-      }}
+      onSubmit={handleSubmit}
     >
-      <label className="flex flex-1 flex-col gap-1.5">
-        <span className="text-sm font-semibold">월 한도 (만원)</span>
-        <input
-          type="number"
-          min={1}
-          step={1}
-          value={limit.text}
-          onChange={(e) => limit.setText(e.target.value)}
-          className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
-        />
-      </label>
+      <div className="flex flex-1 flex-col gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold">월 한도 (만원)</span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={limit.text}
+            onChange={(e) => limit.setText(e.target.value)}
+            className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold">충전 금액 (만원)</span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={balance.text}
+            onChange={(e) => balance.setText(e.target.value)}
+            className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
+          />
+        </label>
+      </div>
       <button
         type="submit"
-        disabled={!limit.isValid || isSubmitting}
+        disabled={isSubmitting}
         className="shrink-0 rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:opacity-40"
       >
         {isSubmitting ? "발급 중..." : "새 카드 발급"}

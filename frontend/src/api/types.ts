@@ -71,15 +71,8 @@ export interface ReviewRequest {
 }
 
 // --- 회원 (Member) ---
-export type MemberGrade = "BASIC" | "PREMIUM";
 export type Role = "USER" | "ADMIN";
 export type Gender = "MALE" | "FEMALE";
-
-// GET /api/members/me/grade
-export interface MemberGradeResponse {
-  grade: MemberGrade;
-  point: number;
-}
 
 // GET /api/members/me
 export interface MemberResponse {
@@ -90,8 +83,6 @@ export interface MemberResponse {
   gender: Gender;
   birthDate: string;
   role: Role;
-  grade: MemberGrade;
-  point: number;
 }
 
 // --- 구독 (Subscription) ---
@@ -130,6 +121,7 @@ export interface CardResponse {
 // POST /api/members/me/cards
 export interface CardIssueRequest {
   monthlyLimit: number;
+  virtualBalance: number;
   cardCompany?: string;
 }
 

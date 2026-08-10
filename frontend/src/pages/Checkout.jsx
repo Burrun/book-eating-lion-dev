@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, Wallet, CreditCard, Landmark, PawPrint } from "lucide-react";
 import Button from "../components/Button.jsx";
@@ -7,6 +7,7 @@ import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { fetchCheckoutSummary } from "../api/checkout.js";
+import { getMyCards } from "../api/cards.ts";
 
 const REQUIRED_FIELDS = [
   { key: "receiver", label: "받는 분 이름" },
@@ -15,6 +16,12 @@ const REQUIRED_FIELDS = [
   { key: "address", label: "주소" },
   { key: "addressDetail", label: "상세 주소" },
 ];
+
+const CARD_STATUS_LABEL = {
+  ACTIVE: "사용중",
+  SUSPENDED: "정지됨",
+  TERMINATED: "해지됨",
+};
 
 const PAYMENT_METHODS = [
   {
@@ -62,13 +69,17 @@ export default function Checkout() {
     request: "문 앞에 놔주세요",
   });
   const [paymentMethod, setPaymentMethod] = useState(null);
+  const [selectedCardId, setSelectedCardId] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [cards, setCards] = useState(null);
 
   useEffect(() => {
     let ignore = false;
-    fetchCheckoutSummary().then((data) => {
-      if (!ignore) setSummary(data);
+    Promise.all([fetchCheckoutSummary(), getMyCards()]).then(([summaryData, cardsData]) => {
+      if (ignore) return;
+      setSummary(summaryData);
+      setCards(cardsData);
     });
     return () => {
       ignore = true;
@@ -99,6 +110,17 @@ export default function Checkout() {
     if (!paymentMethod) {
       toast.error("결제 수단을 선택해주세요.");
       return;
+    }
+    if (paymentMethod === "VIRTUAL_CARD") {
+      const chosenCard = cards?.find((card) => card.id === selectedCardId);
+      if (!chosenCard) {
+        toast.error("결제할 카드를 선택해주세요.");
+        return;
+      }
+      if (chosenCard.virtualBalance < finalTotal) {
+        toast.error("카드 잔액이 부족합니다.");
+        return;
+      }
     }
     setIsConfirmOpen(true);
   };
@@ -138,7 +160,7 @@ export default function Checkout() {
   }
 
   const subtotal = summary.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const finalTotal = subtotal + summary.shippingFee - summary.couponDiscount - summary.pointsUsed;
+  const finalTotal = subtotal + summary.shippingFee - summary.couponDiscount;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -269,6 +291,71 @@ export default function Checkout() {
                 );
               })}
             </div>
+
+            {paymentMethod === "VIRTUAL_CARD" && (
+              <div className="mt-4 border-t border-[var(--color-forest)]/10 pt-4">
+                <p className="mb-3 text-sm font-medium text-[var(--color-ink)] opacity-80">
+                  결제할 카드 선택
+                </p>
+                {cards === null ? (
+                  <div className="flex flex-col gap-2">
+                    <Skeleton variant="rectangular" className="h-16 w-full" />
+                    <Skeleton variant="rectangular" className="h-16 w-full" />
+                  </div>
+                ) : cards.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-[var(--color-forest)]/25 bg-[var(--color-forest)]/5 p-4 text-center">
+                    <p className="text-sm text-[var(--color-ink)] opacity-70">
+                      등록된 카드가 없습니다. 카드 관리에서 먼저 등록해주세요.
+                    </p>
+                    <Link
+                      to="/cards"
+                      className="mt-2 inline-block text-sm font-medium text-[var(--color-coral)] hover:underline"
+                    >
+                      카드 관리로 이동
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {cards.map((card) => {
+                      const isSelectable = card.status === "ACTIVE";
+                      const isChosen = selectedCardId === card.id;
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          disabled={!isSelectable}
+                          onClick={() => setSelectedCardId(card.id)}
+                          className={`flex flex-col gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                            !isSelectable
+                              ? "cursor-not-allowed border-[var(--color-forest)]/10 bg-[var(--color-forest)]/5 opacity-40"
+                              : isChosen
+                              ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                              : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                          }`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-[var(--color-ink)]">
+                              {card.company ?? "카드사 미지정"}
+                            </span>
+                            {!isSelectable && (
+                              <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--color-ink)] opacity-70">
+                                {CARD_STATUS_LABEL[card.status]}
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-mono text-xs text-[var(--color-ink)] opacity-60">
+                            {card.maskedNumber}
+                          </span>
+                          <span className="text-xs text-[var(--color-ink)] opacity-50">
+                            잔액 {card.virtualBalance.toLocaleString()}원
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </div>
 
@@ -294,7 +381,6 @@ export default function Checkout() {
               <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
               <Row label="배송비" value={`+${summary.shippingFee.toLocaleString()}원`} />
               <Row label="쿠폰 할인" value={`-${summary.couponDiscount.toLocaleString()}원`} tone="coral" />
-              <Row label="포인트 사용" value={`-${summary.pointsUsed.toLocaleString()}원`} tone="coral" />
             </dl>
 
             <div className="mt-4 flex items-baseline justify-between border-t border-[var(--color-forest)]/10 pt-4">

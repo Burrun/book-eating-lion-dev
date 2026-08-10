@@ -51,7 +51,7 @@ export function mockGetCards(): CardResponse[] {
   return cards;
 }
 
-export function mockIssueCard({ monthlyLimit, cardCompany }: CardIssueRequest): CardResponse {
+export function mockIssueCard({ monthlyLimit, virtualBalance, cardCompany }: CardIssueRequest): CardResponse {
   const today = new Date();
   const card: CardResponse = {
     id: nextCardId(),
@@ -60,7 +60,7 @@ export function mockIssueCard({ monthlyLimit, cardCompany }: CardIssueRequest): 
     cardStatus: "ACTIVE",
     monthlyLimit,
     currentUsage: 0,
-    virtualBalance: monthlyLimit,
+    virtualBalance,
     // 첫 카드는 자동으로 기본 카드가 된다.
     isDefault: cards.length === 0,
     issuedDate: toIsoDate(today),

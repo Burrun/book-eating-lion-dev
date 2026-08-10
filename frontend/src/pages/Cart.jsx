@@ -11,9 +11,8 @@ export default function Cart() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [benefits, setBenefits] = useState({ availableCoupon: null, availablePoints: 0 });
+  const [benefits, setBenefits] = useState({ availableCoupon: null });
   const [couponApplied, setCouponApplied] = useState(false);
-  const [pointsUsed, setPointsUsed] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +29,7 @@ export default function Cart() {
     };
   }, []);
 
-  const { availableCoupon, availablePoints } = benefits;
+  const { availableCoupon } = benefits;
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -42,7 +41,7 @@ export default function Cart() {
   }, [selectedItems, subtotal]);
   const couponDiscount =
     couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
-  const finalTotal = Math.max(subtotal + shippingFee - couponDiscount - pointsUsed, 0);
+  const finalTotal = Math.max(subtotal + shippingFee - couponDiscount, 0);
 
   const toggleSelectAll = () => {
     setSelectedIds(allSelected ? new Set() : new Set(items.map((i) => i.id)));
@@ -83,12 +82,6 @@ export default function Cart() {
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
     idsToRemove.forEach((id) => removeFromCart(id).catch(() => {}));
-  };
-
-  const togglePoints = () => {
-    setPointsUsed((prev) =>
-      prev > 0 ? 0 : Math.min(availablePoints, subtotal + shippingFee - couponDiscount),
-    );
   };
 
   return (
@@ -138,14 +131,14 @@ export default function Cart() {
               />
             ))}
 
-            {/* 쿠폰/포인트 - 티어오프 영수증 느낌 */}
+            {/* 쿠폰 - 티어오프 영수증 느낌 */}
             <div className="relative mt-2 rounded-2xl border-2 border-dashed border-[var(--color-honey)]/60 bg-[var(--color-honey)]/10 p-5 shadow-[0_2px_10px_rgba(242,169,59,0.15)]">
               <span className="absolute top-1/2 -left-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
               <span className="absolute top-1/2 -right-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
 
               <div className="mb-3 flex items-center gap-2 text-[var(--color-forest)]">
                 <Ticket size={18} />
-                <h2 className="font-display text-base">쿠폰 · 포인트 할인 적용</h2>
+                <h2 className="font-display text-base">쿠폰 할인 적용</h2>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -160,22 +153,6 @@ export default function Cart() {
                     onClick={() => setCouponApplied((prev) => !prev)}
                   >
                     {couponApplied ? "적용 취소" : "쿠폰 적용"}
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
-                  <p className="text-sm text-[var(--color-ink)]">
-                    보유 포인트:{" "}
-                    <span className="font-medium">{availablePoints.toLocaleString()}P</span>
-                    <span className="ml-1 text-[var(--color-ink)]/50">(전액 사용 가능)</span>
-                  </p>
-                  <Button
-                    variant={pointsUsed > 0 ? "secondary" : "primary"}
-                    size="sm"
-                    shimmer={false}
-                    onClick={togglePoints}
-                  >
-                    {pointsUsed > 0 ? "사용 취소" : "전액 사용"}
                   </Button>
                 </div>
               </div>
@@ -198,11 +175,6 @@ export default function Cart() {
                   label="쿠폰 할인"
                   value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
                   tone={couponDiscount > 0 ? "coral" : undefined}
-                />
-                <Row
-                  label="포인트 사용"
-                  value={pointsUsed > 0 ? `-${pointsUsed.toLocaleString()}원` : "-"}
-                  tone={pointsUsed > 0 ? "coral" : undefined}
                 />
               </dl>
 
@@ -265,11 +237,6 @@ function CartItemRow({ item, selected, onToggleSelect, onChangeQuantity, onRemov
           <div>
             <p className="text-sm font-medium text-[var(--color-ink)]">{item.title}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              {item.condition && (
-                <span className="rounded-full border border-[var(--color-forest)]/30 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)]">
-                  중고 · {item.condition}급
-                </span>
-              )}
               <span className="text-sm text-[var(--color-ink)] opacity-70">
                 {item.option ? `${item.option} · ` : ""}배송비 {item.shippingFee.toLocaleString()}원
               </span>

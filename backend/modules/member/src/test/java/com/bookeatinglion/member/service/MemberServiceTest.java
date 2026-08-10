@@ -2,7 +2,6 @@ package com.bookeatinglion.member.service;
 
 import com.bookeatinglion.member.domain.Gender;
 import com.bookeatinglion.member.domain.Member;
-import com.bookeatinglion.member.dto.MemberGradeResponse;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
 import com.bookeatinglion.member.exception.MemberNotFoundException;
@@ -60,16 +59,5 @@ class MemberServiceTest {
         assertThat(response.phoneNumber()).isEqualTo("010-1234-5678");
         assertThat(response.gender()).isEqualTo(Gender.MALE);
         assertThat(response.birthDate()).isEqualTo(LocalDate.of(2000, 1, 1));
-    }
-
-    @Test
-    void 등급과_포인트를_조회한다() {
-        Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자");
-        when(memberRepository.findByCognitoSub("sub-1")).thenReturn(Optional.of(member));
-
-        MemberGradeResponse response = memberService.getGrade("sub-1");
-
-        assertThat(response.grade().name()).isEqualTo("BRONZE");
-        assertThat(response.point()).isEqualTo(0);
     }
 }

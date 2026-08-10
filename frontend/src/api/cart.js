@@ -147,7 +147,6 @@ function toDisplayItem(cartItem) {
     coverUrl: cartItem.coverImageUrl ?? null,
     shippingFee: cartItem.shippingFee ?? 3000,
     option: cartItem.option,
-    condition: cartItem.condition,
   };
 }
 

@@ -2,9 +2,7 @@ package com.bookeatinglion.member.controller;
 
 import com.bookeatinglion.member.MemberModuleTestApplication;
 import com.bookeatinglion.member.domain.Gender;
-import com.bookeatinglion.member.domain.MemberGrade;
 import com.bookeatinglion.member.domain.Role;
-import com.bookeatinglion.member.dto.MemberGradeResponse;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
 import com.bookeatinglion.member.exception.MemberNotFoundException;
@@ -46,7 +44,7 @@ class MemberControllerTest {
 
     private MemberResponse memberResponse() {
         return new MemberResponse(1L, "lion@bookeating.com", "책먹는사자", "010-1234-5678",
-                Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER, MemberGrade.BRONZE, 0);
+                Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
     }
 
     @Test
@@ -81,15 +79,5 @@ class MemberControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("MEMBER_NOT_FOUND"));
-    }
-
-    @Test
-    void 등급과_포인트를_조회한다() throws Exception {
-        when(memberService.getGrade(SUB)).thenReturn(new MemberGradeResponse(MemberGrade.BRONZE, 0));
-
-        mockMvc.perform(get("/api/members/me/grade").with(jwt().jwt(jwt -> jwt.subject(SUB))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.grade").value("BRONZE"))
-                .andExpect(jsonPath("$.data.point").value(0));
     }
 }

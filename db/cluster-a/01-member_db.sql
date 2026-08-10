@@ -13,8 +13,7 @@ SET search_path = member_db;
 
 CREATE TABLE members (
     member_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    username      VARCHAR(50)  NOT NULL,
-    password      VARCHAR(255) NOT NULL,
+    cognito_sub   VARCHAR(255) NOT NULL,
     name          VARCHAR(100) NOT NULL,
     nickname      VARCHAR(50)  NOT NULL,
     email         VARCHAR(255) NOT NULL,
@@ -22,24 +21,21 @@ CREATE TABLE members (
     gender        VARCHAR(10) DEFAULT 'MALE',
     age           INT NULL,
     role          VARCHAR(10) NOT NULL DEFAULT 'USER',
-    grade         VARCHAR(10) NOT NULL DEFAULT 'BASIC',
-    point_balance BIGINT NOT NULL DEFAULT 0,
     is_deleted    BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at    TIMESTAMP NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_members_username UNIQUE (username),
+    CONSTRAINT uk_members_cognito_sub UNIQUE (cognito_sub),
     CONSTRAINT uk_members_nickname UNIQUE (nickname),
     CONSTRAINT uk_members_email    UNIQUE (email),
     CONSTRAINT chk_members_gender CHECK (gender IN ('MALE', 'FEMALE')),
     CONSTRAINT chk_members_role   CHECK (role IN ('USER', 'ADMIN')),
-    CONSTRAINT chk_members_grade  CHECK (grade IN ('BASIC', 'PREMIUM')),
     CONSTRAINT chk_members_age CHECK (age IS NULL OR age BETWEEN 1 AND 150)
 );
 
 CREATE TABLE addresses (
     address_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id       BIGINT NOT NULL,
+    member_sub      VARCHAR(255) NOT NULL,
     recipient_name  VARCHAR(100) NOT NULL,
     recipient_phone VARCHAR(30)  NOT NULL,
     postal_code     VARCHAR(20)  NOT NULL,
@@ -48,13 +44,13 @@ CREATE TABLE addresses (
     is_default      BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_addresses_member FOREIGN KEY (member_id)
-        REFERENCES members (member_id) ON DELETE CASCADE
+    CONSTRAINT fk_addresses_member FOREIGN KEY (member_sub)
+        REFERENCES members (cognito_sub) ON DELETE CASCADE
 );
 
 -- MySQL 원본은 생성칼럼(is_default=1 이면 1, 아니면 NULL)에 UNIQUE 를 걸어
 -- "회원당 기본배송지 1건"을 강제했다. PostgreSQL 은 부분 인덱스로 직접 표현한다.
-CREATE UNIQUE INDEX uk_addresses_default ON addresses (member_id) WHERE is_default;
+CREATE UNIQUE INDEX uk_addresses_default ON addresses (member_sub) WHERE is_default;
 
 CREATE TABLE cards (
     card_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

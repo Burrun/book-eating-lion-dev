@@ -23,8 +23,6 @@ export const MOCK_CART_ITEMS = [
     cartItemId: 3,
     bookId: 3,
     title: "해리 포터와 마법사의 돌",
-    option: "중고 직거래 증정",
-    condition: "A",
     price: 12000,
     shippingFee: 3000,
     quantity: 1,
@@ -34,7 +32,6 @@ export const MOCK_CART_ITEMS = [
 
 export const MOCK_CART_BENEFITS = {
   availableCoupon: { label: "신규 가입 3,000원 할인 쿠폰", discount: 3000 },
-  availablePoints: 5400,
 };
 
 // 비회원 장바구니 화면 표시용 — 실제로는 GET /api/books/{bookId}에서 내려오는 정보를 대신한다.
