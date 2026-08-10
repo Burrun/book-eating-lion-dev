@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-config
+  namespace: lion-app
+data:
+  SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
+  SERVER_PORT: "8080"
+
+  # 쓰기 서비스라 Writer 로 간다. RDS Proxy 는 이쪽에만 붙인다
+  # (ai_db 에 붙이면 Serverless v2 auto-pause 와 상충한다 — 판단 ②).
+  DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "${DB_NAME}"
+
+  # 리뷰 권한 이벤트 발행 채널
+  REDIS_HOST: "${REDIS_HOST}"
+
+  AWS_REGION: "${AWS_REGION}"
+  AWS_COGNITO_REGION: "${AWS_REGION}"
+  AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"

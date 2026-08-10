@@ -3,17 +3,26 @@ info:
   title: ai-service API
   version: "1.0.0"
   description: |
-    라이언/RAG(프리미엄) + 문의봇.
+    먹인 책 RAG + 고객상담.
 
-    경로가 /api/ai/lions/** 와 /api/ai/bot/** 으로 갈려 있는 것은 우연이 아니다.
-    이미지는 1개지만 Deployment 는 2개(ai-rag / ai-bot)이고, Ingress 가 이 경로로
-    서로 다른 Deployment 에 라우팅한다(판단 ④).
+    | 경로                | 하는 일                        | 자료                  |
+    |---------------------|--------------------------------|-----------------------|
+    | /api/ai/ask         | 먹인 책 내용에 답하기          | S3 Vectors (wiki-v1)  |
+    | /api/ai/lion/**     | 책 먹이기, 먹을 수 있는 책 목록 | ai_db (wiki/fed_books)|
+    | /api/ai/bot/**      | 고객상담 — 배송·환불·1:1문의   | ai_db (faqs)          |
 
-    두 워크로드를 나눈 이유는 HPA 메트릭과 타임아웃 정책이 다르기 때문이다.
-    임베딩을 외부 API(Bedrock Titan V2)로 뽑기로 확정했으므로(Phase 0-2b)
-    ai-rag 도 I/O 바운드다 — 둘 다 CPU HPA 로는 뜨지 않으며 동시 요청 수로 확장한다.
+    `/api/ai/ask` 는 **책 내용** 전담이고 고객상담은 `/api/ai/bot/**` 이 계속 담당한다.
+    자료도 목적도 달라서 합치지 않는다.
 
-    이 서비스는 다른 서비스와 통신하지 않는다. 자기 DB 클러스터(B)에만 붙는다.
+    벡터는 **공용, 권한은 관계형**이다. 책 본문 벡터는 누가 먹였든 1벌만 존재하고
+    (키가 {bookId}#{page}#{seq} 로 결정적), "누가 무엇을 먹였는가"는 fed_books 가
+    들고 있다. 질의 시 그 목록이 그대로 검색 필터가 되므로 안 먹은 책은 나오지 않는다.
+
+    Deployment 는 이미지 1개에 2개(ai-rag / ai-bot)이고 Ingress 가 경로로 가른다.
+    HPA 메트릭과 타임아웃 정책이 다르기 때문이다 — 임베딩·LLM 이 전부 외부 API 라
+    I/O 바운드고, CPU HPA 로는 확장되지 않아 동시 요청 수로 간다.
+
+    이 서비스는 다른 서비스와 통신하지 않는다. 자기 스키마(ai_db)에만 붙는다.
 
 servers:
   - url: http://localhost:8084
@@ -22,17 +31,75 @@ servers:
     description: 클러스터 내부
 
 paths:
-  /api/ai/lions/me/ask:
+  /api/ai/ask:
     post:
-      summary: 라이언에게 묻기 (RAG)
+      summary: 위키 RAG Q&A — 답변 + "어느 책 몇 페이지"
       description: |
-        → ai-rag Deployment. 프리미엄 전용.
+        → ai-rag Deployment. 로그인 필수.
 
-        파이프라인: ①질의 임베딩(외부 API) → ②벡터 검색(Aurora pgvector, Pod 밖)
-        → ③컨텍스트 조립 → ④LLM 호출(외부 API).
-        ②가 Pod 밖이라 벡터 저장소를 바꿔도 이 Pod 의 CPU 는 줄지 않는다.
-      operationId: askLion
-      tags: [ai-rag]
+        파이프라인: ①질의 임베딩(Bedrock Titan V2) → ②S3 Vectors 검색 → ③책당 상한 3개
+        + 상위 5 컷 → ④거리 가드 → ⑤LLM(counsel 모드일 때만) → ⑥답변 + citations
+
+        **④가 핵심이다.** 근거가 임계값보다 멀면 `grounded: false` 로 끝내고 LLM 을
+        호출하지 않는다. 근거 없이 LLM 을 부르면 반드시 지어내며, 프롬프트로는 못 막는다.
+
+        **③의 책당 상한**은 한 책이 상위 5칸을 독점하는 것을 막는다. 같은 소재가 여러
+        책에 나올 때(예: "김첨지"는 「운수 좋은 날」과 「정규직 되는 날」 양쪽에 있다)
+        한쪽이 다 먹으면 정답 책이 밀려나고, 그러면 LLM 은 판별할 재료조차 못 받는다.
+
+        모호할 때 되묻지 않는다. 여러 책에 걸치면 책별로 나눠 한 번에 답한다 —
+        되묻기는 LLM 호출을 2회로 늘리고 서버가 대화 상태를 들어야 해서
+        stateless 설계가 깨진다.
+
+        쿼터는 사용자별 일일 상한이다. Redis 장애 시에는 **통과시킨다(fail-open)** —
+        쿼터는 과금 방어선이지 인증이 아니고, Redis 는 여러 서비스가 공유하므로
+        여기서 막으면 장애 반경만 넓어진다. 대신 WARN 로그와 경보를 남긴다.
+      operationId: askWiki
+      tags: [ai-wiki]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskRequest"
+      responses:
+        "200":
+          description: |
+            응답 생성 완료. 근거를 못 찾은 경우도 200 이며 `grounded: false` 로 구분한다.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskEnvelope"
+        "400":
+          description: query 가 비었거나 너무 김
+        "401":
+          description: 인증 없음/만료
+        "429":
+          description: |
+            일일 쿼터 초과 또는 동시 요청 포화(Bulkhead). `Retry-After` 헤더를 함께 보낸다.
+            서버 장애(5xx)가 아니라 "지금 붐빔"이라는 뜻이다.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: 재시도까지 대기할 초
+
+  /api/ai/lion/feed:
+    post:
+      summary: 라이언에게 책 먹이기
+      description: |
+        인제스트는 관리자 배치에서 이미 끝나 있다. 여기서 하는 일은
+        `fed_books` 행 추가 + exp 갱신 + Redis Set 갱신뿐이라 200ms 안에 끝난다.
+
+        인제스트를 이 요청 안에서 하지 않는 이유: 책 1권이 12~46청크라
+        임베딩 + PutVectors 에 수 초~수십 초가 걸린다. 동기로 하면 타임아웃이고,
+        비동기로 하면 진행중/완료/실패 상태 머신과 폴링이 필요해진다.
+
+        같은 책을 다시 먹여도 안전하다 — `fed_books` 의 PK 가 (member_id, book_id) 라
+        멱등이고 exp 도 중복으로 오르지 않는다.
+      operationId: feedLion
+      tags: [ai-lion]
       security:
         - bearerAuth: []
       requestBody:
@@ -41,43 +108,41 @@ paths:
           application/json:
             schema:
               type: object
-              required: [question]
+              required: [bookId]
               properties:
-                question: { type: string, example: 내가 읽은 책 중에 비슷한 게 있었나? }
+                bookId: { type: integer, format: int64, example: 1 }
       responses:
         "200":
-          description: 응답 생성 완료
+          description: 먹이기 완료 (이미 먹인 책이면 상태 변화 없이 현재 값 반환)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TextEnvelope"
+                $ref: "#/components/schemas/FeedEnvelope"
+        "401":
+          description: 인증 없음/만료
+        "409":
+          description: 아직 인제스트되지 않은 책. ebook 본문이 없으면 먹일 수 없다
 
-  /api/ai/lions/me/memories:
-    post:
-      summary: 독서 기록 저장
+  /api/ai/lion/feedable-books:
+    get:
+      summary: 먹일 수 있는 책 목록
       description: |
-        → ai-rag Deployment.
+        인제스트가 끝났고(`wiki_books` 에 있고) 아직 안 먹은 책.
 
-        bookTitle / coverUrl 은 **요청에 실려 온다.** 프론트가 도서 상세에서 진입하므로
-        이미 값을 갖고 있고, catalog-service 를 호출할 필요가 없다(§7.6 — 통신 없음).
-        저장된 값은 기록 시점 스냅샷이며 원본이 바뀌어도 갱신하지 않는다.
-      operationId: rememberBook
-      tags: [ai-rag]
+        **catalog-service 를 호출하지 않는다.** "먹일 수 있다"는 곧 "우리 인덱스에
+        있다"이고 그건 `ai_db` 가 안다. ebook 본문을 뽑을 수 없는 책은 애초에
+        인제스트되지 않으므로 여기 나오지 않는다.
+      operationId: listFeedableBooks
+      tags: [ai-lion]
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MemoryRequest"
       responses:
-        "201":
-          description: 저장 완료
+        "200":
+          description: 목록
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/IdEnvelope"
+                $ref: "#/components/schemas/FeedableBooksEnvelope"
 
   /api/ai/bot/ask:
     post:
@@ -98,7 +163,7 @@ paths:
               type: object
               required: [question]
               properties:
-                question: { type: string, example: 배송은 얼마나 걸리나요? }
+                question: { type: string, example: "배송은 얼마나 걸리나요?" }
       responses:
         "200":
           description: 응답 생성 완료
@@ -139,6 +204,103 @@ components:
       bearerFormat: JWT
 
   schemas:
+    AskRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: 김첨지가 설렁탕을 사온 이유는?
+        mode:
+          type: string
+          enum: [search, answer]
+          description: |
+            `search` = 검색만. LLM 을 부르지 않으므로 비용 0.
+            `answer` = 검색 결과를 LLM 이 종합해 문장으로 답한다.
+
+            생략하면 서버의 2층 분기가 정한다 — 1층 규칙으로 명확하면 즉시 확정하고,
+            애매할 때만 LLM 분류기를 1회 부른다. 흔한 질문은 공짜, 애매한 것만 돈을 낸다.
+            명시하면 두 층을 모두 건너뛴다.
+        bookIds:
+          type: array
+          items: { type: integer, format: int64 }
+          description: |
+            **좁히기 전용이다. 넓히기에는 쓸 수 없다.**
+
+            서버는 이 목록과 "내가 먹인 책"의 교집합만 검색한다. 안 먹인 bookId 를
+            넣어도 무시된다 — 그러지 않으면 먹지 않은 책의 본문을 그대로 읽어갈 수 있다.
+            생략하면 내가 먹인 책 전체가 대상이고, 먹은 책이 없으면 검색하지 않는다.
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: 반환할 인용 개수. 서버는 이보다 많이 검색한 뒤 책당 상한을 적용하고 여기까지 자른다.
+
+    AskEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/AskResult"
+
+    AskResult:
+      type: object
+      required: [mode, grounded, answer, citations]
+      properties:
+        mode:
+          type: string
+          enum: [search, answer]
+          description: 실제로 사용된 모드. 프론트는 search 응답 아래 "더 자세히 답변받기" 버튼으로 `mode:"answer"` 재요청을 건다.
+        grounded:
+          type: boolean
+          description: |
+            근거를 찾았는가. false 면 `answer` 는 고정 문구이고 `citations` 는 빈 배열이다.
+
+            false 가 나오는 경우는 둘이다 — ① 정말 자료에 없는 질문
+            ② 벡터 검색 자체가 장애(서킷 브레이커 OPEN). ②를 500 이 아니라 degrade 로
+            처리하는 이유는 AI 장애가 나머지 기능으로 전이되면 안 되기 때문이다.
+        answer:
+          type: string
+          example: 앓는 아내에게 주려고 샀습니다 [1].
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+
+    Citation:
+      type: object
+      required: [ref, bookId, bookTitle, page, snippet, score]
+      properties:
+        ref:
+          type: integer
+          description: answer 본문의 [1], [2] 와 대응한다.
+          example: 1
+        bookId: { type: integer, format: int64, example: 1 }
+        bookTitle: { type: string, example: 운수 좋은 날 }
+        page:
+          type: integer
+          description: |
+            이 프로젝트의 KPI 다. 청크는 페이지 경계를 절대 넘지 않으므로 이 값은 항상 단일 페이지다.
+          example: 1
+        snippet:
+          {
+            type: string,
+            example: 앓는 아내에게 설렁탕 한 그릇도 사다 줄 수 있음이다.,
+          }
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: |
+            **클수록 유사하다.** S3 Vectors 는 거리(작을수록 유사)를 주므로 `1 - distance` 로
+            뒤집어 내보낸다. 이 부호를 반대로 구현하면 관련 질문엔 "모르겠다"고 하고
+            무관한 질문엔 자신 있게 답하는, 예외도 로그도 없는 버그가 된다.
+          example: 0.87
+
     TextEnvelope:
       type: object
       properties:
@@ -151,17 +313,37 @@ components:
         success: { type: boolean }
         data: { type: integer, format: int64 }
 
-    MemoryRequest:
+    FeedEnvelope:
       type: object
-      required: [bookId]
       properties:
-        bookId: { type: integer, format: int64 }
-        bookTitle:
-          type: string
-          description: 기록 시점 스냅샷. catalog 조인 대신 요청에 실어 보낸다.
-        coverUrl: { type: string }
-        memo: { type: string }
-        quoteText: { type: string }
+        success: { type: boolean }
+        data:
+          type: object
+          required: [exp, level, fedBookCount]
+          properties:
+            exp: { type: integer, format: int64, example: 120 }
+            level: { type: integer, example: 2 }
+            fedBookCount:
+              type: integer
+              description: 지금까지 먹인 책 수. 곧 검색 가능한 책의 수다.
+              example: 3
+
+    FeedableBooksEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: array
+          items:
+            type: object
+            required: [bookId, title, pages]
+            properties:
+              bookId: { type: integer, format: int64, example: 1 }
+              title: { type: string, example: 운수 좋은 날 }
+              pages:
+                type: integer
+                description: 인제스트 시 900자를 1페이지로 나눈 결과. 인용에 쓰이는 페이지 번호의 범위다.
+                example: 12
 
     InquiryRequest:
       type: object

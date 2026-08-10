@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-config
+  namespace: lion-app
+data:
+  SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
+  SERVER_PORT: "8080"
+
+  # 다른 세 서비스와 같은 클러스터, 다른 스키마(ai_db)다.
+  # 격리는 클러스터가 아니라 계정 권한이 만든다 — ai_svc 는 다른 스키마를 못 읽는다.
+  #
+  # 그리고 질의 경로(POST /api/ai/ask)는 애초에 DB 를 타지 않는다. 먹인 책 목록은
+  # Redis 에서 읽고 벡터는 S3 Vectors 에 있다. DB 는 먹이기/문의 같은 쓰기에만 쓴다.
+  AI_DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
+  AI_DB_PORT: "5432"
+  AI_DB_NAME: "${AI_DB_NAME}"
+
+  AWS_REGION: "${AWS_REGION}"
+  AWS_BEDROCK_REGION: "${AWS_REGION}"
+  AWS_COGNITO_REGION: "${AWS_REGION}"
+  AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
+
+  REDIS_HOST: "${REDIS_HOST}"

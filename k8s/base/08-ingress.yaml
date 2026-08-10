@@ -1,0 +1,109 @@
+# ingress-nginx 컨트롤러가 설치돼 있어야 한다.
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/aws/deploy.yaml
+# 프론트엔드는 S3 + CloudFront 로 나가므로 여기서는 API 경로만 다룬다.
+#
+# 이것이 유일한 외부 진입점이다. API Gateway(Spring Cloud Gateway)를 두지 않는 이유는
+# ALB Ingress 의 경로 라우팅으로 충분하고, 게이트웨이를 추가하면 SPOF 만 하나 늘기 때문이다(§4).
+#
+# 규칙은 위에서부터 매칭된다. 더 구체적인 경로를 먼저 둘 것.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lion-ingress
+  namespace: lion-app
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "${FRONTEND_ORIGIN}"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-Member-Id"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "${API_HOST}"
+      http:
+        paths:
+          # --- ai-service: 경로로 Deployment 가 갈린다 (판단 ④) ---
+          # 서비스는 1개지만 Deployment 는 2개이고, Service 도 워크로드별로 나눠
+          # 각각 다른 Pod 집합을 가리킨다. 부하가 서로 섞이지 않는 지점이다.
+          - path: /api/ai/ask
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-rag
+                port:
+                  number: 8080
+          - path: /api/ai/lion
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-rag
+                port:
+                  number: 8080
+          - path: /api/ai/bot
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-bot
+                port:
+                  number: 8080
+
+          # --- order-service ---
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+
+          # --- member-service ---
+          - path: /api/members
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+
+          # --- catalog-service ---
+          # 찜/최근본상품이 /api/members/me/* 가 아닌 이유가 여기 있다.
+          # 같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 된다.
+          - path: /api/books
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog-service
+                port:
+                  number: 8080
+          - path: /api/reviews
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog-service
+                port:
+                  number: 8080
+          - path: /api/wishlist
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog-service
+                port:
+                  number: 8080
+          - path: /api/recent-books
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog-service
+                port:
+                  number: 8080
+
+# /internal/** 은 여기에 없다. 의도적이다 — 서비스 간 전용 경로라
+# 외부에서 도달할 수 없어야 한다(09-networkpolicy.yaml 이 2차 방어선).

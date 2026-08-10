@@ -17,7 +17,7 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
-    // Flyway — ai_db 스키마만. 클러스터 B 라 다른 서비스와 아예 다른 DB 다.
+    // Flyway — ai_db 스키마만. 다른 서비스와 같은 클러스터지만 계정이 달라 남의 스키마는 못 본다.
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 

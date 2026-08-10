@@ -1,0 +1,106 @@
+# 서비스 Pod 의 인/아웃바운드를 필요한 것만 남긴다.
+# NetworkPolicy 는 CNI 가 지원해야 적용된다 (EKS 기본 VPC CNI 는 최신 버전에서 지원).
+# 지원하지 않는 클러스터에서는 이 리소스가 생성되어도 아무 효과가 없다.
+---
+# 공통 규칙 — lion-app 의 모든 서비스 Pod 에 적용된다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lion-app-baseline
+  namespace: lion-app
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Ingress 컨트롤러에서 오는 트래픽
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+        # kubelet 의 probe 는 Pod 가 아니라 "노드 IP" 에서 온다.
+        # namespaceSelector 로는 절대 매칭되지 않으므로 노드 대역을 따로 열어야 한다.
+        # 이 규칙이 빠지면 정책을 강제하는 CNI 에서 전 Pod 가 동시에 NotReady 로 떨어진다.
+        - ipBlock:
+            cidr: "${VPC_CIDR}"
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # 같은 네임스페이스의 다른 서비스 (서비스 간 동기 호출)
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    # CoreDNS — K8s Service DNS 로 서로를 찾으므로 필수다(§4 — Eureka 미사용)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # 같은 네임스페이스의 다른 서비스
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # Aurora PostgreSQL (5432) + Redis(ElastiCache)
+    - ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+
+    # S3 / ECR / Bedrock / 외부 HTTPS
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# /internal/** 접근 제한 — order-service 의 재고 API 는 catalog-service 만 부른다.
+# Ingress 에 /internal 경로가 없는 것이 1차 방어선이고, 이게 2차 방어선이다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-internal-allowlist
+  namespace: lion-app
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: catalog-service
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - ipBlock:
+            cidr: "${VPC_CIDR}"
+      ports:
+        - protocol: TCP
+          port: 8080
