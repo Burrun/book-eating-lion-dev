@@ -1,0 +1,21 @@
+spring:
+  profiles:
+    active: local
+  application:
+    name: ai-service
+
+server:
+  port: 8084
+
+# 외부 API(임베딩·LLM) 호출 격리 — 판단 ④가 "필수"로 지정한 항목.
+# 봇이 폭주해도 RAG 가 스레드를 확보할 수 있어야 한다.
+resilience4j:
+  bulkhead:
+    instances:
+      aiExternalApi:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 100ms
+  timelimiter:
+    instances:
+      aiExternalApi:
+        timeoutDuration: 30s

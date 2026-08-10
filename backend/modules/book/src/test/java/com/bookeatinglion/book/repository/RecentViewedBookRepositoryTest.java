@@ -35,12 +35,12 @@ class RecentViewedBookRepositoryTest {
     void setUp() {
         book1 = bookRepository.save(Book.builder()
                 .title("최근본책1").author("저자").publisher("출판사").isbn("9791100000051")
-                .category("소설").price(10000).stockQuantity(10)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build());
         book2 = bookRepository.save(Book.builder()
                 .title("최근본책2").author("저자").publisher("출판사").isbn("9791100000052")
-                .category("소설").price(10000).stockQuantity(10)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build());
     }

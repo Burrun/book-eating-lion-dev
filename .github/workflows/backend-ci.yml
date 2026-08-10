@@ -27,9 +27,71 @@ defaults:
     working-directory: ./backend
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 모듈 경계 검사 — §7.2 의 "기계적 강제 2단" 중 1단
+  #
+  # 저장소를 4개로 쪼개지 않기로 했으므로(§7.0 모노레포 유지), 경계는 이 검사가
+  # 지킨다. 리뷰어의 눈이 아니라 CI 가 막아야 한다 —
+  # "RAG 코드가 member-service 로 흘러들어감"이 §5 의 치명적 리스크이기 때문이다.
+  # ---------------------------------------------------------------------------
+  boundary:
+    name: 모듈 경계 규칙
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: apps 가 자기 도메인 외의 modules 를 참조하지 않는지 검사
+        run: |
+          set -euo pipefail
+          # 각 앱이 참조해도 되는 modules 화이트리스트
+          declare -A ALLOWED=(
+            [catalog-api]="common book"
+            [order-api]="common order"
+            [member-api]="common member"
+            [ai-api]="common ai"
+          )
+
+          FAILED=0
+          for app in "${!ALLOWED[@]}"; do
+            f="apps/$app/build.gradle"
+            [ -f "$f" ] || { echo "::error::$f 가 없습니다"; FAILED=1; continue; }
+
+            # project(':modules:xxx') 에서 xxx 만 뽑는다
+            refs=$(grep -oP "project\(':modules:\K[a-z]+" "$f" | sort -u || true)
+
+            for ref in $refs; do
+              if ! grep -qw "$ref" <<< "${ALLOWED[$app]}"; then
+                echo "::error file=$f::경계 위반 — $app 이 modules:$ref 를 참조합니다. 허용: ${ALLOWED[$app]}"
+                echo "  타 서비스 도메인에는 contracts/ 의 계약을 통해서만 접근해야 합니다(§7.2)."
+                FAILED=1
+              fi
+            done
+          done
+
+          exit $FAILED
+
+      - name: modules 끼리 상호 의존하지 않는지 검사
+        run: |
+          set -euo pipefail
+          FAILED=0
+          for f in modules/*/build.gradle; do
+            owner=$(basename "$(dirname "$f")")
+            refs=$(grep -oP "project\(':modules:\K[a-z]+" "$f" | sort -u || true)
+            for ref in $refs; do
+              # common 만 예외다. 나머지 도메인 모듈 간 참조는 전부 금지.
+              if [ "$ref" != "common" ]; then
+                echo "::error file=$f::경계 위반 — modules:$owner 가 modules:$ref 를 참조합니다."
+                echo "  modules 끼리는 common 외에 서로 의존할 수 없습니다(§7.2)."
+                FAILED=1
+              fi
+            done
+          done
+          exit $FAILED
+
   build:
     name: Build & Test
     runs-on: ubuntu-latest
+    needs: boundary
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,9 +114,6 @@ jobs:
       - name: Build & Test
         run: ./gradlew build
 
-      - name: Verify Docker image build
-        run: docker build -f apps/api/Dockerfile .
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,3 +121,18 @@ jobs:
           name: backend-test-results
           path: backend/**/build/reports/tests/
           if-no-files-found: ignore
+
+  # 서비스별 이미지가 각각 빌드되는지 확인한다. 하나만 확인하면
+  # 나머지 3개가 깨진 채로 main 에 들어갈 수 있다.
+  docker:
+    name: 이미지 빌드 검증 (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, order, member, ai]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Docker image build
+        run: docker build -f apps/${{ matrix.service }}-api/Dockerfile .

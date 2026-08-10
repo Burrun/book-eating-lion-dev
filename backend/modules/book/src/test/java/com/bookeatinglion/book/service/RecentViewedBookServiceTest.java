@@ -42,7 +42,7 @@ class RecentViewedBookServiceTest {
     private Book book(Long id) throws Exception {
         Book book = Book.builder()
                 .title("책").author("저자").publisher("출판사").isbn("978130000" + id)
-                .category("소설").price(10000).stockQuantity(5)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
         Field idField = Book.class.getDeclaredField("bookId");

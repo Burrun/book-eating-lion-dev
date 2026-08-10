@@ -1,9 +1,14 @@
 rootProject.name = 'final'
 
+// 도메인 로직 (라이브러리 jar). modules 끼리 상호 의존 금지 — §7.2
 include 'modules:common'
 include 'modules:member'
 include 'modules:book'
 include 'modules:order'
-include 'modules:usedbook'
-include 'modules:delivery'
-include 'apps:api'
+include 'modules:ai'
+
+// 배포 단위 = bootJar = 컨테이너 이미지. 서비스 4개.
+include 'apps:catalog-api'
+include 'apps:order-api'
+include 'apps:member-api'
+include 'apps:ai-api'

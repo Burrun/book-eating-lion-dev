@@ -39,7 +39,7 @@ class BookRepositoryTest {
                        int salesCount, SaleStatus saleStatus, String isbn) {
         return Book.builder()
                 .title(title).author(author).publisher("출판사").isbn(isbn)
-                .category(category).price(10000).stockQuantity(10)
+                .category(category).price(10000)
                 .saleStatus(saleStatus).publishedDate(publishedDate).salesCount(salesCount)
                 .build();
     }

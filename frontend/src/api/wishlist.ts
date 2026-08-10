@@ -8,11 +8,13 @@ import type { BookSummary } from "../types/book.ts";
 // 로그인 연동(BOO-23) 전까지는 목업으로 화면을 확인한다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
-// GET /api/members/me/wishlist — 찜 목록 (JWT 인증 + X-Member-Id 필요)
+// GET /api/wishlist/me — 찜 목록 (JWT 인증 + X-Member-Id 필요)
+// MSA 전환으로 경로가 /members/me/wishlist 에서 바뀌었다. /api/members/** 는
+// member-service 로 라우팅되는데, 찜 목록은 catalog-service 소유 데이터다.
 export async function getWishlist(): Promise<BookSummary[]> {
   if (USE_MOCK) return mockDelay(mockGetWishlist().map(toBookSummary));
   const list = await unwrap(
-    apiClient.get<ApiResponse<BookSummaryResponse[]>>("/members/me/wishlist"),
+    apiClient.get<ApiResponse<BookSummaryResponse[]>>("/wishlist/me"),
   );
   return list.map(toBookSummary);
 }
@@ -35,10 +37,11 @@ export async function removeFromWishlist(bookId: number | string): Promise<void>
   await unwrap(apiClient.delete<ApiResponse<void>>(`/wishlist/${bookId}`));
 }
 
-// GET /api/members/me/recent-books — 최근 본 상품 (JWT 인증 + X-Member-Id 필요)
+// GET /api/recent-books/me — 최근 본 상품 (JWT 인증 + X-Member-Id 필요)
+// 위와 같은 이유로 경로가 바뀌었다.
 export async function getRecentBooks(limit = 20): Promise<BookSummary[]> {
   const list = await unwrap(
-    apiClient.get<ApiResponse<BookSummaryResponse[]>>("/members/me/recent-books", {
+    apiClient.get<ApiResponse<BookSummaryResponse[]>>("/recent-books/me", {
       params: { limit },
     }),
   );

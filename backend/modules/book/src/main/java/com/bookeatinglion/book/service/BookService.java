@@ -6,6 +6,7 @@ import com.bookeatinglion.book.dto.BookDetailResponse;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
+import com.bookeatinglion.book.port.InventoryPort;
 import com.bookeatinglion.book.repository.BookRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,7 @@ import java.util.List;
 public class BookService {
 
     private final BookRepository bookRepository;
+    private final InventoryPort inventoryPort;
 
     public Page<BookSummaryResponse> getBooks(String category, Pageable pageable) {
         Page<Book> books = (category == null || category.isBlank())
@@ -37,7 +39,13 @@ public class BookService {
     public BookDetailResponse getBook(Long bookId) {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
-        return BookDetailResponse.from(book);
+
+        // 재고는 order_db 소유라 로컬 조회가 불가능하다. 벌크 계약을 그대로 쓰되 1건만 넘긴다.
+        // order-service 장애 시 fallback 이 빈 맵을 주므로 도서 정보는 살아남는다.
+        int stock = inventoryPort.stockByBookIds(List.of(bookId))
+                .getOrDefault(bookId, BookDetailResponse.STOCK_UNAVAILABLE);
+
+        return BookDetailResponse.from(book, stock);
     }
 
     public List<BookSummaryResponse> getBestsellers(int limit) {

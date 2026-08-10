@@ -1,0 +1,54 @@
+# =============================================================================
+# Phase 0-5 — mock 서버
+#
+# mocks/ 디렉터리를 따로 짜지 않는다. 그렇게 하면 그게 두 번째 진실 공급원이 되어
+# 계약과 mock 이 갈라지기 때문이다. Prism 에 contracts/*.yaml 을 그대로 물리면
+# 계약과 mock 이 물리적으로 같은 파일이라 drift 가 원천적으로 불가능하다.
+# §5 최상단 리스크(계약 drift)에 대한 가장 싼 대응이다.
+#
+# 사용:
+#   docker compose -f backend/contracts/docker-compose.mock.yml up
+#
+# 각 팀은 의존 서비스의 실제 구현 없이 로컬 기동이 가능해진다(Phase 0 완료 조건).
+# 예) catalog 팀은 order-service 없이 mock 재고를 상대로 개발한다:
+#   SERVICES_ORDER_URL=http://localhost:4402 ./gradlew :apps:catalog-api:bootRun
+#
+# -d(--dynamic) 는 스키마 example 대신 임의값을 생성한다. 껐다 — 예시값이 고정이라야
+# 프론트/백엔드가 같은 데이터를 보고 이야기할 수 있다.
+# =============================================================================
+services:
+  mock-catalog:
+    image: stoplight/prism:5
+    container_name: mock-catalog
+    command: mock -h 0.0.0.0 /contracts/catalog-v1.yaml
+    ports:
+      - "4401:4010"
+    volumes:
+      - ./:/contracts:ro
+
+  mock-order:
+    image: stoplight/prism:5
+    container_name: mock-order
+    command: mock -h 0.0.0.0 /contracts/order-v1.yaml
+    ports:
+      - "4402:4010"
+    volumes:
+      - ./:/contracts:ro
+
+  mock-member:
+    image: stoplight/prism:5
+    container_name: mock-member
+    command: mock -h 0.0.0.0 /contracts/member-v1.yaml
+    ports:
+      - "4403:4010"
+    volumes:
+      - ./:/contracts:ro
+
+  mock-ai:
+    image: stoplight/prism:5
+    container_name: mock-ai
+    command: mock -h 0.0.0.0 /contracts/ai-v1.yaml
+    ports:
+      - "4404:4010"
+    volumes:
+      - ./:/contracts:ro

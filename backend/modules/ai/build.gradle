@@ -1,0 +1,15 @@
+dependencies {
+    implementation project(':modules:common')
+
+    // 외부 API(임베딩·LLM) 호출을 전용 스레드풀로 격리한다.
+    // 계획서 판단 ④ — 문의봇은 I/O 대기라 CPU HPA 가 뜨지 않는다.
+    // Bulkhead 는 "여유 시" 항목이 아니라 필수 항목이다.
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // pgvector 타입 매핑
+    implementation 'com.pgvector:pgvector:0.1.6'
+
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.springframework.security:spring-security-test'
+}

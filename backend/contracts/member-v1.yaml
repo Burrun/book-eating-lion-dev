@@ -1,0 +1,176 @@
+openapi: 3.0.3
+info:
+  title: member-service API
+  version: "1.0.0"
+  description: |
+    회원·인증·배송지·프리미엄 멤버십.
+
+    이 서비스의 계약에서 가장 중요한 것은 엔드포인트가 아니라 **JWT 클레임**이다.
+    member_id 와 nickname 을 토큰에 실어야 다른 서비스가 회원 정보를 확인하려고
+    이 서비스를 동기 호출하지 않는다. 클레임이 빠지면 인증이 모든 요청의
+    임계경로가 되고, member-service 가 단일 장애점이 된다.
+
+servers:
+  - url: http://localhost:8083
+    description: 로컬
+  - url: http://member-service.lion-app.svc.cluster.local:8080
+    description: 클러스터 내부
+
+paths:
+  /api/auth/login:
+    post:
+      summary: 로그인
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenEnvelope"
+        "401":
+          description: 인증 실패
+
+  /api/members/me:
+    get:
+      summary: 내 정보
+      operationId: getMe
+      tags: [members]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberEnvelope"
+
+  /api/members/me/addresses:
+    get:
+      summary: 내 배송지 목록
+      description: addresses 는 member_db 소속이라 delivery 가 아니라 이 서비스가 소유한다.
+      operationId: getMyAddresses
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Address"
+    post:
+      summary: 배송지 등록
+      operationId: createAddress
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressCreateRequest"
+      responses:
+        "201":
+          description: 등록 완료
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ---------------------------------------------------------------------
+    # 이 스키마가 사실상 서비스 간 계약의 핵심이다.
+    # Cognito PreTokenGeneration 이 member_id / nickname 을 주입해야 한다.
+    # ---------------------------------------------------------------------
+    JwtClaims:
+      type: object
+      required: [sub, member_id]
+      properties:
+        sub:
+          type: string
+          description: Cognito 사용자 식별자
+        member_id:
+          type: integer
+          format: int64
+          description: |
+            order/catalog/ai 가 소유권 검증에 쓰는 값.
+            이게 없으면 각 서비스가 member-service 를 동기 호출해야 한다.
+        nickname:
+          type: string
+          description: 리뷰·문의 작성자 표시용 스냅샷 원본.
+
+    TokenEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            accessToken: { type: string }
+            refreshToken: { type: string }
+            expiresIn: { type: integer, example: 3600 }
+
+    MemberEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/Member"
+
+    Member:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+        name: { type: string }
+        nickname: { type: string }
+        grade:
+          type: string
+          enum: [BASIC, PREMIUM]
+        point: { type: integer }
+
+    Address:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        recipientName: { type: string }
+        phoneNumber: { type: string }
+        zipcode: { type: string }
+        address: { type: string }
+        detailAddress: { type: string }
+        isDefault: { type: boolean }
+
+    AddressCreateRequest:
+      type: object
+      required: [recipientName, phoneNumber, zipcode, address]
+      properties:
+        recipientName: { type: string }
+        phoneNumber: { type: string }
+        zipcode: { type: string }
+        address: { type: string }
+        detailAddress: { type: string }
+        isDefault: { type: boolean, default: false }

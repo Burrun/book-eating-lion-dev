@@ -2,13 +2,16 @@ package com.bookeatinglion.book.service;
 
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
+import com.bookeatinglion.book.domain.ReviewPermission;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.ReviewRequest;
 import com.bookeatinglion.book.dto.ReviewResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
+import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
 import com.bookeatinglion.book.repository.BookRepository;
+import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import com.bookeatinglion.book.repository.ReviewRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,13 +45,24 @@ class ReviewServiceTest {
     @Mock
     private BookRepository bookRepository;
 
+    /**
+     * 구매 검증은 order-service 호출이 아니라 이 로컬 테이블 조회다.
+     * 그래서 이 테스트에 order 관련 목이 하나도 없다.
+     */
+    @Mock
+    private ReviewPermissionRepository reviewPermissionRepository;
+
     @InjectMocks
     private ReviewService reviewService;
+
+    private ReviewPermission permission(Long memberId, Long bookId) {
+        return new ReviewPermission(memberId, 500L, bookId, "테스트유저", java.time.LocalDateTime.now());
+    }
 
     private Book book(Long id) throws Exception {
         Book book = Book.builder()
                 .title("책").author("저자").publisher("출판사").isbn("978110000" + id)
-                .category("소설").price(10000).stockQuantity(5)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
         setField(book, Book.class, "bookId", id);
@@ -89,9 +103,12 @@ class ReviewServiceTest {
     }
 
     @Test
-    void 리뷰를_생성한다() throws Exception {
+    void 사전_발급된_권한이_있으면_리뷰를_생성한다() throws Exception {
         Book book = book(1L);
+        ReviewPermission permission = permission(1L, 1L);
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(1L, 1L))
+                .thenReturn(Optional.of(permission));
         when(reviewRepository.save(any())).thenAnswer(invocation -> {
             Review saved = invocation.getArgument(0);
             setField(saved, Review.class, "reviewId", 100L);
@@ -103,6 +120,21 @@ class ReviewServiceTest {
         assertThat(result.rating()).isEqualTo(5);
         assertThat(result.content()).isEqualTo("최고예요");
         assertThat(result.memberId()).isEqualTo(1L);
+        // 닉네임은 members 조인이 아니라 이벤트로 받은 스냅샷에서 온다.
+        assertThat(result.nickname()).isEqualTo("테스트유저");
+        // 1건당 1리뷰 — 권한이 소진됐다.
+        assertThat(permission.isUsed()).isTrue();
+    }
+
+    @Test
+    void 구매_확정_이력이_없으면_리뷰_생성이_거부된다() throws Exception {
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book(1L)));
+        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(1L, 1L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> reviewService.createReview(1L, 1L, new ReviewRequest(5, "내용")))
+                .isInstanceOf(ReviewPermissionRequiredException.class);
+        verify(reviewRepository, never()).save(any());
     }
 
     @Test

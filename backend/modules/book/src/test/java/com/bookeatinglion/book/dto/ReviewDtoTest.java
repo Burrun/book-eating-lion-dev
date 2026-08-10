@@ -16,7 +16,7 @@ class ReviewDtoTest {
     void ReviewResponse는_리뷰_필드를_매핑한다() throws Exception {
         Book book = Book.builder()
                 .title("제목").author("저자").publisher("출판사").isbn("9791100000031")
-                .category("소설").price(10000).stockQuantity(1)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build();
         setField(book, Book.class, "bookId", 10L);

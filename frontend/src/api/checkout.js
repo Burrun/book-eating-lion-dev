@@ -1,4 +1,4 @@
-import apiClient from "./client.js";
+import { apiClient } from "./client.ts";
 import { MOCK_CHECKOUT_SUMMARY } from "../mocks/checkout.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";

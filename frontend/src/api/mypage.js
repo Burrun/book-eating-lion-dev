@@ -1,4 +1,4 @@
-import apiClient from "./client.js";
+import { apiClient } from "./client.ts";
 import {
   MOCK_PROFILE,
   MOCK_FED_BOOKS,

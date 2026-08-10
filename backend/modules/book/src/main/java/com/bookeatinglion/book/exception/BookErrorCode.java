@@ -7,6 +7,7 @@ public enum BookErrorCode {
     BOOK_NOT_FOUND(HttpStatus.NOT_FOUND),
     REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND),
     REVIEW_ACCESS_DENIED(HttpStatus.FORBIDDEN),
+    REVIEW_PERMISSION_REQUIRED(HttpStatus.FORBIDDEN),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;

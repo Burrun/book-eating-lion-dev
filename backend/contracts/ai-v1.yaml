@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: ai-service API
+  version: "1.0.0"
+  description: |
+    라이언/RAG(프리미엄) + 문의봇.
+
+    경로가 /api/ai/lions/** 와 /api/ai/bot/** 으로 갈려 있는 것은 우연이 아니다.
+    이미지는 1개지만 Deployment 는 2개(ai-rag / ai-bot)이고, Ingress 가 이 경로로
+    서로 다른 Deployment 에 라우팅한다(판단 ④).
+
+    두 워크로드를 나눈 이유는 HPA 메트릭과 타임아웃 정책이 다르기 때문이다.
+    임베딩을 외부 API(Bedrock Titan V2)로 뽑기로 확정했으므로(Phase 0-2b)
+    ai-rag 도 I/O 바운드다 — 둘 다 CPU HPA 로는 뜨지 않으며 동시 요청 수로 확장한다.
+
+    이 서비스는 다른 서비스와 통신하지 않는다. 자기 DB 클러스터(B)에만 붙는다.
+
+servers:
+  - url: http://localhost:8084
+    description: 로컬
+  - url: http://ai-service.lion-app.svc.cluster.local:8080
+    description: 클러스터 내부
+
+paths:
+  /api/ai/lions/me/ask:
+    post:
+      summary: 라이언에게 묻기 (RAG)
+      description: |
+        → ai-rag Deployment. 프리미엄 전용.
+
+        파이프라인: ①질의 임베딩(외부 API) → ②벡터 검색(Aurora pgvector, Pod 밖)
+        → ③컨텍스트 조립 → ④LLM 호출(외부 API).
+        ②가 Pod 밖이라 벡터 저장소를 바꿔도 이 Pod 의 CPU 는 줄지 않는다.
+      operationId: askLion
+      tags: [ai-rag]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, example: 내가 읽은 책 중에 비슷한 게 있었나? }
+      responses:
+        "200":
+          description: 응답 생성 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextEnvelope"
+
+  /api/ai/lions/me/memories:
+    post:
+      summary: 독서 기록 저장
+      description: |
+        → ai-rag Deployment.
+
+        bookTitle / coverUrl 은 **요청에 실려 온다.** 프론트가 도서 상세에서 진입하므로
+        이미 값을 갖고 있고, catalog-service 를 호출할 필요가 없다(§7.6 — 통신 없음).
+        저장된 값은 기록 시점 스냅샷이며 원본이 바뀌어도 갱신하지 않는다.
+      operationId: rememberBook
+      tags: [ai-rag]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryRequest"
+      responses:
+        "201":
+          description: 저장 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdEnvelope"
+
+  /api/ai/bot/ask:
+    post:
+      summary: 문의봇 질의
+      description: |
+        → ai-bot Deployment.
+
+        외부 LLM API 호출이라 순수 I/O 대기다. 요청 100건이 동시에 들어와도 CPU 는
+        5% 언저리에 머물기 때문에 CPU 기반 HPA 로는 절대 확장되지 않는다.
+        Bulkhead 스레드풀로 격리해 봇이 폭주해도 RAG 가 스레드를 확보한다.
+      operationId: askBot
+      tags: [ai-bot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, example: 배송은 얼마나 걸리나요? }
+      responses:
+        "200":
+          description: 응답 생성 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TextEnvelope"
+
+  /api/ai/bot/inquiries:
+    post:
+      summary: 1:1 문의 등록
+      description: |
+        → ai-bot Deployment. 요구사항 v2 에서 중고거래 채팅을 대체한 기능이다.
+        WebSocket 이 아니므로 sticky session 도 Redis Pub/Sub 도 필요 없다.
+      operationId: submitInquiry
+      tags: [ai-bot]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InquiryRequest"
+      responses:
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdEnvelope"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TextEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: string }
+
+    IdEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: integer, format: int64 }
+
+    MemoryRequest:
+      type: object
+      required: [bookId]
+      properties:
+        bookId: { type: integer, format: int64 }
+        bookTitle:
+          type: string
+          description: 기록 시점 스냅샷. catalog 조인 대신 요청에 실어 보낸다.
+        coverUrl: { type: string }
+        memo: { type: string }
+        quoteText: { type: string }
+
+    InquiryRequest:
+      type: object
+      required: [title, content]
+      properties:
+        bookId: { type: integer, format: int64 }
+        bookTitle: { type: string, description: 생성 시점 스냅샷 }
+        title: { type: string }
+        content: { type: string }

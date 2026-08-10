@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
 
 const NAV_LINKS = [
@@ -11,6 +11,16 @@ const NAV_LINKS = [
 
 export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+
+  // 검색 결과는 목록 화면이 ?q= 로 받아서 처리한다.
+  function handleSearch(e) {
+    e.preventDefault();
+    const keyword = query.trim();
+    if (!keyword) return;
+    navigate(`/?q=${encodeURIComponent(keyword)}`);
+    setQuery("");
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-[var(--color-paper)]">
@@ -37,7 +47,7 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
           <form
             role="search"
             className="flex flex-1 items-center gap-2 rounded-full border-2 border-[var(--color-forest)]/20 bg-white px-4 py-2 transition-colors focus-within:border-[var(--color-honey)]"
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={handleSearch}
           >
             <Search size={18} className="shrink-0 text-[var(--color-forest)]/50" />
             <input

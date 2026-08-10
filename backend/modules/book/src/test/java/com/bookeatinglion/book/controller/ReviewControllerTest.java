@@ -45,7 +45,7 @@ class ReviewControllerTest {
     private ReviewService reviewService;
 
     private ReviewResponse response(Long id) {
-        return new ReviewResponse(id, 1L, 1L, 5, "좋아요", LocalDateTime.now());
+        return new ReviewResponse(id, 1L, 1L, "테스트유저", 5, "좋아요", LocalDateTime.now());
     }
 
     @Test

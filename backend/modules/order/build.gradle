@@ -1,5 +1,9 @@
 dependencies {
+    // modules 끼리는 서로 의존하지 않는다 (§7.2 의존 규칙).
+    // 이전에는 modules:member 와 modules:book 을 참조했고, 그게 MSA 전환에서
+    // 잘라야 했던 유일한 이음새였다. 회원 검증은 JWT 클레임으로 대체됐다.
     implementation project(':modules:common')
-    implementation project(':modules:member')
-    implementation project(':modules:book')
+
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.springframework.security:spring-security-test'
 }

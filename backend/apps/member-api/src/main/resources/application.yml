@@ -1,0 +1,8 @@
+spring:
+  profiles:
+    active: local
+  application:
+    name: member-service
+
+server:
+  port: 8083

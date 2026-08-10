@@ -6,6 +6,7 @@ import com.bookeatinglion.book.dto.BookDetailResponse;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
+import com.bookeatinglion.book.port.InventoryPort;
 import com.bookeatinglion.book.repository.BookRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,13 +35,17 @@ class BookServiceTest {
     @Mock
     private BookRepository bookRepository;
 
+    /** 재고는 order-service 소유다. 도메인 서비스는 포트만 알고 Feign 은 모른다. */
+    @Mock
+    private InventoryPort inventoryPort;
+
     @InjectMocks
     private BookService bookService;
 
     private Book book(Long id, String title) throws Exception {
         Book book = Book.builder()
                 .title(title).author("저자").publisher("출판사").isbn("978110000" + id)
-                .category("소설").price(10000).stockQuantity(5)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.of(2026, 1, 1)).salesCount(0)
                 .build();
         Field idField = Book.class.getDeclaredField("bookId");
@@ -75,10 +80,25 @@ class BookServiceTest {
     void 존재하는_책_id로_상세조회한다() throws Exception {
         Book book = book(1L, "상세책");
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(inventoryPort.stockByBookIds(List.of(1L))).thenReturn(java.util.Map.of(1L, 42));
 
         BookDetailResponse result = bookService.getBook(1L);
 
         assertThat(result.title()).isEqualTo("상세책");
+        assertThat(result.stockQuantity()).isEqualTo(42);
+    }
+
+    @Test
+    void 재고_조회에_실패하면_재고만_degrade하고_도서정보는_반환한다() throws Exception {
+        Book book = book(1L, "상세책");
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        // order-service 장애 시 fallback 이 빈 맵을 준다.
+        when(inventoryPort.stockByBookIds(List.of(1L))).thenReturn(java.util.Map.of());
+
+        BookDetailResponse result = bookService.getBook(1L);
+
+        assertThat(result.title()).isEqualTo("상세책");
+        assertThat(result.stockQuantity()).isEqualTo(BookDetailResponse.STOCK_UNAVAILABLE);
     }
 
     @Test

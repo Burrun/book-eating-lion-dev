@@ -38,8 +38,10 @@ public class Book extends BaseEntity {
     @Column(nullable = false)
     private int price;
 
-    @Column(nullable = false)
-    private int stockQuantity;
+    // stockQuantity 는 여기 없다. 재고는 order-service 가 소유한다(계획서 Phase 0-1 / 판단 ③).
+    // 재고에 쓰기를 하는 주체는 ①관리자 입고 ②주문 차감 둘뿐이고 둘 다 order 안에 있으므로,
+    // 재고를 order_db.inventory 로 옮기면 결제 트랜잭션이 서비스 경계를 넘지 않는다.
+    // 화면 표시용 재고 수량은 InventoryPort 로 조회해 조합한다(API 조합 패턴).
 
     private String coverImageUrl;
 
@@ -61,7 +63,7 @@ public class Book extends BaseEntity {
 
     @Builder
     public Book(String title, String author, String publisher, String isbn, String category,
-                int price, int stockQuantity, String coverImageUrl, String description,
+                int price, String coverImageUrl, String description,
                 String detailedSynopsis, SaleStatus saleStatus, LocalDate publishedDate, int salesCount) {
         this.title = title;
         this.author = author;
@@ -69,7 +71,6 @@ public class Book extends BaseEntity {
         this.isbn = isbn;
         this.category = category;
         this.price = price;
-        this.stockQuantity = stockQuantity;
         this.coverImageUrl = coverImageUrl;
         this.description = description;
         this.detailedSynopsis = detailedSynopsis;

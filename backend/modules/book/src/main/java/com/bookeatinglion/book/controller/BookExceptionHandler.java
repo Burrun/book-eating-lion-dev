@@ -4,6 +4,7 @@ import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
+import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
 import com.bookeatinglion.common.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -30,6 +31,12 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleReviewAccessDenied(ReviewAccessDeniedException e) {
         return ResponseEntity.status(BookErrorCode.REVIEW_ACCESS_DENIED.getStatus())
                 .body(ApiResponse.error(BookErrorCode.REVIEW_ACCESS_DENIED.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(ReviewPermissionRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleReviewPermissionRequired(ReviewPermissionRequiredException e) {
+        return ResponseEntity.status(e.getErrorCode().getStatus())
+                .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

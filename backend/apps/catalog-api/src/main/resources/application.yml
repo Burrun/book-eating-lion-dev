@@ -1,0 +1,32 @@
+spring:
+  profiles:
+    active: local
+  application:
+    name: catalog-service
+  cloud:
+    openfeign:
+      circuitbreaker:
+        # fallback 이 동작하려면 Feign 이 CircuitBreaker 를 태워야 한다.
+        # 꺼져 있으면 @FeignClient 의 fallback 속성이 조용히 무시되고,
+        # Phase 2-3 의 "5xx 없이 fallback" 검증이 실패한다.
+        enabled: true
+
+server:
+  port: 8081
+
+# 서비스 간 동기 통신 대상. 운영에서는 ConfigMap 이 덮어쓴다(§7.5).
+services:
+  order:
+    url: ${SERVICES_ORDER_URL:http://localhost:8082}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      order-inventory:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      order-inventory:
+        timeoutDuration: 2s

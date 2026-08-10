@@ -1,7 +1,6 @@
 name: Main CD (EKS Production)
 
 # Backend CI / Frontend CI 가 main 브랜치에서 성공적으로 완료된 뒤에만 배포한다.
-# (workflow_run 게이팅 — 실패한 빌드가 그대로 배포되는 것을 방지)
 on:
   workflow_run:
     workflows: [ "Backend CI", "Frontend CI" ]
@@ -18,19 +17,77 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-backend:
-    name: Backend → ECR & EKS
+  # ---------------------------------------------------------------------------
+  # 변경된 서비스 판별 — Phase 3-4
+  #
+  # 이게 MSA 의 실질적 이득 중 하나다.
+  # "리뷰 문구 하나 고쳤는데 결제 서비스가 재배포된다"면 MSA 를 한 의미가 없다.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: 변경 서비스 판별
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.name == 'Backend CI' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
+    outputs:
+      catalog: ${{ steps.filter.outputs.catalog }}
+      order: ${{ steps.filter.outputs.order }}
+      member: ${{ steps.filter.outputs.member }}
+      ai: ${{ steps.filter.outputs.ai }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # workflow_dispatch 로 수동 실행하면 전부 배포한다.
+          predicate-quantifier: 'some'
+          filters: |
+            shared: &shared
+              - 'backend/build.gradle'
+              - 'backend/settings.gradle'
+              - 'backend/modules/common/**'
+              - 'backend/contracts/**'
+              - '.github/workflows/main-cd.yml'
+            catalog:
+              - *shared
+              - 'backend/apps/catalog-api/**'
+              - 'backend/modules/book/**'
+              - 'k8s/catalog/**'
+              - 'k8s/base/**'
+            order:
+              - *shared
+              - 'backend/apps/order-api/**'
+              - 'backend/modules/order/**'
+              - 'k8s/order/**'
+              - 'k8s/base/**'
+            member:
+              - *shared
+              - 'backend/apps/member-api/**'
+              - 'backend/modules/member/**'
+              - 'k8s/member/**'
+              - 'k8s/base/**'
+            ai:
+              - *shared
+              - 'backend/apps/ai-api/**'
+              - 'backend/modules/ai/**'
+              - 'k8s/ai/**'
+              - 'k8s/base/**'
+
+  # ---------------------------------------------------------------------------
+  # 공통 리소스는 서비스 배포보다 먼저 한 번만 적용한다.
+  # 각 서비스 job 이 base 를 각자 apply 하면 4번 중복되고 경합이 난다.
+  # ---------------------------------------------------------------------------
+  base:
+    name: 공통 매니페스트
+    needs: changes
+    runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'lion-app' }}
-      K8S_DEPLOYMENT: ${{ vars.K8S_DEPLOYMENT || 'backend-deployment' }}
-      K8S_CONTAINER: ${{ vars.K8S_CONTAINER || 'backend' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -41,77 +98,169 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          role-session-name: gha-prod-backend-${{ github.run_id }}
+          role-session-name: gha-prod-base-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & push backend image
-        env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_BACKEND_REPO }}
-        run: |
-          IMAGE="$REGISTRY/$REPOSITORY"
-          docker build \
-            -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
-            -t "$IMAGE:main-${{ github.run_number }}" \
-            -f backend/apps/api/Dockerfile backend
-          docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
-          docker push "$IMAGE:main-${{ github.run_number }}"
-          echo "IMAGE_URI=$IMAGE:${{ env.DEPLOY_SHA }}" >> "$GITHUB_ENV"
 
       - name: Update EKS kubeconfig
         run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
 
-      # k8s/*.yaml 의 ${...} 플레이스홀더를 채워 rendered/ 로 내보낸다.
-      # 저장소에는 비밀값이 없고, 렌더링 결과는 러너에서만 존재한다.
-      - name: Render K8s manifests
+      - name: Render & apply base manifests
         env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_BACKEND_REPO: ${{ vars.ECR_BACKEND_REPO }}
-          IMAGE_TAG: ${{ env.DEPLOY_SHA }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          DB_NAME: ${{ vars.DB_NAME }}
-          DB_PORT: ${{ vars.DB_PORT || '3306' }}
           RDS_ENDPOINT: ${{ vars.RDS_ENDPOINT }}
-          S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME }}
+          RDS_READER_ENDPOINT: ${{ vars.RDS_READER_ENDPOINT }}
+          AI_RDS_ENDPOINT: ${{ vars.AI_RDS_ENDPOINT }}
           API_HOST: ${{ vars.API_HOST }}
-          # 08-ingress.yaml 의 CORS allow-origin (예: https://app.example.com)
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
-          # 09-networkpolicy.yaml 에서 kubelet probe 를 허용할 노드 대역 (예: 10.0.0.0/16)
           VPC_CIDR: ${{ vars.VPC_CIDR }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
+          AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
+          CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
+          CATALOG_DB_PASSWORD: ${{ secrets.CATALOG_DB_PASSWORD }}
+          ORDER_DB_USERNAME: ${{ secrets.ORDER_DB_USERNAME }}
+          ORDER_DB_PASSWORD: ${{ secrets.ORDER_DB_PASSWORD }}
+          MEMBER_DB_USERNAME: ${{ secrets.MEMBER_DB_USERNAME }}
+          MEMBER_DB_PASSWORD: ${{ secrets.MEMBER_DB_PASSWORD }}
+          AI_DB_USERNAME: ${{ secrets.AI_DB_USERNAME }}
+          AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
         run: |
-          for v in ECR_BACKEND_REPO DB_NAME RDS_ENDPOINT S3_BUCKET_NAME API_HOST FRONTEND_ORIGIN VPC_CIDR DB_USERNAME DB_PASSWORD; do
+          set -euo pipefail
+          for v in RDS_ENDPOINT RDS_READER_ENDPOINT AI_RDS_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR \
+                   CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
+                   MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
             if [ -z "${!v}" ]; then
               echo "::error::필수 값 $v 가 비어 있습니다. environment 의 Variables/Secrets 를 확인하세요."
               exit 1
             fi
           done
-          VARS='$ECR_REGISTRY $ECR_BACKEND_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $DB_PORT $AWS_REGION $S3_BUCKET_NAME $RDS_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_USERNAME $DB_PASSWORD'
+
+          VARS='$SPRING_PROFILE $RDS_ENDPOINT $RDS_READER_ENDPOINT $AI_RDS_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
-          for f in k8s/*.yaml; do
+          for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
           done
-          echo "렌더링 완료:"; ls rendered/
+          kubectl apply -f rendered/
 
-      - name: Apply K8s manifests
-        run: kubectl apply -f rendered/
+  # ---------------------------------------------------------------------------
+  # 서비스별 배포. 변경된 것만 돈다.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: ${{ matrix.service }} → ECR & EKS
+    needs: [changes, base]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: catalog
+            changed: ${{ needs.changes.outputs.catalog }}
+            deployments: catalog-deployment
+          - service: order
+            changed: ${{ needs.changes.outputs.order }}
+            deployments: order-deployment
+          - service: member
+            changed: ${{ needs.changes.outputs.member }}
+            deployments: member-deployment
+          # ai 는 이미지 1개에 Deployment 2개다(판단 ④).
+          - service: ai
+            changed: ${{ needs.changes.outputs.ai }}
+            deployments: ai-rag-deployment ai-bot-deployment
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'lion-app' }}
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: 변경 없음 — 건너뜀
+        if: matrix.changed != 'true' && github.event_name != 'workflow_dispatch'
+        run: echo "${{ matrix.service }} 관련 변경이 없어 배포를 건너뜁니다."
+
+      - uses: actions/checkout@v4
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Configure AWS credentials (OIDC)
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-prod-${{ matrix.service }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push image
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          # ECR 리포지터리 4개 (Phase 3-1)
+          REPO_VAR="ECR_$(echo ${{ matrix.service }} | tr a-z A-Z)_REPO"
+          REPOSITORY="${{ vars.ECR_CATALOG_REPO }}"
+          case "${{ matrix.service }}" in
+            catalog) REPOSITORY="${{ vars.ECR_CATALOG_REPO }}" ;;
+            order)   REPOSITORY="${{ vars.ECR_ORDER_REPO }}" ;;
+            member)  REPOSITORY="${{ vars.ECR_MEMBER_REPO }}" ;;
+            ai)      REPOSITORY="${{ vars.ECR_AI_REPO }}" ;;
+          esac
+          if [ -z "$REPOSITORY" ]; then
+            echo "::error::$REPO_VAR 가 비어 있습니다."
+            exit 1
+          fi
+
+          IMAGE="$REGISTRY/$REPOSITORY"
+          docker build \
+            -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
+            -t "$IMAGE:main-${{ github.run_number }}" \
+            -f backend/apps/${{ matrix.service }}-api/Dockerfile backend
+          docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
+          docker push "$IMAGE:main-${{ github.run_number }}"
+
+      - name: Update EKS kubeconfig
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
+
+      - name: Render & apply service manifests
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          ECR_CATALOG_REPO: ${{ vars.ECR_CATALOG_REPO }}
+          ECR_ORDER_REPO: ${{ vars.ECR_ORDER_REPO }}
+          ECR_MEMBER_REPO: ${{ vars.ECR_MEMBER_REPO }}
+          ECR_AI_REPO: ${{ vars.ECR_AI_REPO }}
+          IMAGE_TAG: ${{ env.DEPLOY_SHA }}
+          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          AI_DB_NAME: ${{ vars.AI_DB_NAME }}
+          REDIS_HOST: ${{ vars.REDIS_HOST }}
+          AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
+        run: |
+          set -euo pipefail
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID'
+          mkdir -p rendered
+          for f in k8s/${{ matrix.service }}/*.yaml; do
+            envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
+          done
+          kubectl apply -f rendered/
 
       - name: Wait for rollout
+        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          kubectl -n "$K8S_NAMESPACE" rollout status \
-            "deployment/$K8S_DEPLOYMENT" --timeout=600s
+          for d in ${{ matrix.deployments }}; do
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=600s
+          done
 
-      # 롤아웃 실패 시 직전 리비전으로 자동 복구한다.
       - name: Rollback on failure
-        if: failure()
+        if: failure() && (matrix.changed == 'true' || github.event_name == 'workflow_dispatch')
         run: |
-          kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$K8S_DEPLOYMENT" || true
-          kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$K8S_DEPLOYMENT" --timeout=300s || true
+          for d in ${{ matrix.deployments }}; do
+            kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=300s || true
+          done
 
   deploy-frontend:
     name: Frontend → S3 & CloudFront

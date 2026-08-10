@@ -1,14 +1,23 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getBookById } from '../../data/mockBooks.ts'
+import { getBook, getWebtoonCuts } from '../../api/books.ts'
+import { getReviews } from '../../api/reviews.ts'
 import { getMySubscription } from '../../api/member.ts'
 import type { Review } from '../../types/book.ts'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
-  const book = getBookById(id)
-  const [reviews, setReviews] = useState<Review[]>(book.reviews)
+
+  const {
+    data: book,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ['book', id],
+    queryFn: () => getBook(id!),
+    enabled: Boolean(id),
+  })
 
   // 구독 회원 전용 웹툰 요약 컷. 조회 실패/로딩 중에는 비구독으로 취급한다(fail-safe).
   // true: 웹툰 요약 컷 / false: 줄거리 텍스트 + 구독 유도
@@ -17,12 +26,29 @@ export default function ProductDetailPage() {
     queryFn: getMySubscription,
   })
   const hasWebtoonAccess = subscription?.isActive ?? false
+
+  // 컷은 구독 회원에게만 보여주므로 그때만 조회한다.
+  const { data: webtoonCuts } = useQuery({
+    queryKey: ['webtoonCuts', id],
+    queryFn: () => getWebtoonCuts(id!),
+    enabled: Boolean(id) && hasWebtoonAccess,
+  })
+
+  // 상세 응답에는 리뷰가 없다(BookDetailResponse). 리뷰는 전용 API로 따로 가져온다.
+  const { data: reviewPage } = useQuery({
+    queryKey: ['reviews', id],
+    queryFn: () => getReviews(id!),
+    enabled: Boolean(id),
+  })
+
+  // 작성한 리뷰는 아직 서버로 보내지 않으므로 조회 결과 위에 얹어서 보여준다.
+  const [addedReviews, setAddedReviews] = useState<Review[]>([])
   const [draftRating, setDraftRating] = useState(5)
   const [draftText, setDraftText] = useState('')
 
   function handleSubmitReview() {
     if (!draftText.trim()) return
-    setReviews((prev) => [
+    setAddedReviews((prev) => [
       {
         id: `local-${Date.now()}`,
         author: '나',
@@ -35,6 +61,34 @@ export default function ProductDetailPage() {
     setDraftText('')
     setDraftRating(5)
   }
+
+  if (isPending) {
+    return (
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
+        <div className="skeleton-shimmer h-80 rounded-2xl" />
+        <div className="skeleton-shimmer h-48 rounded-2xl" />
+      </main>
+    )
+  }
+
+  if (isError || !book) {
+    return (
+      <main className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 py-16">
+        <p className="text-4xl">🦁</p>
+        <p className="text-sm text-forest/60">도서 정보를 불러오지 못했습니다.</p>
+        <Link
+          to="/"
+          className="rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light"
+        >
+          목록으로 돌아가기 &gt;
+        </Link>
+      </main>
+    )
+  }
+
+  const reviews = [...addedReviews, ...(reviewPage?.items ?? [])]
+  // 백엔드 상세 응답에 리뷰 수가 없어 매퍼가 0으로 채운다. 리뷰 목록의 totalElements 로 대체한다.
+  const reviewCount = reviewPage?.totalElements ?? book.reviewCount
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
@@ -49,7 +103,7 @@ export default function ProductDetailPage() {
           </p>
           <p className="text-lg font-semibold text-coral">{book.price.toLocaleString()}원</p>
           <p className="text-sm text-forest/60">
-            ⭐ {book.rating}점 (리뷰 {book.reviewCount}개) | {book.shippingNote}
+            ⭐ {book.rating}점 (리뷰 {reviewCount}개) | {book.shippingNote}
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button className="rounded-full bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light">
@@ -67,7 +121,7 @@ export default function ProductDetailPage() {
           <>
             <h2 className="text-xl font-bold">🎨 웹툰 요약 컷</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {book.webtoonCuts.map((cut) => (
+              {(webtoonCuts ?? []).map((cut) => (
                 <div key={cut.id} className="overflow-hidden rounded-xl border border-forest/10">
                   <div className="flex h-48 items-center justify-center bg-paper text-4xl">🖼️</div>
                   <p className="p-3 text-sm text-forest/70">{cut.caption}</p>

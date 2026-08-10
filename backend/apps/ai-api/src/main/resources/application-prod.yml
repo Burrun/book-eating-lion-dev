@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    # 클러스터 B (Aurora Serverless v2, min 0 ACU). AI_DB_HOST 는 클러스터 A 와 다른 엔드포인트다.
+    url: jdbc:postgresql://${AI_DB_HOST}:${AI_DB_PORT}/${AI_DB_NAME}?currentSchema=ai_db&sslmode=require
+    username: ${AI_DB_USERNAME}
+    password: ${AI_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Phase 2-8 의 검증 대상. 유휴 5분 후 Aurora 가 실제로 auto-pause 되는지
+      # 콘솔에서 확인한다. 이 설정 없이는 절대 멈추지 않는다.
+      minimum-idle: 0
+      idle-timeout: 60000
+      maximum-pool-size: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: ai_db
+
+  flyway:
+    enabled: false
+
+app:
+  bedrock:
+    region: ${AWS_BEDROCK_REGION}
+    embedding-model: amazon.titan-embed-text-v2:0
+    embedding-dimension: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

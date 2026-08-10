@@ -1,58 +1,252 @@
-# Book Eating Lion (책 먹는 사자)
+# Book Eating Lion (책 먹는 사자) — MSA 전환본
 
 K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
+
+> **이 디렉터리는 `docs/msa-migration-plan.md` 를 실행해 모듈러 모놀리스를 4개
+> 마이크로서비스로 전환한 결과물이다.** 전환 전 코드는 상위 디렉터리에 그대로 있다.
+> 아래 [MSA 전환 요약](#-msa-전환-요약)에 무엇이 왜 바뀌었는지 정리했다.
+
+---
+
+## 🧭 MSA 전환 요약
+
+### 서비스 구성 — 기능으로 3개, 자원 프로파일로 1개 더
+
+| 서비스 | 포함 도메인 | 포트 | DB | HPA |
+| --- | --- | --- | --- | --- |
+| `catalog-service` | book, review, wishlist, recent-books | 8081 | `catalog_db` | 2 → 20 |
+| `order-service` | order, payment, delivery, **inventory** | 8082 | `order_db` | 2 → 30 |
+| `member-service` | member, auth, address | 8083 | `member_db` | 2 → 6 |
+| `ai-service` | lion/RAG, 문의봇, faq | 8084 | `ai_db` (별도 클러스터) | rag 1→6 / bot 1→10 |
+
+**서비스 4개 / Deployment 5개**다. `ai-service` 는 이미지 1개에 Deployment 2개(`ai-rag`,
+`ai-bot`)로 뜬다 — 두 워크로드의 HPA 메트릭과 타임아웃 정책이 다르기 때문이다.
+자원 격리는 YAML 하나로 얻을 수 있고, 서비스를 쪼개는 건 그보다 10배 비싸다.
+
+`member-service` 는 의도적으로 작고 지루하다. 인증이 CPU 를 두고 RAG 와 경쟁하면
+부하 시험 중 로그인이 죽고, 그러면 "결제 성공률 100%" 시연 자체가 무의미해진다.
+
+### 바뀐 것 — 한눈에
+
+| 영역 | 전환 전 | 전환 후 |
+| --- | --- | --- |
+| 배포 단위 | `apps/api` 1개 | `apps/{catalog,order,member,ai}-api` 4개 |
+| 도메인 모듈 | common, member, book, order, usedbook, delivery | common, member, book, order, **ai** (usedbook 삭제, delivery 분해) |
+| DB 엔진 | MySQL 8.0 | **PostgreSQL 16** (ai 는 pgvector) |
+| DB 경계 | 단일 스키마·단일 계정 | **스키마 4분할 + 서비스별 계정 권한** |
+| 재고 소유권 | `books.stock` (catalog) | **`order_db.inventory` (order)** |
+| k8s | Deployment 1 / Service 1 / HPA 1 | **Deployment 5 / Service 5 / HPA 5** |
+| CD | 전체 재배포 | **변경된 서비스만** (paths filter + matrix) |
+| 계약 | 산문 `.md` | **OpenAPI YAML 4종 + Prism mock** |
+
+---
+
+## 🔑 핵심 설계 결정 4가지
+
+### ① 재고는 order-service 가 소유한다
+
+`books.stock` 을 `order_db.inventory` 로 옮겼다. 이 한 줄이 **Saga 와 보상 트랜잭션을
+통째로 없앤다** — Redlock·재고차감·결제가 전부 한 서비스 안의 로컬 트랜잭션이 되기 때문이다.
+
+라이프사이클만 보면 재고는 상품에 가깝지만, 애그리게잇의 결정 기준은 라이프사이클이
+아니라 **트랜잭션 경계**다. KPI 가 "오버셀링 0건"이면 재고의 일관성 경계는 주문 쪽이다.
+
+대가로 두 가지를 설계해야 했다:
+
+- **관리자 입고** → catalog 는 `order_db` 쓰기 권한이 없으므로 `POST /internal/inventory/{bookId}/restock` 으로 위임
+- **재고 표시** → `GET /internal/inventory?bookIds=` **벌크 조회**. 단건 API 를 주면 목록에서 반드시 N+1 이 난다
+
+### ② 서비스 간 통신은 딱 세 채널뿐이다
+
+기준은 **"장애가 전이돼도 되는가"**다.
+
+| 채널 | 용도 | 판단 근거 |
+| --- | --- | --- |
+| **동기** (OpenFeign + Resilience4j) | `catalog → order` 재고 조회·입고 **2건뿐** | 지금 이 응답에 값이 필요하다. fallback 이 있어 장애 반경이 좁다 |
+| **비동기** (Redis Streams) | 리뷰 권한 발급, 닉네임 스냅샷 | 동기로 하면 **리뷰 작성이 결제 가용성에 종속**된다 |
+| **통신 없음** | 재고 차감, 구매 검증, 도서 정보 스냅샷 | 이쪽이 가장 중요하다 |
+
+리뷰 작성 시 "구매했나?"를 order 에 **묻지 않는다.** 구매 확정 시점에 order 가
+`ReviewPermissionGranted` 이벤트로 권한을 미리 넘긴다. 그래서 **order-service 가 죽어도
+리뷰 작성은 정상 동작한다.** 동기 호출로 바꾸면 "장애가 결제로 전이되지 않는다"는
+프로젝트 명분과 정확히 반대가 된다.
+
+### ③ 엔진은 PostgreSQL 하나, 클러스터는 2개
+
+엔진 통일과 클러스터 분리는 **다른 레버**다.
+
+- **엔진 통일** → Flyway 문법·JPA dialect·백업·학습 비용이 전부 1종
+- **클러스터 분리** → `ai_db` 만 pgvector 와 Serverless v2 auto-pause 를 독립적으로 얻음
+
+포팅 비용은 실측상 거의 전부 기계적 치환이었다(`nativeQuery` 0건, `@Query` 는 JPQL 2건,
+`updated_at` 은 `@LastModifiedDate` 가 이미 관리 → **트리거 0개 필요**).
+
+### ④ CPU 기반 HPA 는 I/O 바운드 워크로드에 무력하다
+
+문의봇은 외부 LLM API 를 호출하므로 요청 100건이 동시에 들어와도 CPU 는 5% 언저리다.
+CPU 70% HPA 는 **영원히 트리거되지 않고** 요청만 큐에 쌓이다 타임아웃된다.
+그래서 `ai-bot` 은 동시 요청 수로 확장하고, 두 워크로드 모두 **Bulkhead 스레드풀 격리**를
+필수로 적용했다.
 
 ---
 
 ## 📁 폴더 구조
 
 ```text
-book_eating_lion/
-├── .github/                       # CI/CD 자동화 전용 폴더
-│   └── workflows/                 # GitHub Actions 파이프라인
-│       ├── dev-backend-ci.yml     # [DEV] 백엔드 Spring Boot 빌드 & 테스트
-│       ├── dev-frontend-ci.yml    # [DEV] 프론트엔드 React 빌드 & 테스트
-│       ├── dev-cd.yml             # [DEV] 개발 서버 자동 배포 (EKS Dev / Docker)
-│       ├── main-backend-ci.yml    # [MAIN] 운영 백엔드 검증 파이프라인
-│       ├── main-frontend-ci.yml   # [MAIN] 운영 프론트엔드 정적 검사 & 빌드
-│       └── main-cd.yml            # [MAIN] AWS EKS 운영 환경 자동 배포
+copy/
+├── .github/
+│   ├── CODEOWNERS                  # 🆕 도메인별 리뷰 소유권 (경계 강제 2단)
+│   └── workflows/
+│       ├── backend-ci.yml          # 🔄 모듈 경계 검사 + 이미지 4종 빌드 검증
+│       ├── frontend-ci.yml
+│       ├── main-cd.yml             # 🔄 matrix + paths filter (변경된 서비스만 배포)
+│       └── secret-scan.yml
 │
-├── frontend/                      # React 기반 UI (도서 목록, 장바구니, 결제, 대시보드)
-├── backend/                       # Spring Boot API (도서, 주문, 결제, CQRS, S3 연동)
-├── k8s/                           # AWS EKS & K8s 매니페스트 (App, Monitoring, Ingress, HPA)
-├── k6/                            # k6 성능, 재고 동시성 및 결제 멱등성 부하 테스트
-├── db/                            # DDL, DML 및 초기화 SQL 스크립트 (1_demo_data.sql)
-├── docs/                          # 기획서, 아키텍처 다이어그램, IAM/SG 명세, ERD, API 컬렉션
+├── backend/
+│   ├── contracts/                  # 🆕 Phase 0-4 산출물 = 단일 진실 공급원
+│   │   ├── catalog-v1.yaml
+│   │   ├── order-v1.yaml
+│   │   ├── member-v1.yaml
+│   │   ├── ai-v1.yaml
+│   │   └── docker-compose.mock.yml # Prism 이 위 YAML 을 그대로 mock 으로 기동
+│   │
+│   ├── apps/                       # 배포 단위 = bootJar = 컨테이너 이미지
+│   │   ├── catalog-api/            # 🆕 Feign 클라이언트 + Fallback + 이벤트 소비 배선
+│   │   ├── order-api/              # 🆕
+│   │   ├── member-api/             # 🆕
+│   │   └── ai-api/                 # 🆕
+│   │
+│   └── modules/                    # 도메인 로직 (라이브러리 jar). 서로 의존 금지
+│       ├── common/                 # BaseEntity, 예외, 응답, RedisConfig, 이벤트 계약
+│       ├── book/                   # + port/InventoryPort, ReviewPermission
+│       ├── order/                  # + inventory/, delivery/ (병합)
+│       ├── member/                 # + address/ (delivery 에서 이동)
+│       └── ai/                     # 🆕 lion/RAG, 문의봇
+│                                   # ❌ usedbook 삭제
 │
-├── .env.example                   # 환경 변수 설정 템플릿
-├── .gitattributes                 # gradlew LF 고정 (Linux 러너 실행 보장)
-├── .gitignore                     # Git tracking 제외 대상 목록
-└── docker-compose.yml             # 로컬 개발용 통합 컨테이너 환경
+├── k8s/
+│   ├── base/                       # namespace, secret, db, ingress, networkpolicy
+│   ├── catalog/                    # deployment, service, hpa, configmap
+│   ├── order/
+│   ├── member/
+│   └── ai/                         # deployment-rag + deployment-bot (이미지 1개)
+│
+├── db/
+│   ├── cluster-a/                  # 🆕 catalog_db / order_db / member_db
+│   │   ├── 00-init.sql             #    스키마 + 서비스 계정 + 권한
+│   │   ├── 01~03-*.sql             #    목표 스키마 (PostgreSQL 포팅본)
+│   │   └── 90-demo-data.sql        #    로컬 데모 데이터
+│   └── cluster-b/                  # 🆕 ai_db + pgvector
+│
+├── frontend/                       # 🔄 찜/최근본상품 API 경로 변경 반영
+├── k6/  ·  docs/  ·  nginx/
+├── docker-compose.yml              # 🔄 postgres 2대 + 서비스 4개
+└── docker-compose-aws.yml          # 🔄 서비스별 계정/엔드포인트 분리
 ```
 
 ---
 
-## 🚀 현재 구현된 핵심 기능 목록
+## ⚠️ 프론트엔드 영향 — API 경로 2개가 바뀌었다
+
+계획서에 없던 항목이지만 서비스 분리의 직접적 결과다.
+
+| 이전 | 이후 | 이유 |
+| --- | --- | --- |
+| `GET /api/members/me/wishlist` | `GET /api/wishlist/me` | `/api/members/**` 는 member-service 로 라우팅되는데, 찜 목록은 **catalog_db 소유 데이터**다 |
+| `GET /api/members/me/recent-books` | `GET /api/recent-books/me` | 동일 |
+
+같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 되고, 규칙 하나만
+잘못 건드려도 요청이 엉뚱한 서비스로 간다. `frontend/src/api/wishlist.ts` 는 수정 완료했다.
 
 ---
 
-## 📮 Postman API 테스트 가이드
+## 🐳 로컬 실행
+
+```bash
+# 전체 기동 (postgres 2대 + redis + 서비스 4개 + nginx)
+docker compose up --build -d
+
+# 초기화 재기동 (스키마/데모데이터를 다시 넣으려면 -v 필수)
+docker compose down -v && docker compose up --build -d
+```
+
+기동 확인:
+
+```bash
+curl http://localhost:8081/actuator/health   # catalog
+curl http://localhost:8082/actuator/health   # order
+curl http://localhost:8083/actuator/health   # member
+curl http://localhost:8084/actuator/health   # ai
+```
+
+### mock 서버만 띄우기 (의존 서비스 없이 개발)
+
+```bash
+docker compose -f backend/contracts/docker-compose.mock.yml up
+# catalog 4401 / order 4402 / member 4403 / ai 4404
+
+# 예: order-service 없이 catalog 개발
+SERVICES_ORDER_URL=http://localhost:4402 ./gradlew :apps:catalog-api:bootRun
+```
+
+---
+
+## ✅ 검증된 항목
+
+로컬에서 실제로 확인한 것들이다.
+
+| 항목 | 방법 | 결과 |
+| --- | --- | --- |
+| 4개 앱 독립 빌드 (Phase 2-1) | `./gradlew :apps:*-api:bootJar` | ✅ 4개 jar 생성 |
+| 전체 테스트 | `./gradlew test` | ✅ 통과 |
+| 스키마 4분할 | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
+| **스키마 경계 강제** (Phase 1.5) | `catalog_svc` 로 `order_db.inventory` 조회 | ✅ `permission denied for schema order_db` |
+| 재고 소유권 이전 (Phase 0-1) | `catalog_db.books` 에 stock 컬럼 확인 | ✅ 0건 (order_db.inventory 로 이동) |
+| pgvector (Phase 2-7) | `CREATE EXTENSION` + 코사인 연산 | ✅ v0.8.6, `<=>` 동작 |
+| 4개 서비스 기동 | `/actuator/health` | ✅ 전부 UP |
+| 재고 API 조합 | `GET /api/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
+| **Fallback** (Phase 2-3) | order 강제 종료 후 도서 상세 조회 | ✅ **HTTP 200**, 도서 정보 정상, `stockQuantity=-1` 로 degrade |
+
+마지막 항목이 이 전환의 핵심 증거다 — **결제 서비스가 죽어도 서점은 계속 돈다.**
+
+### 재현 방법
+
+```bash
+docker compose stop order
+curl http://localhost:8081/api/books/1     # HTTP 200, stockQuantity: -1
+docker compose start order
+curl http://localhost:8081/api/books/1     # stockQuantity: 100
+```
+
+> `stockQuantity: -1` 은 "재고 조회 실패"를 뜻한다. 품절(`0`)과 구분해야 하므로
+> 음수를 쓴다. 프론트는 이 값에서 재고 영역만 degrade 하고 도서 정보는 정상 노출한다.
+
+---
+
+## 🚧 남은 작업 (의도적 미완)
+
+전환 범위는 **구조 전환**까지다. 아래는 Phase 1(팀별 병렬 기능 개발) 영역이다.
+
+| 항목 | 현재 상태 |
+| --- | --- |
+| 결제 상태머신, Redlock 재고차감, 취소·환불 | `inventory` 골격과 `/internal` API 까지만. 결제 로직은 미구현 |
+| RAG / 문의봇 실제 Bedrock 연동 | `StubEmbeddingClient` / `StubLlmClient` 로 자리만 잡음 (차원 1024, 반환 형식은 실제와 동일) |
+| Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 |
+| Flyway 활성화 | 엔티티와 `db/cluster-*/01~03` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
+| 리뷰 권한 이벤트 유실 대비 fallback 동기 조회 | 미구현. 이벤트가 유실되면 실제 구매자도 리뷰를 못 쓴다 |
+| `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** |
 
 ---
 
 ## ⚙️ 환경 변수 관리
 
-- **로컬 개발**: `docker-compose.yml` 및 `docker-compose-aws.yml` 활용.
-
-- **EKS / 배포 환경**: `k8s/02-configmap.yaml` 및 `k8s/03-secret.yaml`을 통해 Aurora 엔드포인트, DB 계정, S3 버킷명 등을 주입받음.
-
----
+- **로컬**: `docker-compose.yml`
+- **AWS 직접 연동**: `docker-compose-aws.yml` — 서비스별 DB 계정이 분리돼 있다. 편의를 위해서라도 공용 계정을 쓰지 말 것(권한 경계가 무너진다)
+- **EKS**: `k8s/base/03-secret.yaml` + 각 서비스의 `configmap.yaml`
 
 ---
 
-## 🐳 배포 및 실행 (Docker Compose)
+## 📚 참고
 
-```bash
-# 컨테이너 및 볼륨 초기화 재기동
-docker compose down -v && docker compose up --build -d
-```
+- 전환 계획서: `docs/msa-migration-plan.md`
+- 계약 문서: `backend/contracts/README.md`

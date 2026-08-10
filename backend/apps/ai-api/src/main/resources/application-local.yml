@@ -1,0 +1,48 @@
+spring:
+  datasource:
+    # 클러스터 B — 다른 세 서비스와 물리적으로 다른 DB 다.
+    url: jdbc:postgresql://localhost:5433/aidb?currentSchema=ai_db
+    username: ai_svc
+    password: ai_pw
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Aurora Serverless v2 의 auto-pause 조건은 "커넥션 0개"다.
+      # HikariCP 기본값은 유휴 커넥션을 유지하므로, 이 두 줄이 없으면
+      # Pod 가 하나라도 살아 있는 한 DB 가 영원히 멈추지 않고 절감액이 0이 된다.
+      minimum-idle: 0
+      idle-timeout: 60000
+      maximum-pool-size: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: ai_db
+
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+
+app:
+  bedrock:
+    region: ${AWS_BEDROCK_REGION:ap-northeast-2}
+    # Phase 0-2b 확정. 바꾸면 전건 재임베딩이 필요하다.
+    embedding-model: amazon.titan-embed-text-v2:0
+    embedding-dimension: 1024
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

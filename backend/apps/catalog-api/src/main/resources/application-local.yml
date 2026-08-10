@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    # 클러스터 A. catalog_svc 계정은 catalog_db 스키마에만 권한이 있다.
+    # 다른 서비스 테이블에 조인을 걸면 여기서 런타임 권한 에러가 난다 — 의도된 설계다.
+    url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=catalog_db
+    username: catalog_svc
+    password: catalog_pw
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+        default_schema: catalog_db
+
+  flyway:
+    # 엔티티와 db/schema 의 목표 스키마가 아직 완전히 일치하지 않아 꺼둔다.
+    # (전환 전 저장소에서도 같은 이유로 꺼져 있었다)
+    # 정렬이 끝나면 true 로 올리고 ddl-auto 를 validate 로 내릴 것.
+    enabled: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

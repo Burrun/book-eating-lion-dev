@@ -32,7 +32,7 @@ class WishlistRepositoryTest {
     void setUp() {
         book = bookRepository.save(Book.builder()
                 .title("찜용 책").author("저자").publisher("출판사").isbn("9791100000041")
-                .category("소설").price(10000).stockQuantity(10)
+                .category("소설").price(10000)
                 .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
                 .build());
     }

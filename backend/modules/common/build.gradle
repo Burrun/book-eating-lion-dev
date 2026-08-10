@@ -7,6 +7,9 @@ dependencies {
     api 'org.springframework.boot:spring-boot-starter-actuator'
     api 'io.micrometer:micrometer-registry-prometheus'
 
+    // 서비스 간 비동기 이벤트 채널(Redis Streams). 캐시 용도로도 계속 쓰인다.
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+
     // JWT (jjwt)
     api 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'

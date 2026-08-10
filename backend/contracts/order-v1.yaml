@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: order-service API
+  version: "1.0.0"
+  description: |
+    주문·결제·배송·재고. 재고를 이 서비스가 소유한다(Phase 0-1 / 판단 ③).
+
+    /internal/** 은 서비스 간 전용이며 Ingress 로 외부에 노출되지 않는다.
+    이 파일이 계약이자 mock 이다 — Prism 이 그대로 mock 서버로 띄우므로
+    계약과 mock 사이에 drift 가 생길 수 없다.
+
+servers:
+  - url: http://localhost:8082
+    description: 로컬
+  - url: http://order-service.lion-app.svc.cluster.local:8080
+    description: 클러스터 내부 (K8s Service DNS)
+
+paths:
+  /internal/inventory:
+    get:
+      summary: 재고 벌크 조회
+      description: |
+        **반드시 벌크다.** 단건 API 를 제공하면 도서 목록 화면에서 반드시 N+1 이 난다.
+        도서 20건을 렌더링할 때 호출은 1회여야 한다(Phase 1 catalog 검증 기준).
+
+        catalog-service 가 유일한 호출자이며, 이 서비스가 죽으면 catalog 는
+        fallback 으로 빈 배열을 받아 재고 영역만 degrade 한다.
+      operationId: findInventoryByBookIds
+      tags: [internal-inventory]
+      parameters:
+        - name: bookIds
+          in: query
+          required: true
+          description: 조회할 도서 ID 목록 (콤마 구분)
+          schema:
+            type: array
+            items:
+              type: integer
+              format: int64
+          style: form
+          explode: false
+          example: [1, 2, 3]
+      responses:
+        "200":
+          description: 조회 성공. 재고 레코드가 없는 bookId 는 응답에서 생략된다.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryView"
+              example:
+                - bookId: 1
+                  stock: 100
+                - bookId: 2
+                  stock: 0
+
+  /internal/inventory/{bookId}/restock:
+    post:
+      summary: 관리자 입고 반영
+      description: |
+        catalog-service 는 order_db 에 쓰기 권한이 없으므로(판단 ②) 입고를 이 API 로 위임한다.
+        저빈도·비실시간이라 동기 호출로 충분하다. 실패 시 관리자에게 에러를 반환하고 재시도한다.
+
+        재고 레코드가 없으면 이 호출에서 생성된다(신간 최초 입고).
+      operationId: restockInventory
+      tags: [internal-inventory]
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestockRequest"
+      responses:
+        "200":
+          description: 입고 반영 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryView"
+              example:
+                bookId: 1
+                stock: 150
+        "400":
+          description: 수량이 1 미만
+
+  /api/orders/{orderId}/delivery:
+    get:
+      summary: 배송 상태 조회
+      description: |
+        소유권은 JWT 의 member_id 클레임으로 검증한다.
+        member-service 를 호출하지 않는다(판단 ③ — 호출 자체를 제거).
+      operationId: getDelivery
+      tags: [delivery]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 주문 또는 배송 정보 없음
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    InventoryView:
+      type: object
+      required: [bookId, stock]
+      properties:
+        bookId:
+          type: integer
+          format: int64
+        stock:
+          type: integer
+          minimum: 0
+
+    RestockRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          example: 50
+
+    DeliveryEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DeliveryResponse"
+
+    DeliveryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderId:
+          type: integer
+          format: int64
+        courierCompany:
+          type: string
+          example: CJ대한통운
+        trackingNumber:
+          type: string
+          example: "123456789"
+        deliveryStatus:
+          type: string
+          enum: [READY, SHIPPED, IN_TRANSIT, DELIVERED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
