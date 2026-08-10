@@ -1,8 +1,18 @@
 import axios from 'axios'
 import type { ApiResponse } from './types.ts'
+import { readTokens } from './authStorage.js'
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+})
+
+// BOO-23 로그인 연동: authStorage(localStorage)에 저장된 토큰을 매 요청마다 자동으로 실어 보낸다.
+apiClient.interceptors.request.use((config) => {
+  const tokens = readTokens()
+  if (tokens?.accessToken) {
+    config.headers.Authorization = `${tokens.tokenType ?? 'Bearer'} ${tokens.accessToken}`
+  }
+  return config
 })
 
 // 백엔드는 아직 로그인 연동 전이라 X-Member-Id 헤더로 사용자를 식별한다.

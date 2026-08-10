@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
-import { setAccessToken } from "../api/client.ts";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const NAV_LINKS = [
   { label: "베스트셀러", to: "/best" },
@@ -11,11 +11,13 @@ const NAV_LINKS = [
 
 export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
+  const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
-  // useLocation을 구독해 라우트가 바뀔 때마다 로그인 상태(accessToken 존재 여부)를 다시 계산한다.
-  // AuthContext/AuthProvider가 아직 없어 localStorage 기반으로 판단한다.
-  useLocation();
-  const isLoggedIn = !!localStorage.getItem("accessToken");
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   // 검색 결과는 목록 화면이 ?q= 로 받아서 처리한다.
   function handleSearch(e) {
@@ -24,12 +26,6 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
     if (!keyword) return;
     navigate(`/?q=${encodeURIComponent(keyword)}`);
     setQuery("");
-  }
-
-  function handleLogout() {
-    localStorage.removeItem("accessToken");
-    setAccessToken(null);
-    navigate("/");
   }
 
   return (
@@ -95,22 +91,29 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
                 </span>
               )}
             </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그아웃
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그인
+              </Link>
+            )}
             <Link
-              to={isLoggedIn ? "/mypage" : "/login"}
+              to="/mypage"
               aria-label="마이페이지"
               className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--color-forest)] transition-colors hover:bg-[var(--color-forest)]/10"
             >
               <User size={20} />
             </Link>
-            {isLoggedIn && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-xs font-medium text-[var(--color-ink)]/50 transition-colors hover:text-[var(--color-coral)]"
-              >
-                로그아웃
-              </button>
-            )}
           </nav>
         </div>
 
