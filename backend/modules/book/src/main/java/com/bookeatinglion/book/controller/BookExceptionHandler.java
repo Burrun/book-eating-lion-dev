@@ -2,6 +2,8 @@ package com.bookeatinglion.book.controller;
 
 import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
+import com.bookeatinglion.book.exception.CatalogConflictException;
+import com.bookeatinglion.book.exception.CategoryNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
@@ -19,6 +21,18 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBookNotFound(BookNotFoundException e) {
         return ResponseEntity.status(BookErrorCode.BOOK_NOT_FOUND.getStatus())
                 .body(ApiResponse.error(BookErrorCode.BOOK_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCategoryNotFound(CategoryNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.CATEGORY_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.CATEGORY_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(CatalogConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCatalogConflict(CatalogConflictException e) {
+        return ResponseEntity.status(BookErrorCode.CATALOG_CONFLICT.getStatus())
+                .body(ApiResponse.error(BookErrorCode.CATALOG_CONFLICT.name(), e.getMessage()));
     }
 
     @ExceptionHandler(ReviewNotFoundException.class)
