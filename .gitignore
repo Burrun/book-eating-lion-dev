@@ -24,6 +24,8 @@ out/
 .settings
 .springBeans
 .sts4-cache
+# VS Code Java 확장(Eclipse JDT)의 컴파일 출력. gradle 의 build/ 와 별개다.
+bin/
 
 ### Environment & Logs ###
 *.log
