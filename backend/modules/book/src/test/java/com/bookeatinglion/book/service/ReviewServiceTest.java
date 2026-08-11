@@ -1,5 +1,13 @@
 package com.bookeatinglion.book.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
 import com.bookeatinglion.book.domain.ReviewPermission;
@@ -13,6 +21,10 @@ import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
 import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import com.bookeatinglion.book.repository.ReviewRepository;
+import java.lang.reflect.Field;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,19 +34,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-
-import java.lang.reflect.Field;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewServiceTest {
@@ -61,16 +60,27 @@ class ReviewServiceTest {
 
     private Book book(Long id) throws Exception {
         Book book = Book.builder()
-                .title("책").author("저자").publisher("출판사").isbn("978110000" + id)
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
+                .title("책")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("978110000" + id)
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.now())
+                .salesCount(0)
                 .build();
         setField(book, Book.class, "bookId", id);
         return book;
     }
 
     private Review review(Long id, Book book, Long memberId) throws Exception {
-        Review review = Review.builder().book(book).memberId(memberId).rating(5).content("내용").build();
+        Review review = Review.builder()
+                .book(book)
+                .memberId(memberId)
+                .rating(5)
+                .content("내용")
+                .build();
         setField(review, Review.class, "reviewId", id);
         return review;
     }
@@ -160,8 +170,7 @@ class ReviewServiceTest {
     void 존재하지_않는_리뷰_삭제는_예외를_던진다() {
         when(reviewRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> reviewService.deleteReview(999L, 1L))
-                .isInstanceOf(ReviewNotFoundException.class);
+        assertThatThrownBy(() -> reviewService.deleteReview(999L, 1L)).isInstanceOf(ReviewNotFoundException.class);
     }
 
     @Test

@@ -44,8 +44,12 @@ public class LionController {
 
         // 도서 정보는 프론트가 도서 상세에서 진입하며 실어 보낸다. 통신 없음(§7.6).
         LionMemory saved = ragService.remember(new LionMemory(
-                lionId, request.bookId(), request.bookTitle(), request.coverUrl(),
-                request.memo(), request.quoteText()));
+                lionId,
+                request.bookId(),
+                request.bookTitle(),
+                request.coverUrl(),
+                request.memo(),
+                request.quoteText()));
 
         return ApiResponse.success(saved.getLionMemoryId());
     }

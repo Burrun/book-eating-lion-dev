@@ -118,4 +118,12 @@ public class Payment {
         }
         this.paymentStatus = PaymentStatus.CANCELLED;
     }
+
+    /** 반품 승인 후 환불. cancel() 과 전이 조건은 같지만 종단 상태를 CANCELLED 와 구분한다. */
+    public void refund() {
+        if (this.paymentStatus != PaymentStatus.APPROVED) {
+            throw new IllegalStateException("APPROVED 상태에서만 REFUNDED 로 전환할 수 있습니다: " + id);
+        }
+        this.paymentStatus = PaymentStatus.REFUNDED;
+    }
 }

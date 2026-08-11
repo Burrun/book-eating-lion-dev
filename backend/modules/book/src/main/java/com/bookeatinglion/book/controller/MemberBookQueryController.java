@@ -4,13 +4,12 @@ import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
 import com.bookeatinglion.common.dto.ApiResponse;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * 경로가 /api/members/me/* 에서 /api/wishlist/me · /api/recent-books/me 로 바뀌었다.
@@ -30,15 +29,13 @@ public class MemberBookQueryController {
     private final RecentViewedBookService recentViewedBookService;
 
     @GetMapping("/api/wishlist/me")
-    public ApiResponse<List<BookSummaryResponse>> getMyWishlist(
-            @RequestHeader("X-Member-Id") Long memberId) {
+    public ApiResponse<List<BookSummaryResponse>> getMyWishlist(@RequestHeader("X-Member-Id") Long memberId) {
         return ApiResponse.success(wishlistService.getMyWishlist(memberId));
     }
 
     @GetMapping("/api/recent-books/me")
     public ApiResponse<List<BookSummaryResponse>> getMyRecentBooks(
-            @RequestHeader("X-Member-Id") Long memberId,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestHeader("X-Member-Id") Long memberId, @RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberId, limit));
     }
 }

@@ -17,11 +17,15 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
                         // 라이언은 프리미엄 전용이다.
-                        .requestMatchers("/api/ai/lions/**").authenticated()
-                        .requestMatchers("/api/ai/bot/inquiries").authenticated()
-                        .anyRequest().permitAll())
+                        .requestMatchers("/api/ai/lions/**")
+                        .authenticated()
+                        .requestMatchers("/api/ai/bot/inquiries")
+                        .authenticated()
+                        .anyRequest()
+                        .permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();

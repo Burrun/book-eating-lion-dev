@@ -1,13 +1,12 @@
 package com.bookeatinglion.book.domain;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ContextConfiguration;
-
-import java.time.LocalDate;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @ContextConfiguration(classes = com.bookeatinglion.book.BookModuleTestApplication.class)
@@ -57,22 +56,31 @@ class BookPersistenceTest {
     @Test
     void isbn은_유니크_제약이_걸려있다() {
         Book book1 = Book.builder()
-                .title("책1").author("저자").publisher("출판사").isbn("9791100000099")
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
+                .title("책1")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000099")
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.now())
+                .salesCount(0)
                 .build();
         Book book2 = Book.builder()
-                .title("책2").author("저자").publisher("출판사").isbn("9791100000099")
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
+                .title("책2")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000099")
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.now())
+                .salesCount(0)
                 .build();
 
         entityManager.persist(book1);
         entityManager.flush();
 
-        org.junit.jupiter.api.Assertions.assertThrows(
-                Exception.class,
-                () -> entityManager.persist(book2)
-        );
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> entityManager.persist(book2));
     }
 }

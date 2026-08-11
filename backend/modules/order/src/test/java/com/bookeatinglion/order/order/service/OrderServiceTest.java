@@ -32,6 +32,8 @@ import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
 import com.bookeatinglion.order.order.exception.InvalidOrderRequestException;
 import com.bookeatinglion.order.order.exception.OrderCannotBeCancelledException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeRefundedException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeReturnedException;
 import com.bookeatinglion.order.order.exception.OrderCouponNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderNotFoundException;
 import com.bookeatinglion.order.order.exception.OutOfStockException;
@@ -553,5 +555,91 @@ class OrderServiceTest {
         orderService.cancelOrder(1L, 1L);
 
         verify(kakaoPayClient).cancel("T1", 10000);
+    }
+
+    // ---------------------------------------------------------------- requestReturn / refundOrder
+
+    @Test
+    void PAID_주문에_반품을_신청하면_RETURN_REQUESTED가_되고_사유가_저장된다() {
+        setUp();
+        Order paidOrder = order(1L, 1L, 10000);
+        ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of());
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.requestReturn(1L, 1L, "단순 변심");
+
+        assertThat(response.orderStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
+        assertThat(response.returnReason()).isEqualTo("단순 변심");
+    }
+
+    @Test
+    void PAID가_아닌_주문은_반품_신청할_수_없다() {
+        setUp();
+        Order pendingOrder = order(1L, 1L, 10000);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(pendingOrder));
+
+        assertThatThrownBy(() -> orderService.requestReturn(1L, 1L, "단순 변심"))
+                .isInstanceOf(OrderCannotBeReturnedException.class);
+    }
+
+    @Test
+    void 타인의_주문은_반품_신청할_수_없다() {
+        setUp();
+        Order order = order(1L, 2L, 10000);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.requestReturn(1L, 1L, "단순 변심"))
+                .isInstanceOf(UnauthorizedOrderAccessException.class);
+    }
+
+    @Test
+    void RETURN_REQUESTED_주문을_환불하면_재고와_결제가_복구된다() {
+        setUp();
+        Order returnRequestedOrder = order(1L, 1L, 10000);
+        ReflectionTestUtils.setField(returnRequestedOrder, "orderStatus", OrderStatus.RETURN_REQUESTED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(returnRequestedOrder));
+
+        Payment payment =
+                Payment.approved(returnRequestedOrder, null, PaymentMethod.KAKAOPAY, 10000, null, "KAKAO-1", "idem-1");
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+
+        OrderItem item = new OrderItem(returnRequestedOrder, 100L, "책1", 2, 5000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 3)));
+        when(memberCouponRepository.findByUsedOrderId(1L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.refundOrder(1L, 1L);
+
+        assertThat(response.orderStatus()).isEqualTo(OrderStatus.REFUNDED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        verify(kakaoPayClient).cancel("KAKAO-1", 10000);
+    }
+
+    @Test
+    void RETURN_REQUESTED가_아닌_주문은_환불할_수_없다() {
+        setUp();
+        Order paidOrder = order(1L, 1L, 10000);
+        ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
+
+        assertThatThrownBy(() -> orderService.refundOrder(1L, 1L)).isInstanceOf(OrderCannotBeRefundedException.class);
+    }
+
+    @Test
+    void 카드_환불시_한도_복구가_실패하면_예외를_던진다() {
+        setUp();
+        Order returnRequestedOrder = order(1L, 1L, 10000);
+        ReflectionTestUtils.setField(returnRequestedOrder, "orderStatus", OrderStatus.RETURN_REQUESTED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(returnRequestedOrder));
+
+        Payment payment =
+                Payment.approved(returnRequestedOrder, 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        when(cardClient.restore(anyLong(), any()))
+                .thenReturn(new CardClient.CardOperationResult(false, "member-service 응답 없음"));
+
+        assertThatThrownBy(() -> orderService.refundOrder(1L, 1L)).isInstanceOf(CardRestoreFailedException.class);
     }
 }

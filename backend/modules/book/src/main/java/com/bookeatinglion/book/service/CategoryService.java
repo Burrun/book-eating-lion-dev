@@ -43,8 +43,8 @@ public class CategoryService {
             throw new CatalogConflictException("Category name already exists: " + request.categoryName());
         }
         Category parent = findOptionalParent(request.parentId());
-        return CategoryResponse.from(categoryRepository.save(
-                new Category(request.categoryName(), parent, request.sortOrder())));
+        return CategoryResponse.from(
+                categoryRepository.save(new Category(request.categoryName(), parent, request.sortOrder())));
     }
 
     @Transactional
@@ -76,15 +76,14 @@ public class CategoryService {
     }
 
     public String getActiveCategoryName(String categoryName) {
-        return categoryRepository.findByCategoryNameAndActiveTrue(categoryName)
-                .orElseThrow(() -> new CatalogConflictException(
-                        "Active category not found: " + categoryName))
+        return categoryRepository
+                .findByCategoryNameAndActiveTrue(categoryName)
+                .orElseThrow(() -> new CatalogConflictException("Active category not found: " + categoryName))
                 .getCategoryName();
     }
 
     private Category findCategory(Long categoryId) {
-        return categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException(categoryId));
+        return categoryRepository.findById(categoryId).orElseThrow(() -> new CategoryNotFoundException(categoryId));
     }
 
     private Category findOptionalParent(Long parentId) {

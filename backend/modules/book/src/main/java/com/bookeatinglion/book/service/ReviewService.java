@@ -45,8 +45,7 @@ public class ReviewService {
      */
     @Transactional
     public ReviewResponse createReview(Long bookId, Long memberId, ReviewRequest request) {
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new BookNotFoundException(bookId));
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new BookNotFoundException(bookId));
 
         ReviewPermission permission = reviewPermissionRepository
                 .findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(memberId, bookId)
@@ -67,8 +66,7 @@ public class ReviewService {
 
     @Transactional
     public void deleteReview(Long reviewId, Long memberId) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewNotFoundException(reviewId));
+        Review review = reviewRepository.findById(reviewId).orElseThrow(() -> new ReviewNotFoundException(reviewId));
         if (!review.getMemberId().equals(memberId)) {
             throw new ReviewAccessDeniedException(reviewId, memberId);
         }

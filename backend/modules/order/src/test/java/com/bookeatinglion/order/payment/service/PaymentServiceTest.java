@@ -126,4 +126,34 @@ class PaymentServiceTest {
         verify(kakaoPayClient).cancel("T123", 10000);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELLED);
     }
+
+    @Test
+    void CARD_환불은_한도를_복구하고_결제상태를_REFUNDED로_바꾼다() {
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(true, null));
+
+        paymentService.refund(payment);
+
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void CARD_환불시_한도복구가_실패하면_예외를_던지고_상태를_바꾸지_않는다() {
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(false, "member-service 응답 없음"));
+
+        assertThatThrownBy(() -> paymentService.refund(payment)).isInstanceOf(CardRestoreFailedException.class);
+
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.APPROVED);
+    }
+
+    @Test
+    void KAKAOPAY_환불은_KakaoPayClient_cancel을_호출하고_REFUNDED로_바꾼다() {
+        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAOPAY, 10000, null, "T123", "idem-1");
+
+        paymentService.refund(payment);
+
+        verify(kakaoPayClient).cancel("T123", 10000);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
 }

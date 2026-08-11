@@ -2,7 +2,6 @@ package com.bookeatinglion.book.dto;
 
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -22,8 +21,7 @@ public record BookDetailResponse(
         SaleStatus saleStatus,
         LocalDate publishedDate,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {
+        LocalDateTime updatedAt) {
     /** 재고 조회에 실패했을 때의 표식. 0(품절)과 구분해야 하므로 음수를 쓴다. */
     public static final int STOCK_UNAVAILABLE = -1;
 
@@ -42,7 +40,6 @@ public record BookDetailResponse(
                 book.getSaleStatus(),
                 book.getPublishedDate(),
                 book.getCreatedAt(),
-                book.getUpdatedAt()
-        );
+                book.getUpdatedAt());
     }
 }

@@ -1,20 +1,19 @@
 package com.bookeatinglion.book.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.bookeatinglion.book.BookModuleTestApplication;
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.domain.Wishlist;
+import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ContextConfiguration;
-
-import java.time.LocalDate;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DataJpaTest
 @ContextConfiguration(classes = BookModuleTestApplication.class)
@@ -31,9 +30,15 @@ class WishlistRepositoryTest {
     @BeforeEach
     void setUp() {
         book = bookRepository.save(Book.builder()
-                .title("찜용 책").author("저자").publisher("출판사").isbn("9791100000041")
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
+                .title("찜용 책")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000041")
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.now())
+                .salesCount(0)
                 .build());
     }
 
@@ -41,16 +46,20 @@ class WishlistRepositoryTest {
     void 찜을_저장하고_회원_책_조합으로_조회한다() {
         wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build());
 
-        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId())).isPresent();
-        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(2L, book.getBookId())).isEmpty();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId()))
+                .isPresent();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(2L, book.getBookId()))
+                .isEmpty();
     }
 
     @Test
     void 같은_회원_같은_책은_중복_찜할_수_없다() {
         wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build());
 
-        assertThrows(Exception.class, () ->
-                wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build()));
+        assertThrows(
+                Exception.class,
+                () -> wishlistRepository.save(
+                        Wishlist.builder().memberId(1L).book(book).build()));
     }
 
     @Test
@@ -69,7 +78,8 @@ class WishlistRepositoryTest {
 
         wishlistRepository.deleteByMemberIdAndBook_BookId(1L, book.getBookId());
 
-        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId())).isEmpty();
+        assertThat(wishlistRepository.findByMemberIdAndBook_BookId(1L, book.getBookId()))
+                .isEmpty();
     }
 
     @Test

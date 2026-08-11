@@ -4,6 +4,7 @@ import com.bookeatinglion.common.dto.ApiResponse;
 import com.bookeatinglion.common.security.SecurityUtils;
 import com.bookeatinglion.order.order.dto.CreateOrderRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
+import com.bookeatinglion.order.order.dto.RequestReturnRequest;
 import com.bookeatinglion.order.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,5 +38,18 @@ public class OrderController {
     public ApiResponse<OrderResponse> cancelOrder(@PathVariable Long orderId) {
         Long memberId = SecurityUtils.currentMemberId();
         return ApiResponse.success(orderService.cancelOrder(memberId, orderId));
+    }
+
+    @PostMapping("/{orderId}/return")
+    public ApiResponse<OrderResponse> requestReturn(
+            @PathVariable Long orderId, @Valid @RequestBody RequestReturnRequest request) {
+        Long memberId = SecurityUtils.currentMemberId();
+        return ApiResponse.success(orderService.requestReturn(memberId, orderId, request.reason()));
+    }
+
+    @PostMapping("/{orderId}/refund")
+    public ApiResponse<OrderResponse> refundOrder(@PathVariable Long orderId) {
+        Long memberId = SecurityUtils.currentMemberId();
+        return ApiResponse.success(orderService.refundOrder(memberId, orderId));
     }
 }

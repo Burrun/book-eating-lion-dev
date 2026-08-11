@@ -5,7 +5,4 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CategoryUpdateRequest(
-        @NotBlank @Size(max = 100) String categoryName,
-        Long parentId,
-        @Min(0) int sortOrder
-) {}
+        @NotBlank @Size(max = 100) String categoryName, Long parentId, @Min(0) int sortOrder) {}

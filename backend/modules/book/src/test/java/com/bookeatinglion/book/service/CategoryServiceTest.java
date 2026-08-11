@@ -59,8 +59,7 @@ class CategoryServiceTest {
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(bookRepository.existsByCategoryAndIsDeletedFalse("소설")).thenReturn(true);
 
-        assertThatThrownBy(() -> categoryService.deactivate(1L))
-                .isInstanceOf(CatalogConflictException.class);
+        assertThatThrownBy(() -> categoryService.deactivate(1L)).isInstanceOf(CatalogConflictException.class);
         assertThat(category.isActive()).isTrue();
     }
 

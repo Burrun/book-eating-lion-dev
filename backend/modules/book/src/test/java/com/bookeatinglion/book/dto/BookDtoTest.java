@@ -1,19 +1,22 @@
 package com.bookeatinglion.book.dto;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDate;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 class BookDtoTest {
 
     private Book sampleBook() {
         return Book.builder()
-                .title("제목").author("저자").publisher("출판사").isbn("9791100000001")
-                .category("소설").price(15000)
+                .title("제목")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000001")
+                .category("소설")
+                .price(15000)
                 .coverImageUrl("https://example.com/cover.jpg")
                 .description("짧은 소개")
                 .detailedSynopsis("상세 줄거리")

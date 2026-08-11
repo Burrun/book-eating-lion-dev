@@ -25,14 +25,27 @@ public record AdminBookResponse(
         boolean deleted,
         LocalDateTime deletedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {
+        LocalDateTime updatedAt) {
     public static AdminBookResponse from(Book book) {
         return new AdminBookResponse(
-                book.getBookId(), book.getTitle(), book.getAuthor(), book.getPublisher(), book.getIsbn(),
-                book.getCategory(), book.getPrice(),
-                book.getCoverImageUrl(), book.getDescription(), book.getDetailedSynopsis(), book.getSaleStatus(),
-                book.getPublishedDate(), book.getSalesCount(), book.getAverageRating(), book.getReviewCount(),
-                book.isDeleted(), book.getDeletedAt(), book.getCreatedAt(), book.getUpdatedAt());
+                book.getBookId(),
+                book.getTitle(),
+                book.getAuthor(),
+                book.getPublisher(),
+                book.getIsbn(),
+                book.getCategory(),
+                book.getPrice(),
+                book.getCoverImageUrl(),
+                book.getDescription(),
+                book.getDetailedSynopsis(),
+                book.getSaleStatus(),
+                book.getPublishedDate(),
+                book.getSalesCount(),
+                book.getAverageRating(),
+                book.getReviewCount(),
+                book.isDeleted(),
+                book.getDeletedAt(),
+                book.getCreatedAt(),
+                book.getUpdatedAt());
     }
 }

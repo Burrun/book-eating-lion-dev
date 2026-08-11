@@ -74,10 +74,14 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean }
+                  message: { type: string }
                   data:
                     type: array
                     items:
                       $ref: "#/components/schemas/Address"
+                  error:
+                    $ref: "#/components/schemas/ErrorDetail"
+                    nullable: true
     post:
       summary: 배송지 등록
       operationId: createAddress
@@ -261,23 +265,39 @@ components:
           type: string
           description: 리뷰·문의 작성자 표시용 스냅샷 원본.
 
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
     TokenEnvelope:
       type: object
       properties:
         success: { type: boolean }
+        message: { type: string }
         data:
           type: object
           properties:
             accessToken: { type: string }
             refreshToken: { type: string }
             expiresIn: { type: integer, example: 3600 }
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     MemberEnvelope:
       type: object
       properties:
         success: { type: boolean }
+        message: { type: string }
         data:
           $ref: "#/components/schemas/Member"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     Member:
       type: object
@@ -374,15 +394,25 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/Card"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CardListEnvelope:
       type: object
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           type: array
           items:
             $ref: "#/components/schemas/Card"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
