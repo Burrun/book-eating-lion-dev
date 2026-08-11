@@ -14,8 +14,12 @@ CREATE TABLE categories (
     category_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     category_name VARCHAR(100) NOT NULL,
     parent_id     BIGINT NULL,
+    sort_order    INT NOT NULL DEFAULT 0,
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_categories_name UNIQUE (category_name),
+    CONSTRAINT chk_categories_sort_order CHECK (sort_order >= 0),
     CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id)
         REFERENCES categories (category_id) ON DELETE SET NULL
 );
@@ -28,10 +32,10 @@ CREATE TABLE books (
     isbn              CHAR(13) NOT NULL,
     price             BIGINT NOT NULL,
     -- stock 없음. order_db.inventory 가 소유한다.
-    category_id       BIGINT NOT NULL,
+    category          VARCHAR(100) NOT NULL,
     description       TEXT NULL,
     detailed_synopsis TEXT NULL,
-    image_url         VARCHAR(500) NULL,
+    cover_image_url   VARCHAR(500) NULL,
     sale_status       VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
     published_date    DATE NULL,
     sales_count       INT NOT NULL DEFAULT 0,
@@ -42,8 +46,6 @@ CREATE TABLE books (
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_books_isbn UNIQUE (isbn),
-    CONSTRAINT fk_books_category FOREIGN KEY (category_id)
-        REFERENCES categories (category_id) ON DELETE RESTRICT,
     CONSTRAINT chk_books_sale_status CHECK (sale_status IN ('ON_SALE', 'STOPPED', 'OUT_OF_STOCK')),
     CONSTRAINT chk_books_price CHECK (price >= 0),
     CONSTRAINT chk_books_rating_avg CHECK (rating_avg BETWEEN 0 AND 5),

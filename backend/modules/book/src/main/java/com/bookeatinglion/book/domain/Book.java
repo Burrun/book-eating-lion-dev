@@ -7,7 +7,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "books")
@@ -29,10 +31,10 @@ public class Book extends BaseEntity {
     @Column(nullable = false)
     private String publisher;
 
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, unique = true, length = 13)
     private String isbn;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String category;
 
     @Column(nullable = false)
@@ -43,6 +45,7 @@ public class Book extends BaseEntity {
     // 재고를 order_db.inventory 로 옮기면 결제 트랜잭션이 서비스 경계를 넘지 않는다.
     // 화면 표시용 재고 수량은 InventoryPort 로 조회해 조합한다(API 조합 패턴).
 
+    @Column(name = "cover_image_url", length = 500)
     private String coverImageUrl;
 
     @Column(columnDefinition = "TEXT")
@@ -55,11 +58,22 @@ public class Book extends BaseEntity {
     @Column(nullable = false)
     private SaleStatus saleStatus;
 
-    @Column(nullable = false)
+    @Column
     private LocalDate publishedDate;
 
     @Column(nullable = false)
     private int salesCount;
+
+    @Column(name = "rating_avg", nullable = false, precision = 3, scale = 2)
+    private BigDecimal averageRating;
+
+    @Column(nullable = false)
+    private int reviewCount;
+
+    @Column(nullable = false)
+    private boolean isDeleted;
+
+    private LocalDateTime deletedAt;
 
     @Builder
     public Book(String title, String author, String publisher, String isbn, String category,
@@ -77,5 +91,30 @@ public class Book extends BaseEntity {
         this.saleStatus = saleStatus != null ? saleStatus : SaleStatus.ON_SALE;
         this.publishedDate = publishedDate;
         this.salesCount = salesCount;
+        this.averageRating = BigDecimal.ZERO;
+        this.reviewCount = 0;
+        this.isDeleted = false;
+    }
+
+    public void update(String title, String author, String publisher, String isbn, String category,
+                       int price, String coverImageUrl, String description, String detailedSynopsis,
+                       SaleStatus saleStatus, LocalDate publishedDate) {
+        this.title = title;
+        this.author = author;
+        this.publisher = publisher;
+        this.isbn = isbn;
+        this.category = category;
+        this.price = price;
+        this.coverImageUrl = coverImageUrl;
+        this.description = description;
+        this.detailedSynopsis = detailedSynopsis;
+        this.saleStatus = saleStatus;
+        this.publishedDate = publishedDate;
+    }
+
+    public void delete(LocalDateTime deletedAt) {
+        this.isDeleted = true;
+        this.deletedAt = deletedAt;
+        this.saleStatus = SaleStatus.STOPPED;
     }
 }
