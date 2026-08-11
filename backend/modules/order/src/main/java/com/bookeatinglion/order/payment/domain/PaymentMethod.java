@@ -1,6 +1,6 @@
 package com.bookeatinglion.order.payment.domain;
 
 public enum PaymentMethod {
-    CARD,
-    KAKAOPAY
+    VIRTUAL_CARD,
+    KAKAO_PAY
 }

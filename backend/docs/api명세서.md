@@ -7,7 +7,7 @@
 
 > **필드 네이밍**: `camelCase` 통일
 
-> **결제 수단 (`paymentMethod`)**: `CARD` (가상카드) / `KAKAOPAY` (카카오페이)
+> **결제 수단 (`paymentMethod`)**: `VIRTUAL_CARD` (가상카드) / `KAKAO_PAY` (카카오페이)
 
 ### 🔹 공통 응답 포맷 (Common Response Format)
 
@@ -164,14 +164,14 @@
 
 | Method | Endpoint | 설명 |
 | --- | --- | --- |
-| `POST` | `/api/orders` | 주문 생성. `paymentMethod=CARD` 는 결제 승인까지 1단계로 끝나고, `paymentMethod=KAKAOPAY` 는 카카오페이 ready 만 수행하고 `nextRedirectUrl` 을 반환한다(2단계 중 1단계) |
+| `POST` | `/api/orders` | 주문 생성. `paymentMethod=VIRTUAL_CARD` 는 결제 승인까지 1단계로 끝나고, `paymentMethod=KAKAO_PAY` 는 카카오페이 ready 만 수행하고 `nextRedirectUrl` 을 반환한다(2단계 중 1단계) |
 | `GET` | `/api/orders/{orderId}` | 주문 상세 조회 |
 | `POST` | `/api/orders/{orderId}/cancel` | 주문 취소 (PAID 상태에서만 가능. 재고/쿠폰/카드한도 복구 또는 카카오페이 취소를 단일 트랜잭션으로 처리) |
 | `POST` | `/api/orders/{orderId}/return` | 반품/교환 신청 (PAID 상태에서만 가능. 재고·쿠폰·결제는 아직 건드리지 않고 orderStatus 를 RETURN_REQUESTED 로 바꾸고 사유만 저장) |
 | `POST` | `/api/orders/{orderId}/refund` | 환불 처리 (RETURN_REQUESTED 상태에서만 가능. 카드 한도 복구 또는 카카오페이 취소 API 호출, 재고 복구, 쿠폰 원복까지 완료하고 orderStatus 를 REFUNDED 로 전환) |
 | `POST` | `/api/payments/kakao/approve` | 카카오페이 결제 승인(2단계 중 2단계). 카카오 리다이렉트 콜백에서 받은 `orderId`, `pgToken` 을 전달하면 결제를 최종 승인하고 orderStatus 를 PAID 로 전환한다 |
 
-> 💡 **주문 상태 머신**: `PENDING_PAYMENT`(KAKAOPAY ready 직후) → `PAID` → `CANCELLED`(사전 취소) 또는 `RETURN_REQUESTED` → `REFUNDED`. 취소(cancel)와 반품(return→refund)은 별개 흐름이다 — 취소는 PAID 에서 즉시 종결되고, 반품은 신청과 환불이 분리되어 있다.
+> 💡 **주문 상태 머신**: `PENDING_PAYMENT`(KAKAO_PAY ready 직후) → `PAID` → `CANCELLED`(사전 취소) 또는 `RETURN_REQUESTED` → `REFUNDED`. 취소(cancel)와 반품(return→refund)은 별개 흐름이다 — 취소는 PAID 에서 즉시 종결되고, 반품은 신청과 환불이 분리되어 있다.
 
 ---
 

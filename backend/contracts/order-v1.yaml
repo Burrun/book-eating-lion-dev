@@ -749,7 +749,7 @@ components:
           $ref: "#/components/schemas/Recipient"
         paymentMethod:
           type: string
-          enum: [CARD, KAKAOPAY]
+          enum: [VIRTUAL_CARD, KAKAO_PAY]
         cardId:
           type: integer
           format: int64
@@ -780,7 +780,7 @@ components:
           format: int64
         paymentMethod:
           type: string
-          enum: [CARD, KAKAOPAY]
+          enum: [VIRTUAL_CARD, KAKAO_PAY]
         amount:
           type: integer
         paymentStatus:

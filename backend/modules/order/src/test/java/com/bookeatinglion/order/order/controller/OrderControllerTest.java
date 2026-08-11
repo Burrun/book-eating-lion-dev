@@ -68,7 +68,7 @@ class OrderControllerTest {
     private static final String CREATE_ORDER_BODY = "{"
             + "\"items\":[{\"bookId\":100,\"quantity\":2}],"
             + "\"recipient\":{\"name\":\"홍길동\",\"phone\":\"010-0000-0000\",\"postalCode\":\"06236\",\"address\":\"서울\"},"
-            + "\"paymentMethod\":\"KAKAOPAY\""
+            + "\"paymentMethod\":\"KAKAO_PAY\""
             + "}";
 
     @Test
@@ -133,7 +133,7 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[],"
                                 + "\"recipient\":{\"name\":\"홍길동\",\"phone\":\"010-0000-0000\",\"postalCode\":\"06236\",\"address\":\"서울\"},"
-                                + "\"paymentMethod\":\"KAKAOPAY\"}"))
+                                + "\"paymentMethod\":\"KAKAO_PAY\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }

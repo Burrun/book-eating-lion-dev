@@ -40,8 +40,8 @@ public class PaymentService {
 
         String approvalNumber =
                 "AP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        Payment payment =
-                Payment.approved(order, cardId, PaymentMethod.CARD, amount, approvalNumber, null, newIdempotencyKey());
+        Payment payment = Payment.approved(
+                order, cardId, PaymentMethod.VIRTUAL_CARD, amount, approvalNumber, null, newIdempotencyKey());
         return paymentRepository.save(payment);
     }
 
@@ -87,7 +87,7 @@ public class PaymentService {
     }
 
     private void restoreFunds(Payment payment) {
-        if (payment.getPaymentMethod() == PaymentMethod.CARD) {
+        if (payment.getPaymentMethod() == PaymentMethod.VIRTUAL_CARD) {
             CardOperationResult result =
                     cardClient.restore(payment.getCardId(), new CardOperationRequest(payment.getAmount()));
             if (!result.approved()) {

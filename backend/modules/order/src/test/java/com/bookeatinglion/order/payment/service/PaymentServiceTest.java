@@ -99,7 +99,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_취소는_한도를_복구하고_결제상태를_CANCELLED로_바꾼다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(true, null));
 
         paymentService.cancel(payment);
@@ -109,7 +109,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_한도복구가_실패하면_예외를_던지고_상태를_바꾸지_않는다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(false, "member-service 응답 없음"));
 
         assertThatThrownBy(() -> paymentService.cancel(payment)).isInstanceOf(CardRestoreFailedException.class);
@@ -119,7 +119,7 @@ class PaymentServiceTest {
 
     @Test
     void KAKAOPAY_취소는_KakaoPayClient_cancel을_호출한다() {
-        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAOPAY, 10000, null, "T123", "idem-1");
+        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAO_PAY, 10000, null, "T123", "idem-1");
 
         paymentService.cancel(payment);
 
@@ -129,7 +129,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_환불은_한도를_복구하고_결제상태를_REFUNDED로_바꾼다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(true, null));
 
         paymentService.refund(payment);
@@ -139,7 +139,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_환불시_한도복구가_실패하면_예외를_던지고_상태를_바꾸지_않는다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(false, "member-service 응답 없음"));
 
         assertThatThrownBy(() -> paymentService.refund(payment)).isInstanceOf(CardRestoreFailedException.class);
@@ -149,7 +149,7 @@ class PaymentServiceTest {
 
     @Test
     void KAKAOPAY_환불은_KakaoPayClient_cancel을_호출하고_REFUNDED로_바꾼다() {
-        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAOPAY, 10000, null, "T123", "idem-1");
+        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAO_PAY, 10000, null, "T123", "idem-1");
 
         paymentService.refund(payment);
 

@@ -70,7 +70,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(Long memberId, CreateOrderRequest request) {
-        if (request.paymentMethod() == PaymentMethod.CARD && request.cardId() == null) {
+        if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD && request.cardId() == null) {
             throw new InvalidOrderRequestException("paymentMethod=CARD 이면 cardId 가 필수입니다.");
         }
 
@@ -118,7 +118,7 @@ public class OrderService {
                     .toList();
             orderItemRepository.saveAll(items);
 
-            if (request.paymentMethod() == PaymentMethod.CARD) {
+            if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD) {
                 Payment payment = paymentService.approveCard(order, request.cardId(), totalAmount);
                 order.markPaid();
                 if (memberCoupon != null) {

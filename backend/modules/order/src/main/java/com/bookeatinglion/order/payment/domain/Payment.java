@@ -100,7 +100,7 @@ public class Payment {
     /** 카카오페이 ready 단계. approvalNumber 는 approve 가 성공해야 채워진다. */
     public static Payment ready(Order order, int amount, String pgTid, String idempotencyKey) {
         return new Payment(
-                order, null, PaymentMethod.KAKAOPAY, amount, PaymentStatus.READY, null, pgTid, idempotencyKey);
+                order, null, PaymentMethod.KAKAO_PAY, amount, PaymentStatus.READY, null, pgTid, idempotencyKey);
     }
 
     /** 카카오페이 approve 성공. READY 상태에서만 호출할 수 있다. */
