@@ -22,6 +22,11 @@ import {
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 const EXP_PER_BOOK = 15;
 
+// 프로필(GET /api/members/me)을 뺀 마이페이지의 나머지 기능은 아직 실제 API가 없다
+// (사자 EXP/RAG는 BOO-17·AI 서비스 미착수, 주문목록/쿠폰/반품/재입고/내 리뷰 목록은 계약(contracts/*.yaml)에 없음).
+// 실제 서버 모드(VITE_USE_MOCK=false)에서 존재하지 않는 엔드포인트를 호출하지 않도록 mock 모드에서만 노출한다.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
 const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
   { id: "coupons", label: "쿠폰 현황" },
@@ -69,8 +74,23 @@ export default function MyPage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <LionFeedingCard exp={exp} setExp={setExp} setLevel={setLevel} />
-        <LionRagCard />
+        {USE_MOCK ? (
+          <>
+            <LionFeedingCard exp={exp} setExp={setExp} setLevel={setLevel} />
+            <LionRagCard />
+          </>
+        ) : (
+          <>
+            <ComingSoonCard
+              title="사자 성장 & 완독 도서 먹이기"
+              message="사자 레벨/EXP/완독 도서 시스템은 아직 준비 중이에요 (BOO-17)."
+            />
+            <ComingSoonCard
+              title="🦁 사자에게 물어보기"
+              message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
+            />
+          </>
+        )}
       </div>
 
       <OrdersSection />
@@ -88,25 +108,38 @@ function ProfileCard({ profile, level }) {
         </div>
         <h1 className="font-display text-xl text-[var(--color-forest)]">
           {profile.name} 님의 마이페이지{" "}
-          <span className="text-[var(--color-honey)]">
-            (Lv.{level} {profile.title})
-          </span>
+          {USE_MOCK && (
+            <span className="text-[var(--color-honey)]">
+              (Lv.{level} {profile.title})
+            </span>
+          )}
         </h1>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {profile.badges.map((badge) => {
-          const Icon = BADGE_ICONS[badge.type] ?? Award;
-          return (
-            <span
-              key={badge.label}
-              className="flex items-center gap-1.5 rounded-full bg-[var(--color-forest)]/5 px-3 py-1.5 text-sm text-[var(--color-forest)]"
-            >
-              <Icon size={14} />
-              {badge.label}
-            </span>
-          );
-        })}
-      </div>
+      {USE_MOCK && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {profile.badges.map((badge) => {
+            const Icon = BADGE_ICONS[badge.type] ?? Award;
+            return (
+              <span
+                key={badge.label}
+                className="flex items-center gap-1.5 rounded-full bg-[var(--color-forest)]/5 px-3 py-1.5 text-sm text-[var(--color-forest)]"
+              >
+                <Icon size={14} />
+                {badge.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ComingSoonCard({ title, message }) {
+  return (
+    <section className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-forest)]/15 bg-white p-6 text-center shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+      <h2 className="font-display mb-2 text-lg text-[var(--color-forest)]">{title}</h2>
+      <p className="text-sm text-[var(--color-ink)] opacity-50">{message}</p>
     </section>
   );
 }
@@ -450,6 +483,7 @@ function OrdersTab() {
   const [orders, setOrders] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchOrders().then((data) => {
       if (!ignore) setOrders(data);
@@ -459,6 +493,7 @@ function OrdersTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="주문/배송 조회 기능은 준비 중이에요" />;
   if (!orders) return <TabSkeleton />;
 
   return (
@@ -520,6 +555,7 @@ function CouponsTab() {
   const [state, setState] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchCoupons().then((data) => {
       if (!ignore) setState(data);
@@ -529,6 +565,7 @@ function CouponsTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="쿠폰 현황 기능은 준비 중이에요" />;
   if (!state) return <TabSkeleton />;
 
   return (
@@ -563,6 +600,7 @@ function ReturnsTab() {
   const [requests, setRequests] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchReturnRequests().then((data) => {
       if (!ignore) setRequests(data);
@@ -572,6 +610,7 @@ function ReturnsTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="취소/교환/반품/환불 기능은 준비 중이에요" />;
   if (!requests) return <TabSkeleton />;
   if (requests.length === 0) {
     return <EmptyState message="진행 중인 취소/교환/반품 내역이 없어요" />;
@@ -605,6 +644,7 @@ function RestockTab() {
   const [requests, setRequests] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchRestockRequests().then((data) => {
       if (!ignore) setRequests(data);
@@ -614,6 +654,7 @@ function RestockTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="재입고 알림 신청 기능은 준비 중이에요" />;
   if (!requests) return <TabSkeleton />;
   if (requests.length === 0) {
     return <EmptyState message="신청한 재입고 알림이 없어요" />;
@@ -661,6 +702,7 @@ function ReviewsSection() {
   const [editForm, setEditForm] = useState({ rating: 5, content: "" });
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchReviews().then((data) => {
       if (!ignore) setReviews(data);
@@ -701,7 +743,9 @@ function ReviewsSection() {
         내가 작성한 한줄평 & 도서 리뷰 관리
       </h2>
 
-      {reviews === null ? (
+      {!USE_MOCK ? (
+        <EmptyState message="내가 작성한 리뷰 모아보기 기능은 준비 중이에요" />
+      ) : reviews === null ? (
         <TabSkeleton />
       ) : reviews.length === 0 ? (
         <EmptyState message="아직 작성한 리뷰가 없어요" />
