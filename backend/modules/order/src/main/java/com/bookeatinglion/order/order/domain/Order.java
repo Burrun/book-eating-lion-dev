@@ -17,6 +17,11 @@ import lombok.NoArgsConstructor;
  * order_db.orders. delivery 가 참조하던 기존 스텁(memberId, bookId 두 필드짜리)을 이 자리로
  * 옮기고 정식 필드로 재작성했다 — 아무도 실제 인스턴스를 만들지 않던 자리였다(생성자가 없었다).
  * 참조하던 곳은 DeliveryService 뿐이라 getMemberId() 시그니처만 유지하면 됐다.
+ *
+ * pendingMemberCouponId 도 원래 스키마엔 없던 컬럼이다. 카카오페이 2단계 흐름에서
+ * memberCouponId 는 주문 생성(ready) 시점에만 클라이언트가 보내고, approve 요청에는
+ * orderId 와 pgToken 뿐이다 — 그 사이 "이 주문이 어떤 쿠폰을 쓰려고 했는지"를 서버가
+ * 기억할 곳이 필요해서 추가했다. 쿠폰은 approve 가 성공해야 실제로 사용확정(use)된다.
  */
 @Entity
 @Table(name = "orders")
@@ -51,6 +56,9 @@ public class Order {
     @Column(name = "order_status", nullable = false)
     private OrderStatus orderStatus;
 
+    @Column(name = "pending_member_coupon_id")
+    private Long pendingMemberCouponId;
+
     public Order(
             Long memberId,
             String recipientName,
@@ -80,6 +88,15 @@ public class Order {
             throw new OrderCannotBeCancelledException(id);
         }
         this.orderStatus = OrderStatus.CANCELLED;
+    }
+
+    /** 카카오페이 ready 단계에서, 나중에 approve 될 때 사용확정할 쿠폰을 기억해둔다. */
+    public void reservePendingCoupon(Long memberCouponId) {
+        this.pendingMemberCouponId = memberCouponId;
+    }
+
+    public void clearPendingCoupon() {
+        this.pendingMemberCouponId = null;
     }
 
     public boolean isOwnedBy(Long memberId) {

@@ -48,7 +48,18 @@ class OrderControllerTest {
 
     private OrderResponse orderResponse(OrderStatus status) {
         return new OrderResponse(
-                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null);
+                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null, null);
+    }
+
+    private OrderResponse pendingKakaoResponse() {
+        return new OrderResponse(
+                1L,
+                OrderStatus.PENDING_PAYMENT,
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울"),
+                20000,
+                List.of(),
+                null,
+                "https://mockup-pg-web.kakao.com/redirect");
     }
 
     private static final String CREATE_ORDER_BODY = "{"
@@ -69,6 +80,20 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderStatus").value("PAID"));
+    }
+
+    @Test
+    void 카카오페이_주문_생성은_PENDING_PAYMENT와_리다이렉트URL을_반환한다() throws Exception {
+        when(orderService.createOrder(eq(MEMBER_ID), any())).thenReturn(pendingKakaoResponse());
+
+        mockMvc.perform(post("/api/orders")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CREATE_ORDER_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.data.nextRedirectUrl").value("https://mockup-pg-web.kakao.com/redirect"));
     }
 
     @Test

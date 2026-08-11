@@ -5,7 +5,8 @@ import com.bookeatinglion.order.client.CardClient.CardOperationRequest;
 import com.bookeatinglion.order.client.CardClient.CardOperationResult;
 import com.bookeatinglion.order.order.domain.Order;
 import com.bookeatinglion.order.payment.client.KakaoPayClient;
-import com.bookeatinglion.order.payment.client.KakaoPayClient.KakaoPayApproval;
+import com.bookeatinglion.order.payment.client.KakaoPayClient.KakaoApproveResult;
+import com.bookeatinglion.order.payment.client.KakaoPayClient.KakaoReadyResult;
 import com.bookeatinglion.order.payment.domain.Payment;
 import com.bookeatinglion.order.payment.domain.PaymentMethod;
 import com.bookeatinglion.order.payment.exception.CardRestoreFailedException;
@@ -17,10 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * CARD 는 member-service 의 가상카드 한도를 동기 차감/복구하고(CardClient), KAKAOPAY 는
- * KakaoPayClient(현재는 MockKakaoPayClient)가 tid/승인번호를 발급/취소한다. 결제 승인 실패는
- * PaymentDeclinedException 으로 표현해 주문 생성 트랜잭션 전체를 롤백시킨다 — DECLINED 행은
- * 절대 저장되지 않는다(Payment 클래스 주석 참고).
+ * CARD 는 1단계(단일 호출) — member-service 가상카드 한도를 동기 차감/복구한다(CardClient).
+ * KAKAOPAY 는 2단계(ready → approve) — RealKakaoPayClient 가 카카오페이 실 API 와 통신한다.
+ * 결제 승인 실패는 PaymentDeclinedException 으로 표현해 주문 생성 트랜잭션 전체를 롤백시킨다 —
+ * DECLINED 행은 절대 저장되지 않는다(Payment 클래스 주석 참고).
  */
 @Service
 @RequiredArgsConstructor
@@ -31,38 +32,42 @@ public class PaymentService {
     private final KakaoPayClient kakaoPayClient;
 
     @Transactional
-    public Payment approve(Order order, PaymentMethod paymentMethod, Long cardId, int amount) {
-        String approvalNumber = null;
-        String pgTid = null;
-
-        if (paymentMethod == PaymentMethod.CARD) {
-            CardOperationResult result = cardClient.deduct(cardId, new CardOperationRequest(amount));
-            if (!result.approved()) {
-                throw new PaymentDeclinedException(result.message());
-            }
-            approvalNumber =
-                    "AP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        } else {
-            KakaoPayApproval approval = kakaoPayClient.approve(order.getId(), amount);
-            pgTid = approval.tid();
-            approvalNumber = approval.approvalNumber();
+    public Payment approveCard(Order order, Long cardId, int amount) {
+        CardOperationResult result = cardClient.deduct(cardId, new CardOperationRequest(amount));
+        if (!result.approved()) {
+            throw new PaymentDeclinedException(result.message());
         }
 
-        Payment payment = new Payment(
-                order,
-                cardId,
-                paymentMethod,
-                amount,
-                approvalNumber,
-                pgTid,
-                UUID.randomUUID().toString());
+        String approvalNumber =
+                "AP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        Payment payment =
+                Payment.approved(order, cardId, PaymentMethod.CARD, amount, approvalNumber, null, newIdempotencyKey());
         return paymentRepository.save(payment);
     }
 
+    /** 카카오페이 1단계. 아직 결제는 확정되지 않는다 — Payment 는 READY 로 저장된다. */
+    @Transactional
+    public KakaoReadyOutcome readyKakao(Order order, Long memberId, int amount) {
+        String itemName = "도서 주문 #" + order.getId();
+        KakaoReadyResult result = kakaoPayClient.ready(order.getId(), memberId, itemName, amount);
+
+        Payment payment = paymentRepository.save(Payment.ready(order, amount, result.tid(), newIdempotencyKey()));
+        return new KakaoReadyOutcome(payment, result.nextRedirectPcUrl());
+    }
+
     /**
-     * 취소는 단일 트랜잭션이다 — 카드 한도 복구가 실패하면 CardRestoreFailedException 이 재고·쿠폰
-     * 복구까지 전부 롤백시킨다. KakaoPayClient.cancel() 은 현재 목(mock)이라 실패 경로가 없다 —
-     * 실제 PG 연동으로 바뀌면 그때 카드처럼 승인/거절 결과를 반환하도록 인터페이스를 넓히면 된다.
+     * 카카오페이 2단계. 호출 시점엔 이미 재고 재검증을 마친 뒤여야 한다(OrderService) —
+     * 재고가 없으면 이 메서드 자체를 호출하지 않아 카카오에 승인 요청을 보내지 않는다.
+     */
+    @Transactional
+    public void approveKakao(Payment payment, Long orderId, Long memberId, String pgToken) {
+        KakaoApproveResult result = kakaoPayClient.approve(orderId, memberId, payment.getPgTid(), pgToken);
+        payment.approveKakao(result.approvalNumber());
+    }
+
+    /**
+     * 취소는 단일 트랜잭션이다 — 카드 한도 복구/카카오 취소가 실패하면 예외가 재고·쿠폰 복구까지
+     * 전부 롤백시킨다(CardRestoreFailedException, KakaoPayApiException).
      */
     @Transactional
     public void cancel(Payment payment) {
@@ -77,4 +82,10 @@ public class PaymentService {
         }
         payment.cancel();
     }
+
+    private String newIdempotencyKey() {
+        return UUID.randomUUID().toString();
+    }
+
+    public record KakaoReadyOutcome(Payment payment, String redirectUrl) {}
 }

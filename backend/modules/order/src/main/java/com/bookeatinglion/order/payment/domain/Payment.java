@@ -17,12 +17,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * order_db.payments. approvalNumber 는 CARD, pgTid 는 KAKAOPAY 에서만 채워진다 —
- * 서로 다른 결제망의 서로 다른 식별자를 억지로 하나로 합치지 않는다(PaymentService 참고).
+ * order_db.payments. approvalNumber 는 CARD/카카오 승인 후, pgTid 는 KAKAOPAY 의 ready
+ * 단계부터 채워진다 — 서로 다른 결제망의 서로 다른 식별자를 억지로 하나로 합치지 않는다
+ * (PaymentService 참고).
  *
- * 이 서비스는 실제 PG 연동 전이라 승인번호/거래ID 는 order-service 자신이 목(mock) 생성한다.
- * DECLINED 상태는 이 테이블에 남지 않는다 — 거절되면 PaymentDeclinedException 이 주문 생성
- * 트랜잭션 전체를 롤백시켜 Payment 행 자체가 저장되지 않는다.
+ * READY 상태는 원래 스키마(APPROVED/DECLINED/CANCELLED)에 없었다. 카카오페이는 ready 와
+ * approve 가 별도 HTTP 요청으로 나뉘고, approve 요청은 tid 를 다시 보내주지 않으므로
+ * (orderId + pgToken 뿐) 서버가 ready 시점에 tid 를 어딘가 들고 있어야 한다 — 그 자리가
+ * READY 상태의 이 행이다. DECLINED 는 여전히 이 테이블에 남지 않는다 — 거절되면
+ * PaymentDeclinedException 이 트랜잭션 전체를 롤백시켜 행 자체가 저장되지 않는다.
  */
 @Entity
 @Table(name = "payments")
@@ -62,11 +65,12 @@ public class Payment {
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
 
-    public Payment(
+    private Payment(
             Order order,
             Long cardId,
             PaymentMethod paymentMethod,
             int amount,
+            PaymentStatus paymentStatus,
             String approvalNumber,
             String pgTid,
             String idempotencyKey) {
@@ -74,10 +78,38 @@ public class Payment {
         this.cardId = cardId;
         this.paymentMethod = paymentMethod;
         this.amount = amount;
-        this.paymentStatus = PaymentStatus.APPROVED;
+        this.paymentStatus = paymentStatus;
         this.approvalNumber = approvalNumber;
         this.pgTid = pgTid;
         this.idempotencyKey = idempotencyKey;
+    }
+
+    /** CARD 1단계 승인, 또는 (미래에) 즉시 승인되는 다른 결제수단용. */
+    public static Payment approved(
+            Order order,
+            Long cardId,
+            PaymentMethod paymentMethod,
+            int amount,
+            String approvalNumber,
+            String pgTid,
+            String idempotencyKey) {
+        return new Payment(
+                order, cardId, paymentMethod, amount, PaymentStatus.APPROVED, approvalNumber, pgTid, idempotencyKey);
+    }
+
+    /** 카카오페이 ready 단계. approvalNumber 는 approve 가 성공해야 채워진다. */
+    public static Payment ready(Order order, int amount, String pgTid, String idempotencyKey) {
+        return new Payment(
+                order, null, PaymentMethod.KAKAOPAY, amount, PaymentStatus.READY, null, pgTid, idempotencyKey);
+    }
+
+    /** 카카오페이 approve 성공. READY 상태에서만 호출할 수 있다. */
+    public void approveKakao(String approvalNumber) {
+        if (this.paymentStatus != PaymentStatus.READY) {
+            throw new IllegalStateException("READY 상태에서만 승인할 수 있습니다: " + id);
+        }
+        this.approvalNumber = approvalNumber;
+        this.paymentStatus = PaymentStatus.APPROVED;
     }
 
     public void cancel() {

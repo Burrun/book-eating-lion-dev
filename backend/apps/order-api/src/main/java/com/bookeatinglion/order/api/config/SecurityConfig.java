@@ -30,6 +30,8 @@ public class SecurityConfig {
                         .authenticated()
                         .requestMatchers("/api/coupons/**")
                         .authenticated()
+                        .requestMatchers("/api/payments/**")
+                        .authenticated()
                         .anyRequest()
                         .permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));

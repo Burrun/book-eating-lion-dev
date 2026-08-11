@@ -13,9 +13,16 @@ public record OrderResponse(
         Recipient recipient,
         int totalAmount,
         List<OrderItemView> items,
-        PaymentView payment) {
+        PaymentView payment,
+        String nextRedirectUrl) {
 
+    /** CARD 생성 완료, 상세조회, 취소, 카카오 승인 이후 — nextRedirectUrl 이 항상 null 인 모든 경우. */
     public static OrderResponse of(Order order, List<OrderItem> items, Payment payment) {
+        return of(order, items, payment, null);
+    }
+
+    /** KAKAOPAY 를 막 ready 했을 때만 쓴다. */
+    public static OrderResponse of(Order order, List<OrderItem> items, Payment payment, String nextRedirectUrl) {
         return new OrderResponse(
                 order.getId(),
                 order.getOrderStatus(),
@@ -23,6 +30,7 @@ public record OrderResponse(
                         order.getRecipientName(), order.getRecipientPhone(), order.getPostalCode(), order.getAddress()),
                 order.getTotalAmount(),
                 items.stream().map(OrderItemView::from).toList(),
-                payment == null ? null : PaymentView.from(payment));
+                payment == null ? null : PaymentView.from(payment),
+                nextRedirectUrl);
     }
 }
