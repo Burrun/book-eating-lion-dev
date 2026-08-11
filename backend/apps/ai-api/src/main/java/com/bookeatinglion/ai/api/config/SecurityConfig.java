@@ -17,11 +17,18 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/**").permitAll()
-                        // 라이언은 프리미엄 전용이다.
-                        .requestMatchers("/api/ai/lions/**").authenticated()
-                        .requestMatchers("/api/ai/bot/inquiries").authenticated()
-                        .anyRequest().permitAll())
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
+                        // 먹인 책 본문을 읽는 경로다. 인증이 없으면 "내가 먹인 책"이 정의되지 않고,
+                        // 그 순간 검색 필터가 비어 접근 제어가 통째로 사라진다.
+                        .requestMatchers("/api/ai/ask")
+                        .authenticated()
+                        .requestMatchers("/api/ai/lion/**")
+                        .authenticated()
+                        .requestMatchers("/api/ai/bot/inquiries")
+                        .authenticated()
+                        .anyRequest()
+                        .permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();

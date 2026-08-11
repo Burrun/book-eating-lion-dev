@@ -37,11 +37,14 @@ spring:
           issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
 
 app:
-  bedrock:
-    region: ${AWS_BEDROCK_REGION:ap-northeast-2}
-    # Phase 0-2b 확정. 바꾸면 전건 재임베딩이 필요하다.
-    embedding-model: amazon.titan-embed-text-v2:0
-    embedding-dimension: 1024
+  ai:
+    # 로컬은 AWS 자격증명 없이 뜬다. bedrock 으로 바꾸면 실제 호출이 나가고
+    # 기동 시 S3 Vectors 인덱스 검증도 함께 돈다.
+    clients: ${AI_CLIENTS:stub}
+    bedrock:
+      region: ${AWS_BEDROCK_REGION:ap-northeast-2}
+    vector:
+      bucket-name: ${AI_VECTOR_BUCKET:bel-wiki-vectors-local}
 
 springdoc:
   swagger-ui:

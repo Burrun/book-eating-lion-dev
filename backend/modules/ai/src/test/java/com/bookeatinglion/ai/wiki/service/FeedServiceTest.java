@@ -1,0 +1,92 @@
+package com.bookeatinglion.ai.wiki.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.bookeatinglion.ai.lion.domain.Lion;
+import com.bookeatinglion.ai.lion.repository.LionRepository;
+import com.bookeatinglion.ai.wiki.domain.FedBook;
+import com.bookeatinglion.ai.wiki.exception.BookNotIngestedException;
+import com.bookeatinglion.ai.wiki.repository.FedBookRepository;
+import com.bookeatinglion.ai.wiki.repository.WikiBookRepository;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+class FeedServiceTest {
+
+    private static final Long MEMBER_ID = 1L;
+    private static final Long BOOK_ID = 10L;
+
+    private WikiBookRepository wikiBookRepository;
+    private FedBookRepository fedBookRepository;
+    private LionRepository lionRepository;
+    private FedBookCache fedBookCache;
+    private FeedService service;
+    private Lion lion;
+
+    @BeforeEach
+    void setUp() {
+        wikiBookRepository = mock(WikiBookRepository.class);
+        fedBookRepository = mock(FedBookRepository.class);
+        lionRepository = mock(LionRepository.class);
+        fedBookCache = mock(FedBookCache.class);
+        lion = new Lion(MEMBER_ID, "CUB");
+
+        when(lionRepository.findByMemberId(MEMBER_ID)).thenReturn(Optional.of(lion));
+        when(wikiBookRepository.existsById(BOOK_ID)).thenReturn(true);
+
+        service = new FeedService(wikiBookRepository, fedBookRepository, lionRepository, fedBookCache);
+    }
+
+    /** ebook 본문이 없으면 먹일 수 없다. 계약의 409. */
+    @Test
+    void 인제스트되지_않은_책은_먹일_수_없다() {
+        when(wikiBookRepository.existsById(BOOK_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.feed(MEMBER_ID, BOOK_ID)).isInstanceOf(BookNotIngestedException.class);
+
+        verify(fedBookRepository, never()).save(any());
+    }
+
+    @Test
+    void 처음_먹이면_경험치가_오르고_캐시가_갱신된다() {
+        when(fedBookRepository.existsById(any())).thenReturn(false);
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
+
+        FeedService.FeedResult result = service.feed(MEMBER_ID, BOOK_ID);
+
+        assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
+        assertThat(result.fedBookCount()).isEqualTo(1L);
+        verify(fedBookRepository).save(any(FedBook.class));
+        verify(fedBookCache).add(MEMBER_ID, BOOK_ID);
+    }
+
+    /** 재시도나 더블클릭으로 레벨이 오르면 버그가 아니라 사고다. */
+    @Test
+    void 같은_책을_다시_먹여도_경험치가_오르지_않는다() {
+        lion.gainExp(Lion.EXP_PER_FEED);
+        when(fedBookRepository.existsById(any())).thenReturn(true);
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
+
+        FeedService.FeedResult result = service.feed(MEMBER_ID, BOOK_ID);
+
+        assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
+        verify(fedBookRepository, never()).save(any());
+        verify(fedBookCache, never()).add(any(), any());
+    }
+
+    /** 계약 예시(3권 → exp 120, level 2)와 어긋나면 프론트의 레벨 표시가 틀어진다. */
+    @Test
+    void 세_권을_먹이면_레벨이_2_가_된다() {
+        lion.gainExp(Lion.EXP_PER_FEED * 3);
+
+        assertThat(lion.getExp()).isEqualTo(120);
+        assertThat(lion.getLevel()).isEqualTo(2);
+    }
+}

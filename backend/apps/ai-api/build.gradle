@@ -10,9 +10,20 @@ jar {
     enabled = false
 }
 
+dependencyManagement {
+    imports {
+        mavenBom 'software.amazon.awssdk:bom:2.46.7'
+    }
+}
+
 dependencies {
     implementation project(':modules:common')
     implementation project(':modules:ai')
+
+    // 임베딩·LLM(Bedrock Runtime) + 벡터 검색(S3 Vectors).
+    // 두 클라이언트가 같은 SDK 코어를 공유하므로 버전은 BOM 으로 묶는다.
+    implementation 'software.amazon.awssdk:bedrockruntime'
+    implementation 'software.amazon.awssdk:s3vectors'
 
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'

@@ -9,13 +9,67 @@ server:
 
 # 외부 API(임베딩·LLM) 호출 격리 — 판단 ④가 "필수"로 지정한 항목.
 # 봇이 폭주해도 RAG 가 스레드를 확보할 수 있어야 한다.
+#
+# timelimiter 는 여기에 두지 않는다. @TimeLimiter + CompletableFuture 반환일 때만
+# 동작해서 동기 호출에는 아무 효과가 없고, 설정만 있으면 타임아웃이 걸린 줄로 오해한다.
+# 실제 방어선은 app.ai.bedrock.api-call-timeout (SDK 레벨)이다.
+#
+# RAG 안에서는 임베딩과 LLM 을 다시 나눈다. 한 슬롯 풀을 공유하면 LLM 이 느려질 때
+# 임베딩까지 대기에 걸려, 검색만 하면 되는 mode=search 요청이 LLM 때문에 막힌다.
+# 두 호출은 지연 특성이 다르다 — 임베딩 수백 ms, LLM 수 초.
 resilience4j:
   bulkhead:
     instances:
       aiExternalApi:
         maxConcurrentCalls: 20
         maxWaitDuration: 100ms
-  timelimiter:
-    instances:
-      aiExternalApi:
-        timeoutDuration: 30s
+      aiEmbedding:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 100ms
+      aiLlm:
+        maxConcurrentCalls: 10
+        maxWaitDuration: 100ms
+
+app:
+  ai:
+    bedrock:
+      # 🔴 아래 두 값은 의도적으로 환경변수가 아니다. 인덱스와 짝이라 바꾸면 전건 재임베딩 +
+      # 인덱스 재생성이다. 특히 embedding-model 은 1024차원을 지원하는 다른 모델로 바꿔도
+      # 기동 시 차원 검사(GetIndex)를 그대로 통과한다 — 벡터 공간만 달라져서 에러도 로그도
+      # 없이 검색 결과만 쓰레기가 된다. 바꾸기 어려워야 하는 값은 바꾸기 어렵게 둔다.
+      embedding-model: amazon.titan-embed-text-v2:0
+      embedding-dimension: 1024
+      # 모델 교체는 재배포 없이 되어야 한다 — 자료 마이그레이션이 없는 유일한 모델 설정이다.
+      #
+      # 기본값에 `global.` 접두사가 붙은 이유는 Bedrock 의 최신 Claude 모델들이
+      # inferenceTypesSupported=[INFERENCE_PROFILE] 이라 맨 모델 ID 로는 호출이 거부되기 때문이다.
+      # 접두사 없는 ID 를 기본값으로 두면 로컬에서 clients=bedrock 으로 돌린 사람이
+      # 첫 호출에서야 ValidationException 을 본다.
+      llm-model: "${AI_LLM_MODEL:global.anthropic.claude-haiku-4-5-20251001-v1:0}"
+      llm-max-tokens: 1024
+      # 이 서비스의 답은 창작이 아니라 인용이다.
+      llm-temperature: 0.2
+      # Bulkhead 대기(100ms) + 호출 상한. 상한이 없으면 슬롯이 영원히 안 돌아온다.
+      api-call-timeout: 30s
+      api-call-attempt-timeout: 10s
+    vector:
+      index-name: wiki-v1
+      distance-metric: cosine
+      # 인덱스 생성 시 선언한 값. 기동 시 GetIndex 로 대조한다.
+      non-filterable-metadata-keys:
+        - text
+    rag:
+      # 인덱스에서 8개를 받아 책당 3개로 자르고 요청 topK 까지 남긴다.
+      # 8 은 "책당 3 × 책 2권 + 여유"다. 이보다 작으면 책당 상한이 걸리기도 전에 후보가 마른다.
+      search-top-k: 8
+      max-citations-per-book: 3
+      # 🔴 잠정값이다. 계획서 8~9단계(golden set 20문항 → 거리 분포)에서 확정해야 한다.
+      # 감으로 박으면 "항상 인용"과 "코퍼스 밖이면 모른다"를 동시에 만족시킬 수 없다.
+      # 확정 전까지는 매번 이미지를 다시 굽지 않고 흔들어볼 수 있어야 해서 환경변수다.
+      # cosine distance 라 작을수록 유사하다.
+      max-distance: "${AI_MAX_DISTANCE:0.75}"
+      # 인용 본문을 프롬프트에 넣을 때의 총 상한. text 는 벡터당 최대 40KB 라
+      # 상한이 없으면 topK 배만큼 토큰이 터진다.
+      max-context-bytes: 12288
+      # 과금 방어선. 데모 중에 막히면 즉시 올릴 수 있어야 한다.
+      daily-quota: "${AI_DAILY_QUOTA:50}"

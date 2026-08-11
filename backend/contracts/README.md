@@ -1,4 +1,5 @@
 1
+
 # contracts/ — 서비스 간 계약 (단일 진실 공급원)
 
 Phase 0-4 의 산출물이다. **이 디렉터리의 YAML 이 서비스 간 계약의 단일 진실 공급원이다.**
@@ -28,12 +29,8 @@ python -c "import yaml,glob; [yaml.safe_load(open(p,encoding='utf-8')) for p in 
 flow mapping `{ }` 안의 `?` 가 YAML 의 복합 키 지시자로 잡혀서다. 이런 건
 사람이 읽어서는 못 잡는다.
 
-> **Prism mock 은 걷어냈다.** `docker-compose.mock.yml` 로 4개 서비스 mock 을
-> 띄우게 돼 있었는데, 계약이 파싱조차 안 되는 상태였고 `stoplight/prism:5` 도
-> `require("node:cluster").default` 접근으로 기동 즉시 크래시했다. 그런데도
-> 아무도 불편해하지 않았다 — 쓰는 사람이 없었다는 뜻이다.
-> 프론트는 `pnpm gen` 으로 실서버 Swagger 에서 타입을 뽑고, 백엔드 4개는
-> `docker compose up` 한 번에 다 뜬다. 필요해지면 그때 다시 넣는다.
+이 검증은 `backend-ci.yml` 의 `yaml-checks` 잡에서 자동으로 돈다. 파일이 0건이면
+그냥 통과해 버리므로 건수도 함께 확인한다 — 못 깨지는 검사는 검사가 아니다.
 
 ## 계약에서 절대 바꾸면 안 되는 것
 
@@ -46,5 +43,10 @@ flow mapping `{ }` 안의 `?` 가 YAML 의 복합 키 지시자로 잡혀서다.
 
 ## 아직 하지 않은 것
 
-Contract test 를 `backend-ci.yml` 에 붙이는 작업(§5 리스크 대응)은 미완이다.
-없으면 문서에만 존재하는 엔드포인트가 쌓이므로, Phase 1 착수 전에 추가할 것.
+CI 에 붙은 건 **파싱까지**다(`yaml-checks` 잡). 계약과 구현이 어긋나는 건 여전히 못 잡는다 —
+계약에 있는 엔드포인트가 코드에 없어도, 필드명이 달라도 CI 는 초록색이다. §5 가 최상단
+리스크로 꼽은 건 이쪽이므로 Phase 1 착수 전에 추가할 것. 후보 두 가지:
+
+- **$ref 무결성** — 없는 스키마를 가리키는 `$ref` 를 잡는다. 파싱과 같은 잡에 얹으면 된다.
+- **경로 대조** — 계약의 `paths` 와 컨트롤러의 `@RequestMapping` 을 맞춰본다.
+  문서에만 존재하는 엔드포인트가 쌓이는 걸 막는 건 이쪽이다.

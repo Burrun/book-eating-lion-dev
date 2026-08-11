@@ -26,10 +26,14 @@ spring:
     enabled: false
 
 app:
-  bedrock:
-    region: ${AWS_BEDROCK_REGION}
-    embedding-model: amazon.titan-embed-text-v2:0
-    embedding-dimension: 1024
+  ai:
+    clients: bedrock
+    bedrock:
+      region: ${AWS_BEDROCK_REGION}
+    vector:
+      bucket-name: ${AI_VECTOR_BUCKET}
+      # 인덱스명만 바꾸면 v2 컷오버·롤백이 끝난다.
+      index-name: ${AI_VECTOR_INDEX:wiki-v1}
 
 management:
   endpoints:
