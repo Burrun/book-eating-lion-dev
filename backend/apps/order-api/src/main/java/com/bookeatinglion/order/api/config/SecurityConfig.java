@@ -28,6 +28,8 @@ public class SecurityConfig {
                         .authenticated()
                         .requestMatchers("/api/cart/**")
                         .authenticated()
+                        .requestMatchers("/api/coupons/**")
+                        .authenticated()
                         .anyRequest()
                         .permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
