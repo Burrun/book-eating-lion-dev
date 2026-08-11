@@ -107,7 +107,7 @@ function ProfileCard({ profile, level }) {
           🦁
         </div>
         <h1 className="font-display text-xl text-[var(--color-forest)]">
-          {profile.name} 님의 마이페이지{" "}
+          {profile.name || profile.email || "회원"} 님의 마이페이지{" "}
           {USE_MOCK && (
             <span className="text-[var(--color-honey)]">
               (Lv.{level} {profile.title})
