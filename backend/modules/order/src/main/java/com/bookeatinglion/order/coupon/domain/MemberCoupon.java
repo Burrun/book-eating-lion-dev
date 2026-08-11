@@ -20,8 +20,9 @@ import lombok.NoArgsConstructor;
  * order_db.member_coupons. Coupon 은 단방향 @ManyToOne — Coupon 은 MemberCoupon 을 모른다.
  * member_id 는 순수 Long 이다(경계 밖, member-service 참조 없음).
  *
- * use() 는 아직 어떤 컨트롤러도 호출하지 않는다(등록/조회 두 API 만 있다). 결제 연동 시점에
- * 재사용할 도메인 불변식을 미리 박아둔 것으로, Inventory.deduct() 와 같은 이유다.
+ * usedOrderId 는 Coupon 기능 단계에는 없던 컬럼이다 — 주문 취소 시 "이 쿠폰이 어느 주문에
+ * 쓰였는지"를 역추적할 방법이 스키마에 없어서 추가했다(취소하려면 원복할 대상을 알아야 한다).
+ * use()/cancelUse() 는 OrderService 가 호출한다.
  */
 @Entity
 @Table(name = "member_coupons", uniqueConstraints = @UniqueConstraint(columnNames = {"member_id", "coupon_id"}))
@@ -47,18 +48,29 @@ public class MemberCoupon {
     @Column(name = "used_at")
     private LocalDateTime usedAt;
 
+    @Column(name = "used_order_id")
+    private Long usedOrderId;
+
     public MemberCoupon(Long memberId, Coupon coupon) {
         this.memberId = memberId;
         this.coupon = coupon;
         this.used = false;
     }
 
-    public void use(LocalDateTime usedAt) {
+    public void use(LocalDateTime usedAt, Long orderId) {
         if (this.used) {
             throw new CouponAlreadyUsedException(this.id);
         }
         this.used = true;
         this.usedAt = usedAt;
+        this.usedOrderId = orderId;
+    }
+
+    /** 주문 취소 시 원복. OrderService 가 usedOrderId 로 역추적해 호출한다. */
+    public void cancelUse() {
+        this.used = false;
+        this.usedAt = null;
+        this.usedOrderId = null;
     }
 
     public boolean isOwnedBy(Long memberId) {

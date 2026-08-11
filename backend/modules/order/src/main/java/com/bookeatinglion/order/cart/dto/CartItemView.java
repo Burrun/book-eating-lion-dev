@@ -1,7 +1,7 @@
 package com.bookeatinglion.order.cart.dto;
 
-import com.bookeatinglion.order.cart.client.CatalogClient.BookView;
 import com.bookeatinglion.order.cart.domain.CartItem;
+import com.bookeatinglion.order.client.CatalogClient.BookView;
 
 public record CartItemView(
         Long cartItemId, Long bookId, String title, int price, String coverImageUrl, int quantity, long subtotal) {

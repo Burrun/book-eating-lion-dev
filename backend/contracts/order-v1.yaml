@@ -268,6 +268,106 @@ paths:
         "409":
           description: 이미 보유한 쿠폰
 
+  /api/orders:
+    post:
+      summary: 주문 생성 및 결제 승인
+      description: |
+        도서 가격은 요청 바디를 신뢰하지 않고 catalog-service 에서 서버 단으로 재조회한다
+        (CatalogClient — cart 와 공유하는 §7.6 예외). 재고 차감은 bookId 오름차순으로
+        정렬한 뒤 Redis 분산 락을 순서대로 획득해 데드락을 막는다.
+
+        paymentMethod=CARD 면 member-service 의 가상카드 한도를 동기 차감한다
+        (§7.6 두 번째 예외 — CardClient). 차감이 거절되거나 member-service 가 응답하지
+        않으면 결제 전체가 거절되며 재고 차감도 롤백된다(단일 트랜잭션).
+        paymentMethod=KAKAOPAY 는 이 서비스가 승인번호/PG 거래ID 를 목(mock) 생성한다 —
+        실제 PG 연동 전이다.
+      operationId: createOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: 주문 생성 및 결제 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "400":
+          description: 재고 부족, 쿠폰 최소주문금액 미달, 만료된 쿠폰, cardId 누락 등
+        "402":
+          description: 결제 거절(한도 초과 등)
+        "403":
+          description: 본인 소유가 아닌 쿠폰
+        "404":
+          description: 존재하지 않는 도서 또는 쿠폰
+        "503":
+          description: catalog-service 응답 없음 — 가격을 신뢰할 수 없어 주문을 생성하지 않는다
+
+  /api/orders/{orderId}:
+    get:
+      summary: 주문 상세 조회
+      description: 주문 정보 + 주문 상품 목록 + 결제 내역을 한 번에 반환한다.
+      operationId: getOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+
+  /api/orders/{orderId}/cancel:
+    post:
+      summary: 주문 취소
+      description: |
+        PAID 상태인 주문만 취소할 수 있다. 재고 복구, 쿠폰 미사용 원복, 가상카드 한도
+        복구(CARD 결제인 경우)를 단일 트랜잭션으로 처리한다 — 카드 한도 복구가 실패하면
+        재고·쿠폰 복구를 포함해 전부 롤백되고 주문은 PAID 상태로 남는다(부분 취소 방지).
+      operationId: cancelOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 취소 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+        "409":
+          description: PAID 상태가 아니어서 취소할 수 없음(카드 한도 복구 실패 포함)
+
 components:
   securitySchemes:
     bearerAuth:
@@ -467,6 +567,124 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/MemberCouponView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    OrderItemRequest:
+      type: object
+      required: [bookId, quantity]
+      properties:
+        bookId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+
+    Recipient:
+      type: object
+      required: [name, phone, postalCode, address]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          example: "010-1234-5678"
+        postalCode:
+          type: string
+          example: "06236"
+        address:
+          type: string
+
+    CreateOrderRequest:
+      type: object
+      required: [items, recipient, paymentMethod]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItemRequest"
+        memberCouponId:
+          type: integer
+          format: int64
+          nullable: true
+        recipient:
+          $ref: "#/components/schemas/Recipient"
+        paymentMethod:
+          type: string
+          enum: [CARD, KAKAOPAY]
+        cardId:
+          type: integer
+          format: int64
+          nullable: true
+          description: paymentMethod=CARD 일 때 필수.
+
+    OrderItemView:
+      type: object
+      properties:
+        orderItemId:
+          type: integer
+          format: int64
+        bookId:
+          type: integer
+          format: int64
+        bookTitle:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: integer
+
+    PaymentView:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+        paymentMethod:
+          type: string
+          enum: [CARD, KAKAOPAY]
+        amount:
+          type: integer
+        paymentStatus:
+          type: string
+          enum: [APPROVED, DECLINED, CANCELLED]
+        approvalNumber:
+          type: string
+        pgTid:
+          type: string
+
+    OrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        orderStatus:
+          type: string
+          enum: [PENDING_PAYMENT, PAID, CANCELLED]
+        recipient:
+          $ref: "#/components/schemas/Recipient"
+        totalAmount:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemView"
+        payment:
+          $ref: "#/components/schemas/PaymentView"
+
+    OrderDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/OrderResponse"
         error:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true

@@ -17,6 +17,8 @@ server:
 services:
   catalog:
     url: ${SERVICES_CATALOG_URL:http://localhost:8081}
+  member:
+    url: ${SERVICES_MEMBER_URL:http://localhost:8083}
 
 resilience4j:
   circuitbreaker:
@@ -25,7 +27,14 @@ resilience4j:
         slidingWindowSize: 20
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      member-card:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
   timelimiter:
     instances:
       catalog-book:
         timeoutDuration: 2s
+      member-card:
+        # 결제 승인 경로다 — 카탈로그 조회보다 짧게 끊어 사용자 대기 시간을 줄인다.
+        timeoutDuration: 1500ms
