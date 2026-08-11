@@ -445,8 +445,13 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/DeliveryResponse"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     DeliveryResponse:
       type: object
@@ -475,7 +480,7 @@ components:
 
     AddCartItemRequest:
       type: object
-      required: [bookId, quantity]
+      required: [bookId]
       properties:
         bookId:
           type: integer
@@ -484,6 +489,7 @@ components:
           type: integer
           minimum: 1
           default: 1
+          description: 생략하면 1로 담긴다.
 
     ChangeCartItemQuantityRequest:
       type: object
@@ -535,16 +541,26 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/CartResponse"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CartItemEnvelope:
       type: object
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/CartItemView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     ErrorDetail:
       type: object

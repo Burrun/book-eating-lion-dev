@@ -1,6 +1,7 @@
 package com.bookeatinglion.order.cart.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
+import com.bookeatinglion.order.cart.exception.InvalidCartQuantityException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -59,7 +60,7 @@ public class CartItem extends BaseEntity {
 
     private void validateQuantity(int quantity) {
         if (quantity < 1) {
-            throw new IllegalArgumentException("수량은 1 이상이어야 합니다: " + quantity);
+            throw new InvalidCartQuantityException(quantity);
         }
     }
 }

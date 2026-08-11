@@ -1,9 +1,9 @@
 package com.bookeatinglion.order.order.controller;
 
 import com.bookeatinglion.common.dto.ApiResponse;
+import com.bookeatinglion.common.exception.GlobalErrorHelper;
 import com.bookeatinglion.order.order.exception.OrderDomainException;
 import com.bookeatinglion.order.order.exception.OrderErrorCode;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,16 +21,11 @@ public class OrderExceptionHandler {
     @ExceptionHandler(OrderDomainException.class)
     public ResponseEntity<ApiResponse<Void>> handleOrderDomainException(OrderDomainException e) {
         OrderErrorCode errorCode = e.getErrorCode();
-        return ResponseEntity.status(errorCode.getStatus()).body(ApiResponse.error(errorCode.name(), e.getMessage()));
+        return GlobalErrorHelper.toResponse(errorCode.getStatus(), errorCode.name(), e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
-                .orElse("Invalid request");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(OrderErrorCode.INVALID_REQUEST.name(), message));
+        return GlobalErrorHelper.toValidationResponse(OrderErrorCode.INVALID_REQUEST.name(), e);
     }
 }
