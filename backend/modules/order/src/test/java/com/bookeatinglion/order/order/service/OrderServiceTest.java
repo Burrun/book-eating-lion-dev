@@ -3,6 +3,7 @@ package com.bookeatinglion.order.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,6 +35,8 @@ import com.bookeatinglion.order.order.exception.UnauthorizedCouponAccessExceptio
 import com.bookeatinglion.order.order.exception.UnauthorizedOrderAccessException;
 import com.bookeatinglion.order.order.repository.OrderItemRepository;
 import com.bookeatinglion.order.order.repository.OrderRepository;
+import com.bookeatinglion.order.payment.client.KakaoPayClient;
+import com.bookeatinglion.order.payment.client.KakaoPayClient.KakaoPayApproval;
 import com.bookeatinglion.order.payment.domain.Payment;
 import com.bookeatinglion.order.payment.domain.PaymentMethod;
 import com.bookeatinglion.order.payment.exception.CardRestoreFailedException;
@@ -74,6 +77,9 @@ class OrderServiceTest {
     @Mock
     private CardClient cardClient;
 
+    @Mock
+    private KakaoPayClient kakaoPayClient;
+
     private InventoryLockExecutor passThroughLockExecutor;
 
     private PaymentService paymentService;
@@ -87,7 +93,7 @@ class OrderServiceTest {
                 return action.get();
             }
         };
-        paymentService = new PaymentService(paymentRepository, cardClient);
+        paymentService = new PaymentService(paymentRepository, cardClient, kakaoPayClient);
         orderService = new OrderService(
                 orderRepository,
                 orderItemRepository,
@@ -128,6 +134,7 @@ class OrderServiceTest {
             return saved;
         });
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(kakaoPayClient.approve(anyLong(), anyInt())).thenReturn(new KakaoPayApproval("TC0ONETIME-ABC", "A1"));
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAOPAY, null);
@@ -294,6 +301,7 @@ class OrderServiceTest {
             return saved;
         });
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(kakaoPayClient.approve(anyLong(), anyInt())).thenReturn(new KakaoPayApproval("TC0ONETIME-ABC", "A1"));
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAOPAY, null);
