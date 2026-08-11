@@ -120,6 +120,154 @@ paths:
         "404":
           description: 주문 또는 배송 정보 없음
 
+  /api/cart:
+    get:
+      summary: 장바구니 목록 조회
+      description: |
+        cart_items 는 order_db 소유이며 book_id 는 FK 가 아니다(경계 밖).
+        도서 제목/가격/이미지는 catalog-service 를 동기 호출(Feign)해 조합한다 —
+        이 서비스의 첫 outbound 동기 호출이다(§7.6 예외). catalog-service 가 응답하지
+        않으면 항목별로 title="정보 조회 불가", price=0 으로 degrade 되어 200 을 반환한다.
+      operationId: getCart
+      tags: [cart]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartEnvelope"
+
+    post:
+      summary: 장바구니 담기
+      description: |
+        (member_id, book_id) 가 이미 있으면 quantity 를 누적하는 upsert 다.
+        UNIQUE (member_id, book_id) 제약이 동시 요청에서의 중복 행 생성을 막는다.
+      operationId: addCartItem
+      tags: [cart]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCartItemRequest"
+      responses:
+        "200":
+          description: 담기(또는 수량 누적) 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartItemEnvelope"
+        "400":
+          description: quantity 가 1 미만이거나 bookId 누락
+
+  /api/cart/{cartItemId}:
+    patch:
+      summary: 장바구니 항목 수량 변경
+      operationId: changeCartItemQuantity
+      tags: [cart]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cartItemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeCartItemQuantityRequest"
+      responses:
+        "200":
+          description: 변경 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartItemEnvelope"
+        "400":
+          description: quantity 가 1 미만
+        "403":
+          description: 타인의 장바구니 항목
+        "404":
+          description: 존재하지 않는 항목
+
+    delete:
+      summary: 장바구니 항목 삭제
+      operationId: removeCartItem
+      tags: [cart]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cartItemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: 삭제 완료
+        "403":
+          description: 타인의 장바구니 항목
+        "404":
+          description: 존재하지 않는 항목
+
+  /api/coupons/me:
+    get:
+      summary: 보유 쿠폰 목록 조회
+      description: |
+        미사용(is_used=false)이면서 만료되지 않은(expires_at > now) 쿠폰만 반환한다.
+        사용했거나 만료된 쿠폰은 이 목록에서 조용히 제외된다 — 별도 상태 필터가 없다.
+      operationId: getMyCoupons
+      tags: [coupon]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberCouponListEnvelope"
+
+  /api/coupons/register:
+    post:
+      summary: 쿠폰 코드로 쿠폰 등록/발급
+      description: |
+        UNIQUE (member_id, coupon_id) 제약과 동일한 규칙을 서비스 레벨에서도 검증한다 —
+        이미 보유한 쿠폰이면 409, 만료된 쿠폰이면 400, 존재하지 않는 코드면 404.
+      operationId: registerCoupon
+      tags: [coupon]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterCouponRequest"
+      responses:
+        "200":
+          description: 등록 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberCouponEnvelope"
+        "400":
+          description: 만료된 쿠폰
+        "404":
+          description: 존재하지 않는 쿠폰 코드
+        "409":
+          description: 이미 보유한 쿠폰
+
 components:
   securitySchemes:
     bearerAuth:
@@ -180,3 +328,145 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    AddCartItemRequest:
+      type: object
+      required: [bookId, quantity]
+      properties:
+        bookId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+
+    ChangeCartItemQuantityRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+
+    CartItemView:
+      type: object
+      properties:
+        cartItemId:
+          type: integer
+          format: int64
+        bookId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: 클라우드 엔지니어링 교재
+        price:
+          type: integer
+          example: 25000
+        coverImageUrl:
+          type: string
+        quantity:
+          type: integer
+        subtotal:
+          type: integer
+          format: int64
+          description: price * quantity
+
+    CartResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItemView"
+        totalQuantity:
+          type: integer
+        totalPrice:
+          type: integer
+          format: int64
+
+    CartEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/CartResponse"
+
+    CartItemEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/CartItemView"
+
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    RegisterCouponRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          example: WELCOME3000
+
+    MemberCouponView:
+      type: object
+      properties:
+        memberCouponId:
+          type: integer
+          format: int64
+        couponId:
+          type: integer
+          format: int64
+        couponCode:
+          type: string
+          example: WELCOME3000
+        couponName:
+          type: string
+          example: 신규 가입 3000원 할인
+        discountAmount:
+          type: integer
+          example: 3000
+        minimumOrderAmount:
+          type: integer
+          example: 10000
+        expiresAt:
+          type: string
+          format: date-time
+
+    MemberCouponListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberCouponView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    MemberCouponEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/MemberCouponView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true

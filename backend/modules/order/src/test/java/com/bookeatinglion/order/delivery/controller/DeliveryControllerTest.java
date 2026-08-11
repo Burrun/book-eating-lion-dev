@@ -1,25 +1,24 @@
 package com.bookeatinglion.order.delivery.controller;
 
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.dto.DeliveryResponse;
 import com.bookeatinglion.order.delivery.exception.DeliveryNotFoundException;
 import com.bookeatinglion.order.delivery.exception.UnauthorizedDeliveryAccessException;
 import com.bookeatinglion.order.delivery.service.DeliveryService;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDateTime;
-
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = DeliveryController.class)
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
@@ -35,8 +34,7 @@ class DeliveryControllerTest {
 
     private DeliveryResponse deliveryResponse() {
         return new DeliveryResponse(
-                1L, 100L, "CJ대한통운", "123456789", DeliveryStatus.IN_TRANSIT,
-                LocalDateTime.now(), LocalDateTime.now());
+                1L, 100L, "CJ대한통운", "123456789", DeliveryStatus.IN_TRANSIT, LocalDateTime.now(), LocalDateTime.now());
     }
 
     /**
