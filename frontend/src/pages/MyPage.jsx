@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { Award, BookOpen, Flame, Quote, Send, Star } from "lucide-react";
+import { Award, BookOpen, Flame, Quote, Send, Star, X } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
+import LionCharacter, { getLionTier } from "../components/LionCharacter.jsx";
 import {
   fetchProfile,
   fetchFedBooks,
@@ -20,7 +21,6 @@ import {
 } from "../api/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
-const EXP_PER_BOOK = 15;
 
 // 프로필(GET /api/members/me)을 뺀 마이페이지의 나머지 기능은 아직 실제 API가 없다
 // (사자 EXP/RAG는 BOO-17·AI 서비스 미착수, 주문목록/쿠폰/반품/재입고/내 리뷰 목록은 계약(contracts/*.yaml)에 없음).
@@ -73,27 +73,29 @@ export default function MyPage() {
         <Skeleton variant="rectangular" className="h-28 w-full" />
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="mt-6">
         {USE_MOCK ? (
-          <>
-            <LionFeedingCard exp={exp} setExp={setExp} setLevel={setLevel} />
-            <LionRagCard />
-          </>
+          <LionFeedingCard exp={exp} setExp={setExp} level={level} setLevel={setLevel} />
         ) : (
-          <>
-            <ComingSoonCard
-              title="사자 성장 & 완독 도서 먹이기"
-              message="사자 레벨/EXP/완독 도서 시스템은 아직 준비 중이에요 (BOO-17)."
-            />
-            <ComingSoonCard
-              title="🦁 사자에게 물어보기"
-              message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
-            />
-          </>
+          <ComingSoonCard
+            title="사자 성장 & 완독 도서 먹이기"
+            message="사자 레벨/EXP/완독 도서 시스템은 아직 준비 중이에요 (BOO-17)."
+          />
         )}
       </div>
 
-      <OrdersSection />
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {USE_MOCK ? (
+          <LionRagCard />
+        ) : (
+          <ComingSoonCard
+            title="🦁 사자에게 물어보기"
+            message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
+          />
+        )}
+        <OrdersSection />
+      </div>
+
       <ReviewsSection />
     </div>
   );
@@ -110,7 +112,7 @@ function ProfileCard({ profile, level }) {
           {profile.name || profile.email || "회원"} 님의 마이페이지{" "}
           {USE_MOCK && (
             <span className="text-[var(--color-honey)]">
-              (Lv.{level} {profile.title})
+              (Lv.{level} {getLionTier(level).label})
             </span>
           )}
         </h1>
@@ -118,6 +120,9 @@ function ProfileCard({ profile, level }) {
       {USE_MOCK && (
         <div className="mt-4 flex flex-wrap gap-2">
           {profile.badges.map((badge) => {
+            if (badge.type === "streak") {
+              return <StreakBadge key={badge.label} label={badge.label} streakCount={profile.streakCount ?? 0} />;
+            }
             const Icon = BADGE_ICONS[badge.type] ?? Award;
             return (
               <span
@@ -135,6 +140,37 @@ function ProfileCard({ profile, level }) {
   );
 }
 
+// 연속 출석 3일 이상이면 불꽃이 살짝 흔들리고(flicker), 7일 이상이면 더 크고 진한 코랄색으로 타오른다.
+function StreakBadge({ label, streakCount }) {
+  const isBlazing = streakCount >= 7;
+  const isHot = streakCount >= 3;
+
+  return (
+    <span
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
+        isBlazing ? "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" : "bg-[var(--color-forest)]/5 text-[var(--color-forest)]"
+      }`}
+    >
+      {isHot ? (
+        <motion.span
+          className="flex items-center"
+          animate={{ scale: [1, isBlazing ? 1.15 : 1.08, 1], opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: isBlazing ? 0.9 : 1.3, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Flame
+            size={isBlazing ? 18 : 14}
+            fill={isBlazing ? "var(--color-coral)" : "none"}
+            className={isBlazing ? "text-[var(--color-coral)]" : "text-[var(--color-honey)]"}
+          />
+        </motion.span>
+      ) : (
+        <Flame size={14} />
+      )}
+      {label}
+    </span>
+  );
+}
+
 function ComingSoonCard({ title, message }) {
   return (
     <section className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-forest)]/15 bg-white p-6 text-center shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
@@ -144,9 +180,11 @@ function ComingSoonCard({ title, message }) {
   );
 }
 
-function LionFeedingCard({ exp, setExp, setLevel }) {
+function LionFeedingCard({ exp, setExp, level, setLevel }) {
   const [books, setBooks] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+  const [feedAmount, setFeedAmount] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -166,10 +204,21 @@ function LionFeedingCard({ exp, setExp, setLevel }) {
 
     setBooks((prev) => prev.filter((b) => b.id !== active.id));
     setIsFeeding(true);
+    setFeedAmount(book.exp);
     setExp((prev) => {
-      const next = prev + EXP_PER_BOOK;
+      const next = prev + book.exp;
       if (next >= 100) {
-        setLevel((lv) => lv + 1);
+        setLevel((lv) => {
+          const nextLevel = lv + 1;
+          const prevTier = getLionTier(lv);
+          const nextTier = getLionTier(nextLevel);
+          setLevelUpInfo({
+            level: nextLevel,
+            tierChanged: prevTier.key !== nextTier.key,
+            becameAdult: prevTier.key !== "adult" && nextTier.key === "adult",
+          });
+          return nextLevel;
+        });
         return next - 100;
       }
       return next;
@@ -178,59 +227,168 @@ function LionFeedingCard({ exp, setExp, setLevel }) {
   };
 
   return (
-    <section className="rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-5 text-lg text-[var(--color-forest)]">
+    <section className="relative rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-8 shadow-[0_1px_3px_rgba(27,59,54,0.08)] sm:p-10">
+      <h2 className="font-display mb-6 text-center text-2xl text-[var(--color-forest)]">
         사자 성장 & 완독 도서 먹이기
       </h2>
 
       <DndContext onDragEnd={handleDragEnd}>
-        <div className="flex flex-col items-center gap-6">
-          <LionDropZone exp={exp} isFeeding={isFeeding} />
+        <div className="flex flex-col items-center gap-8">
+          <LionDropZone exp={exp} isFeeding={isFeeding} level={level} feedAmount={feedAmount} />
 
-          <div className="grid w-full grid-cols-2 gap-3">
+          <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {books === null ? (
               <>
                 <Skeleton variant="rectangular" className="h-24 w-full" />
                 <Skeleton variant="rectangular" className="h-24 w-full" />
               </>
             ) : books.length === 0 ? (
-              <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50">
+              <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50 sm:col-span-3 md:col-span-4">
                 완독한 책을 모두 사자에게 먹였어요! 🦁
               </p>
             ) : (
-              books.map((book) => <DraggableBook key={book.id} id={book.id} title={book.title} />)
+              <AnimatePresence>
+                {books.map((book) => (
+                  <motion.div
+                    key={book.id}
+                    layout
+                    exit={{ opacity: 0, scale: 0.7 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DraggableBook id={book.id} title={book.title} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
         </div>
       </DndContext>
 
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-sm text-[var(--color-ink)] opacity-50">
+      <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-[var(--color-ink)] opacity-50">
         🐾 사자 입으로 드래그하여 먹이기
       </p>
+
+      <AnimatePresence>
+        {levelUpInfo && (
+          <LevelUpOverlay
+            level={levelUpInfo.level}
+            tierChanged={levelUpInfo.tierChanged}
+            becameAdult={levelUpInfo.becameAdult}
+            onClose={() => setLevelUpInfo(null)}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }
 
-function LionDropZone({ exp, isFeeding }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "lion-mouth" });
+// 렌더 중 Math.random() 호출은 순수성 규칙에 걸리므로, 인덱스 기반의
+// 결정적 분산 공식(골든 앵글 근사치인 137도 회전)으로 흩뿌린 것처럼 보이게 한다.
+const CONFETTI_COLORS = ["var(--color-honey)", "var(--color-coral)", "var(--color-forest)"];
+const CONFETTI_PARTICLES = Array.from({ length: 30 }).map((_, i) => ({
+  id: i,
+  x: ((i * 47) % 260) - 130,
+  rotate: (i * 137) % 360,
+  delay: (i % 10) * 0.04,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+}));
+
+function LevelUpOverlay({ level, tierChanged, becameAdult, onClose }) {
+  const tier = getLionTier(level);
+
+  useEffect(() => {
+    const timer = setTimeout(onClose, 2500);
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
   return (
-    <div className="flex w-full flex-col items-center gap-4">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-forest)]/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0, x: 0 }}
+        animate={{ scale: 1, opacity: 1, x: [0, -6, 6, -4, 4, 0] }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        transition={{
+          scale: { type: "spring", stiffness: 260, damping: 20 },
+          opacity: { duration: 0.3 },
+          x: { duration: 0.3, ease: "easeInOut" },
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col items-center gap-2 overflow-hidden rounded-2xl bg-white px-12 py-10 text-center shadow-xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute right-3 top-3 rounded-full p-1 text-[var(--color-ink)] opacity-40 transition-opacity hover:opacity-70"
+        >
+          <X size={18} />
+        </button>
+
+        {CONFETTI_PARTICLES.map((p) => (
+          <motion.span
+            key={p.id}
+            initial={{ x: 0, y: 0, opacity: 1, rotate: 0 }}
+            animate={{ x: p.x, y: 180, opacity: 0, rotate: p.rotate }}
+            transition={{ duration: 1.1, delay: p.delay, ease: "easeOut" }}
+            className="pointer-events-none absolute left-1/2 top-10 h-2 w-2 rounded-sm"
+            style={{ backgroundColor: p.color }}
+          />
+        ))}
+
+        <motion.div
+          animate={{ rotate: [0, -4, 4, -3, 3, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 0.4 }}
+        >
+          <LionCharacter level={level} isLevelingUp crownEntrance={becameAdult} size={112} />
+        </motion.div>
+
+        <motion.p
+          initial={{ scale: 0 }}
+          animate={{ scale: [0, 1.2, 1] }}
+          transition={{ type: "spring", stiffness: 300, damping: 12 }}
+          className="font-display mt-2 text-2xl text-[var(--color-honey)]"
+        >
+          🎉 레벨 업!
+        </motion.p>
+        {tierChanged && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-full bg-[var(--color-coral)]/15 px-3 py-1 text-xs font-medium text-[var(--color-coral)]"
+          >
+            ✨ 티어 승급!
+          </motion.p>
+        )}
+        <p className="text-sm text-[var(--color-ink)] opacity-70">
+          Lv.{level} {tier.label}이(가) 되었어요
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function LionDropZone({ exp, isFeeding, level, feedAmount }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "lion-mouth" });
+  const tier = getLionTier(level);
+
+  return (
+    <div className="flex w-full max-w-sm flex-col items-center gap-4">
       <div
         ref={setNodeRef}
-        className={`relative flex h-32 w-32 items-center justify-center rounded-full border-4 transition-all duration-200 ${
+        className={`relative flex h-56 w-56 items-center justify-center rounded-full border-4 transition-all duration-200 ${
           isOver
-            ? "scale-110 border-[var(--color-honey)] bg-[var(--color-honey)]/25"
+            ? "scale-105 border-[var(--color-honey)] bg-[var(--color-honey)]/25"
             : "border-[var(--color-honey)]/40 bg-[var(--color-honey)]/10"
         }`}
       >
-        <motion.span
-          animate={isFeeding ? { scale: [1, 1.3, 1], rotate: [0, -8, 8, 0] } : {}}
-          transition={{ duration: 0.5 }}
-          className="text-5xl leading-none"
-        >
-          🦁
-        </motion.span>
+        <LionCharacter level={level} isFeeding={isFeeding} size={172} />
         <AnimatePresence>
           {isFeeding && (
             <motion.span
@@ -240,11 +398,13 @@ function LionDropZone({ exp, isFeeding }) {
               transition={{ duration: 0.6, ease: "easeOut" }}
               className="font-display pointer-events-none absolute top-0 text-sm text-[var(--color-honey)]"
             >
-              +{EXP_PER_BOOK} EXP
+              +{feedAmount} EXP
             </motion.span>
           )}
         </AnimatePresence>
       </div>
+
+      <p className="-mt-2 text-sm text-[var(--color-ink)] opacity-40">{tier.label}</p>
 
       <div className="w-full">
         <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-forest)]/10">
@@ -439,7 +599,7 @@ function OrdersSection() {
   };
 
   return (
-    <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+    <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
       <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">주문 · 결제 관리</h2>
 
       <div className="mt-3 flex flex-wrap gap-1 border-b border-[var(--color-forest)]/10">

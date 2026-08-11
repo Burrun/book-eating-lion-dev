@@ -1,18 +1,27 @@
 export const MOCK_PROFILE = {
   name: "홍길동",
-  level: 5,
-  exp: 75,
-  title: "대양 사자",
+  level: 1,
+  exp: 20,
   badges: [
     { type: "achievement", label: "전체 10건 달성" },
     { type: "reading", label: "독서량 41권" },
     { type: "streak", label: "7일 연속 출석" },
   ],
+  // "streak" 배지의 불꽃 연출 임계값(3일 이상/7일 이상) 판단에만 쓰인다. 배지 라벨 텍스트와 맞춰둘 것.
+  streakCount: 7,
 };
 
+// exp 합계는 일부러 380으로 맞췄다: 시작 EXP 20 + 380 = 400 = 정확히 레벨 4번 오름(Lv1→Lv5).
+// 다 먹이면 Lv1 아기 사자 → Lv5 대양 사자(왕관)까지 전 구간을 확인할 수 있다.
 export const MOCK_FED_BOOKS = [
-  { id: "book-a", title: "완독 도서 A" },
-  { id: "book-b", title: "완독 도서 B" },
+  { id: "book-1", title: "클린 코드", genre: "IT/개발", exp: 45 },
+  { id: "book-2", title: "해리 포터와 마법사의 돌", genre: "소설", exp: 40 },
+  { id: "book-3", title: "역행자", genre: "자기계발", exp: 50 },
+  { id: "book-4", title: "언어의 온도", genre: "에세이", exp: 35 },
+  { id: "book-5", title: "부의 추월차선", genre: "경제", exp: 55 },
+  { id: "book-6", title: "사피엔스", genre: "인문", exp: 60 },
+  { id: "book-7", title: "미드나잇 라이브러리", genre: "소설", exp: 45 },
+  { id: "book-8", title: "이펙티브 자바", genre: "IT/개발", exp: 50 },
 ];
 
 export const MOCK_READING_NOTES = [
