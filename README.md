@@ -141,9 +141,6 @@ copy/
 │   ├── 01~04-*.sql                 #    목표 스키마 (04 = ai_db)
 │   └── 90-demo-data.sql            #    로컬 데모 데이터
 │
-├── scripts/
-│   └── build-corpus-jsonl.py       # 🆕 도서 본문 txt -> wiki.jsonl (인제스트 입력)
-│
 ├── frontend/                       # 🔄 찜/최근본상품 API 경로 변경 반영
 ├── k6/  ·  docs/  ·  nginx/
 ├── docker-compose.yml              # 🔄 postgres 1대 + redis + 서비스 4개
