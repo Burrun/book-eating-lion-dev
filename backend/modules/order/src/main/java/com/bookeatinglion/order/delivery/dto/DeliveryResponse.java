@@ -2,7 +2,6 @@ package com.bookeatinglion.order.delivery.dto;
 
 import com.bookeatinglion.order.delivery.domain.Delivery;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
-
 import java.time.LocalDateTime;
 
 public record DeliveryResponse(
@@ -12,8 +11,7 @@ public record DeliveryResponse(
         String trackingNumber,
         DeliveryStatus deliveryStatus,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {
+        LocalDateTime updatedAt) {
     public static DeliveryResponse from(Delivery delivery) {
         return new DeliveryResponse(
                 delivery.getId(),
@@ -22,7 +20,6 @@ public record DeliveryResponse(
                 delivery.getTrackingNumber(),
                 delivery.getDeliveryStatus(),
                 delivery.getCreatedAt(),
-                delivery.getUpdatedAt()
-        );
+                delivery.getUpdatedAt());
     }
 }

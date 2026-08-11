@@ -1,16 +1,15 @@
 package com.bookeatinglion.order.delivery.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.delivery.domain.Delivery;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ContextConfiguration;
-
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
@@ -45,9 +44,7 @@ class DeliveryRepositoryTest {
 
     @Test
     void 배송상태를_지정하지_않으면_PENDING이_기본값이다() {
-        Delivery delivery = Delivery.builder()
-                .orderId(200L)
-                .build();
+        Delivery delivery = Delivery.builder().orderId(200L).build();
 
         assertThat(delivery.getDeliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
     }

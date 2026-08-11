@@ -35,5 +35,8 @@ spring:
           issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
 
 springdoc:
+  # Pageable 을 JSON 객체 하나로 표시하면 Swagger UI 가 비정상적으로 큰 page/size 예시를
+  # 생성한다. page, size, sort 개별 쿼리 파라미터로 펼쳐 로컬 API 테스트가 가능하게 한다.
+  default-flat-param-object: true
   swagger-ui:
     path: /swagger-ui.html

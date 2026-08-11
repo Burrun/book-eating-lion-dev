@@ -3,6 +3,48 @@ spring:
     active: local
   application:
     name: order-service
+  cloud:
+    openfeign:
+      circuitbreaker:
+        # fallback 이 동작하려면 Feign 이 CircuitBreaker 를 태워야 한다.
+        # 꺼져 있으면 @FeignClient 의 fallback 속성이 조용히 무시된다.
+        enabled: true
 
 server:
   port: 8082
+
+# 서비스 간 동기 통신 대상. 운영에서는 ConfigMap 이 덮어쓴다(§7.5).
+services:
+  catalog:
+    url: ${SERVICES_CATALOG_URL:http://localhost:8081}
+  member:
+    url: ${SERVICES_MEMBER_URL:http://localhost:8083}
+
+# 카카오페이 실 API(제3자 PG, order-service 소유가 아니라 §7.5/§7.6 예외 목록 밖이다).
+# secret-key 는 기본값을 두지 않는다 — 없으면 기동 자체가 실패해야, 키 없이 목(mock)처럼
+# 보이는 결제가 조용히 도는 사고를 막을 수 있다.
+kakaopay:
+  secret-key: ${KAKAOPAY_SECRET_KEY}
+  cid: TC0ONETIME
+  api-url: https://open-api.kakaopay.com
+  # 결제 완료 후 카카오가 사용자를 돌려보낼 프론트엔드 콜백 페이지.
+  frontend-callback-url: ${KAKAOPAY_FRONTEND_CALLBACK_URL:http://localhost:5173/payments/kakao/callback}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      catalog-book:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      member-card:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      catalog-book:
+        timeoutDuration: 2s
+      member-card:
+        # 결제 승인 경로다 — 카탈로그 조회보다 짧게 끊어 사용자 대기 시간을 줄인다.
+        timeoutDuration: 1500ms

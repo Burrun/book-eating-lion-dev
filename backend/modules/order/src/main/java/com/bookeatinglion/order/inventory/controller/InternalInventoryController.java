@@ -19,7 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
  *  - Ingress 는 /api/** 만 라우팅한다 (k8s/base/08-ingress.yaml)
  *  - NetworkPolicy 가 클러스터 밖에서 오는 트래픽을 차단한다 (k8s/base/09-networkpolicy.yaml)
  *
- * 여기 있는 두 개가 시스템 전체의 동기 통신 전부다(계획서 §7.5).
+ * 여기 있는 두 개가 inbound 동기 통신 전부다(계획서 §7.5). outbound 는 CatalogClient 와
+ * CardClient 가 §7.6 예외다(OrderApiApplication 참고).
  */
 @RestController
 @RequestMapping("/internal/inventory")

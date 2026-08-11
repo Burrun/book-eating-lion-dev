@@ -4,11 +4,10 @@ import com.bookeatinglion.member.address.domain.Address;
 import com.bookeatinglion.member.address.dto.AddressCreateRequest;
 import com.bookeatinglion.member.address.dto.AddressResponse;
 import com.bookeatinglion.member.address.repository.AddressRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor

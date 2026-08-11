@@ -4,6 +4,13 @@ dependencies {
     // 잘라야 했던 유일한 이음새였다. 회원 검증은 JWT 클레임으로 대체됐다.
     implementation project(':modules:common')
 
+    // cart/order 가 갖는 outbound 동기 호출(catalog-service/member-service, §7.6 예외).
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+    // 재고 차감 분산 락. 단일 Redis 인스턴스 기준이라 엄밀한 다중 노드 Redlock 쿼럼은
+    // 아니지만, 이 프로젝트의 실제 인프라(ElastiCache 단일 클러스터)와 일치한다.
+    implementation 'org.redisson:redisson-spring-boot-starter:3.37.0'
+
     testImplementation 'com.h2database:h2'
     testImplementation 'org.springframework.security:spring-security-test'
 }

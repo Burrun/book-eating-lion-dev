@@ -1,21 +1,5 @@
 package com.bookeatinglion.member.address.controller;
 
-import com.bookeatinglion.member.MemberModuleTestApplication;
-import com.bookeatinglion.member.address.dto.AddressCreateRequest;
-import com.bookeatinglion.member.address.dto.AddressResponse;
-import com.bookeatinglion.member.address.service.AddressService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDateTime;
-import java.util.List;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -24,6 +8,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.bookeatinglion.member.MemberModuleTestApplication;
+import com.bookeatinglion.member.address.dto.AddressCreateRequest;
+import com.bookeatinglion.member.address.dto.AddressResponse;
+import com.bookeatinglion.member.address.service.AddressService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = AddressController.class)
 @ContextConfiguration(classes = MemberModuleTestApplication.class)
@@ -41,8 +40,16 @@ class AddressControllerTest {
     private AddressService addressService;
 
     private AddressResponse addressResponse() {
-        return new AddressResponse(1L, "홍길동", "010-1234-5678", "12345", "서울시 강남구", "101동 101호",
-                true, LocalDateTime.now(), LocalDateTime.now());
+        return new AddressResponse(
+                1L,
+                "홍길동",
+                "010-1234-5678",
+                "12345",
+                "서울시 강남구",
+                "101동 101호",
+                true,
+                LocalDateTime.now(),
+                LocalDateTime.now());
     }
 
     @Test
@@ -58,8 +65,8 @@ class AddressControllerTest {
 
     @Test
     void 배송지_등록은_201과_데이터를_반환한다() throws Exception {
-        AddressCreateRequest request = new AddressCreateRequest(
-                "홍길동", "010-1234-5678", "12345", "서울시 강남구", "101동 101호", true);
+        AddressCreateRequest request =
+                new AddressCreateRequest("홍길동", "010-1234-5678", "12345", "서울시 강남구", "101동 101호", true);
         when(addressService.createAddress(eq(SUB), any())).thenReturn(addressResponse());
 
         mockMvc.perform(post("/api/members/me/addresses")

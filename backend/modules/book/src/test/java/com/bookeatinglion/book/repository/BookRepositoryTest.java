@@ -46,7 +46,8 @@ class BookRepositoryTest {
 
     @Test
     void 카테고리로_필터링한다() {
-        Page<Book> result = bookRepository.findByCategory("IT/컴퓨터", PageRequest.of(0, 10));
+        Page<Book> result = bookRepository.findByCategoryAndIsDeletedFalse(
+                "IT/컴퓨터", PageRequest.of(0, 10));
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent()).extracting(Book::getTitle)
@@ -64,7 +65,7 @@ class BookRepositoryTest {
 
     @Test
     void 판매량_내림차순으로_정렬한다() {
-        List<Book> result = bookRepository.findBySaleStatusOrderBySalesCountDesc(
+        List<Book> result = bookRepository.findBySaleStatusAndIsDeletedFalseOrderBySalesCountDesc(
                 SaleStatus.ON_SALE, PageRequest.of(0, 2));
 
         assertThat(result).extracting(Book::getTitle)
@@ -73,7 +74,7 @@ class BookRepositoryTest {
 
     @Test
     void 출간일_내림차순으로_정렬한다() {
-        List<Book> result = bookRepository.findBySaleStatusOrderByPublishedDateDesc(
+        List<Book> result = bookRepository.findBySaleStatusAndIsDeletedFalseOrderByPublishedDateDesc(
                 SaleStatus.ON_SALE, PageRequest.of(0, 2));
 
         assertThat(result).extracting(Book::getTitle)

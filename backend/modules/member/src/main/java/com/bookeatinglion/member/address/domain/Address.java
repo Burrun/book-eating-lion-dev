@@ -43,8 +43,14 @@ public class Address extends BaseEntity {
     private boolean isDefault;
 
     @Builder
-    public Address(String memberSub, String recipientName, String phoneNumber, String zipcode,
-                    String address, String detailAddress, boolean isDefault) {
+    public Address(
+            String memberSub,
+            String recipientName,
+            String phoneNumber,
+            String zipcode,
+            String address,
+            String detailAddress,
+            boolean isDefault) {
         this.memberSub = memberSub;
         this.recipientName = recipientName;
         this.phoneNumber = phoneNumber;
