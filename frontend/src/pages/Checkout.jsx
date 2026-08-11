@@ -111,6 +111,12 @@ export default function Checkout() {
       toast.error("결제 수단을 선택해주세요.");
       return;
     }
+    if (paymentMethod === "KAKAOPAY") {
+      // TODO: 백엔드 결제 요청 API 붙으면 카카오페이 결제 URL로 리다이렉트 예정 (엔드포인트 확정 후 구현).
+      // 지금은 콜백 페이지 흐름만 미리 확인할 수 있도록 success 콜백으로 바로 이동한다(실제 결제 없음, 데모용).
+      navigate("/payment/kakao/success?pg_token=demo-pg-token");
+      return;
+    }
     if (paymentMethod === "VIRTUAL_CARD") {
       const chosenCard = cards?.find((card) => card.id === selectedCardId);
       if (!chosenCard) {

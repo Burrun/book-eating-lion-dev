@@ -15,6 +15,9 @@ import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
 import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
 import WishlistPage from "./pages/WishlistPage/WishlistPage.tsx";
 import CardsPage from "./pages/CardsPage/CardsPage.tsx";
+import KakaoPaySuccess from "./pages/payment/KakaoPaySuccess.jsx";
+import KakaoPayFail from "./pages/payment/KakaoPayFail.jsx";
+import KakaoPayCancel from "./pages/payment/KakaoPayCancel.jsx";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +64,30 @@ export default function App() {
                 />
                 <Route path="/wishlist" element={<WishlistPage />} />
                 <Route path="/cards" element={<CardsPage />} />
+                <Route
+                  path="/payment/kakao/success"
+                  element={
+                    <ProtectedRoute>
+                      <KakaoPaySuccess />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/payment/kakao/fail"
+                  element={
+                    <ProtectedRoute>
+                      <KakaoPayFail />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/payment/kakao/cancel"
+                  element={
+                    <ProtectedRoute>
+                      <KakaoPayCancel />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
             </Routes>
           </AuthProvider>
