@@ -35,7 +35,8 @@ public class CartController {
     @PostMapping
     public ApiResponse<CartItemView> addItem(@Valid @RequestBody AddCartItemRequest request) {
         Long memberId = SecurityUtils.currentMemberId();
-        return ApiResponse.success(cartService.addItem(memberId, request.bookId(), request.quantity()));
+        int quantity = request.quantity() != null ? request.quantity() : 1;
+        return ApiResponse.success(cartService.addItem(memberId, request.bookId(), quantity));
     }
 
     @PatchMapping("/{cartItemId}")

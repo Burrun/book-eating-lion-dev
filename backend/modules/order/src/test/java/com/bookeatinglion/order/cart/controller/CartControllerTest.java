@@ -75,6 +75,21 @@ class CartControllerTest {
     }
 
     @Test
+    void quantity를_생략하면_기본값_1이_적용된다() throws Exception {
+        when(cartService.addItem(eq(MEMBER_ID), eq(100L), eq(1)))
+                .thenReturn(new CartItemView(1L, 100L, "책1", 10000, "http://img/100", 1, 10000L));
+
+        mockMvc.perform(post("/api/cart")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bookId\":100}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.quantity").value(1));
+    }
+
+    @Test
     void 수량이_0이하면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/api/cart")
                         .with(authenticated())

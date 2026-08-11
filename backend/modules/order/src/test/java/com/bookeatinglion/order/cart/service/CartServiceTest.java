@@ -7,15 +7,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bookeatinglion.order.cart.client.CatalogClient;
-import com.bookeatinglion.order.cart.client.CatalogClient.BookDetailEnvelope;
-import com.bookeatinglion.order.cart.client.CatalogClient.BookView;
 import com.bookeatinglion.order.cart.domain.CartItem;
 import com.bookeatinglion.order.cart.dto.CartItemView;
 import com.bookeatinglion.order.cart.dto.CartResponse;
 import com.bookeatinglion.order.cart.exception.CartItemNotFoundException;
 import com.bookeatinglion.order.cart.exception.UnauthorizedCartAccessException;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
+import com.bookeatinglion.order.client.CatalogClient;
+import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
+import com.bookeatinglion.order.client.CatalogClient.BookView;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

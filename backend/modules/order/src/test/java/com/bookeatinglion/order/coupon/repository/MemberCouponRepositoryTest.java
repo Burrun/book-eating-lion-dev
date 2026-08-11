@@ -35,7 +35,7 @@ class MemberCouponRepositoryTest {
         memberCouponRepository.save(new MemberCoupon(1L, valid));
         memberCouponRepository.save(new MemberCoupon(1L, expired));
         MemberCoupon usedCoupon = new MemberCoupon(1L, used);
-        usedCoupon.use(LocalDateTime.now());
+        usedCoupon.use(LocalDateTime.now(), 100L);
         memberCouponRepository.save(usedCoupon);
 
         List<MemberCoupon> result = memberCouponRepository.findAvailableByMemberId(1L, LocalDateTime.now());

@@ -1,16 +1,15 @@
 package com.bookeatinglion.member.address.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bookeatinglion.member.MemberModuleTestApplication;
 import com.bookeatinglion.member.address.domain.Address;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ContextConfiguration;
-
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @ContextConfiguration(classes = MemberModuleTestApplication.class)

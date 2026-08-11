@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,7 +62,7 @@ class CouponServiceTest {
         Coupon coupon = coupon(1L, "WELCOME3000", LocalDateTime.now().plusDays(30));
         when(couponRepository.findByCouponCode("WELCOME3000")).thenReturn(Optional.of(coupon));
         when(memberCouponRepository.existsByMemberIdAndCoupon(1L, coupon)).thenReturn(false);
-        when(memberCouponRepository.save(any(MemberCoupon.class))).thenAnswer(invocation -> {
+        when(memberCouponRepository.saveAndFlush(any(MemberCoupon.class))).thenAnswer(invocation -> {
             MemberCoupon saved = invocation.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 10L);
             return saved;
@@ -99,6 +100,20 @@ class CouponServiceTest {
         assertThatThrownBy(() -> couponService.registerCoupon(1L, "DUP"))
                 .isInstanceOf(CouponAlreadyIssuedException.class);
 
-        verify(memberCouponRepository, never()).save(any());
+        verify(memberCouponRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 동시_등록_경합으로_DB_제약이_위반되면_이미_보유한_쿠폰_예외로_변환한다() {
+        Coupon coupon = coupon(1L, "RACE", LocalDateTime.now().plusDays(1));
+        when(couponRepository.findByCouponCode("RACE")).thenReturn(Optional.of(coupon));
+        // existsBy 체크는 통과했지만(경합 창), 실제 저장 시점엔 이미 다른 요청이 먼저 넣어
+        // UNIQUE(member_id, coupon_id) 위반이 난 상황을 흉내낸다.
+        when(memberCouponRepository.existsByMemberIdAndCoupon(1L, coupon)).thenReturn(false);
+        when(memberCouponRepository.saveAndFlush(any(MemberCoupon.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> couponService.registerCoupon(1L, "RACE"))
+                .isInstanceOf(CouponAlreadyIssuedException.class);
     }
 }

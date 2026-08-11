@@ -268,6 +268,150 @@ paths:
         "409":
           description: 이미 보유한 쿠폰
 
+  /api/orders:
+    post:
+      summary: 주문 생성 (CARD 는 결제 승인까지, KAKAOPAY 는 결제 준비까지)
+      description: |
+        도서 가격은 요청 바디를 신뢰하지 않고 catalog-service 에서 서버 단으로 재조회한다
+        (CatalogClient — cart 와 공유하는 §7.6 예외). 재고 재고확인/차감은 bookId 오름차순으로
+        정렬한 뒤 Redis 분산 락을 순서대로 획득해 데드락을 막는다.
+
+        paymentMethod=CARD 는 1단계다 — member-service 의 가상카드 한도를 이 호출 안에서
+        동기 차감하고(§7.6 예외 — CardClient), 재고 차감·쿠폰 사용확정까지 전부 끝낸 뒤
+        orderStatus=PAID, nextRedirectUrl=null 로 응답한다. 차감이 거절되거나 member-service
+        가 응답하지 않으면 결제 전체가 거절되며 재고 차감도 롤백된다(단일 트랜잭션).
+
+        paymentMethod=KAKAOPAY 는 2단계 중 1단계(Ready)다 — 카카오페이 실 API
+        (`POST /online/v1/payment/ready`)를 호출해 tid 와 리다이렉트 URL만 받아온다.
+        주문은 orderStatus=PENDING_PAYMENT 로 저장되고, **재고는 아직 차감되지 않으며
+        쿠폰도 아직 사용확정되지 않는다** — 사용자가 실제로 결제를 완료(approve)해야
+        확정된다. 응답의 nextRedirectUrl 로 클라이언트를 리다이렉트시켜야 한다.
+      operationId: createOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: CARD 는 결제 완료, KAKAOPAY 는 결제 준비(Ready) 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "400":
+          description: 재고 부족, 쿠폰 최소주문금액 미달, 만료된 쿠폰, cardId 누락 등
+        "402":
+          description: 결제 거절(한도 초과 등, CARD 만 해당)
+        "403":
+          description: 본인 소유가 아닌 쿠폰
+        "404":
+          description: 존재하지 않는 도서 또는 쿠폰
+        "503":
+          description: catalog-service/카카오페이 응답 없음
+
+  /api/orders/{orderId}:
+    get:
+      summary: 주문 상세 조회
+      description: 주문 정보 + 주문 상품 목록 + 결제 내역을 한 번에 반환한다.
+      operationId: getOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+
+  /api/orders/{orderId}/cancel:
+    post:
+      summary: 주문 취소
+      description: |
+        PAID 상태인 주문만 취소할 수 있다. 재고 복구, 쿠폰 미사용 원복, 가상카드 한도
+        복구(CARD 결제인 경우)를 단일 트랜잭션으로 처리한다 — 카드 한도 복구가 실패하면
+        재고·쿠폰 복구를 포함해 전부 롤백되고 주문은 PAID 상태로 남는다(부분 취소 방지).
+      operationId: cancelOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 취소 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+        "409":
+          description: PAID 상태가 아니어서 취소할 수 없음(카드 한도 복구 실패 포함)
+
+  /api/payments/kakao/approve:
+    post:
+      summary: 카카오페이 결제 승인 (2단계 중 2단계)
+      description: |
+        카카오페이 결제 페이지에서 사용자가 승인을 완료하면 프론트엔드가 approval_url 로
+        리다이렉트되며 pg_token 을 쿼리 파라미터로 받는다. 그 pg_token 과 orderId 를 이 API 로
+        전달하면, order-service 가 (ready 단계에서 저장해둔) tid 와 함께 카카오페이 실 API
+        (`POST /online/v1/payment/approve`)를 호출해 결제를 최종 승인한다.
+
+        승인 성공 시에만 재고 차감·쿠폰 사용확정·장바구니 비우기가 일어나고 orderStatus 가
+        PAID 로 바뀐다 — ready 만 하고 approve 하지 않은 주문은 재고/쿠폰에 아무 영향을 주지
+        않는다. 재고가 approve 시점에 이미 소진됐다면 카카오페이 승인 API 자체를 호출하지
+        않는다(즉 결제가 실제로 이뤄지지 않으므로 별도 취소/환불이 필요 없다).
+      operationId: approveKakaoPayment
+      tags: [order]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KakaoApproveRequest"
+      responses:
+        "200":
+          description: 승인 완료, orderStatus=PAID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "400":
+          description: 재고 부족(승인 자체를 시도하지 않음)
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+        "409":
+          description: 이미 처리된 주문(PENDING_PAYMENT 가 아니거나 결제가 이미 승인/취소됨)
+
 components:
   securitySchemes:
     bearerAuth:
@@ -301,8 +445,13 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/DeliveryResponse"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     DeliveryResponse:
       type: object
@@ -331,7 +480,7 @@ components:
 
     AddCartItemRequest:
       type: object
-      required: [bookId, quantity]
+      required: [bookId]
       properties:
         bookId:
           type: integer
@@ -340,6 +489,7 @@ components:
           type: integer
           minimum: 1
           default: 1
+          description: 생략하면 1로 담긴다.
 
     ChangeCartItemQuantityRequest:
       type: object
@@ -391,16 +541,26 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/CartResponse"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CartItemEnvelope:
       type: object
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/CartItemView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     ErrorDetail:
       type: object
@@ -467,6 +627,146 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/MemberCouponView"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    OrderItemRequest:
+      type: object
+      required: [bookId, quantity]
+      properties:
+        bookId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+
+    Recipient:
+      type: object
+      required: [name, phone, postalCode, address]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+          example: "010-1234-5678"
+        postalCode:
+          type: string
+          example: "06236"
+        address:
+          type: string
+
+    CreateOrderRequest:
+      type: object
+      required: [items, recipient, paymentMethod]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItemRequest"
+        memberCouponId:
+          type: integer
+          format: int64
+          nullable: true
+        recipient:
+          $ref: "#/components/schemas/Recipient"
+        paymentMethod:
+          type: string
+          enum: [CARD, KAKAOPAY]
+        cardId:
+          type: integer
+          format: int64
+          nullable: true
+          description: paymentMethod=CARD 일 때 필수.
+
+    OrderItemView:
+      type: object
+      properties:
+        orderItemId:
+          type: integer
+          format: int64
+        bookId:
+          type: integer
+          format: int64
+        bookTitle:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: integer
+
+    PaymentView:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+        paymentMethod:
+          type: string
+          enum: [CARD, KAKAOPAY]
+        amount:
+          type: integer
+        paymentStatus:
+          type: string
+          enum: [READY, APPROVED, DECLINED, CANCELLED]
+          description: READY 는 카카오페이 ready 는 끝났지만 아직 approve 되지 않은 상태다.
+        approvalNumber:
+          type: string
+          nullable: true
+          description: READY 상태에서는 아직 없다.
+        pgTid:
+          type: string
+          nullable: true
+
+    KakaoApproveRequest:
+      type: object
+      required: [orderId, pgToken]
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        pgToken:
+          type: string
+          description: 카카오페이 리다이렉트 콜백에서 받은 pg_token.
+
+    OrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        orderStatus:
+          type: string
+          enum: [PENDING_PAYMENT, PAID, CANCELLED]
+        recipient:
+          $ref: "#/components/schemas/Recipient"
+        totalAmount:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemView"
+        payment:
+          $ref: "#/components/schemas/PaymentView"
+        nextRedirectUrl:
+          type: string
+          nullable: true
+          description: |
+            paymentMethod=KAKAOPAY 로 주문을 막 생성했을 때만 값이 있다. 클라이언트는 이
+            URL 로 사용자를 리다이렉트시켜야 한다. 그 외의 모든 응답(CARD 생성, 상세조회,
+            취소, 카카오 승인 이후)에서는 항상 null 이다.
+
+    OrderDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/OrderResponse"
         error:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true

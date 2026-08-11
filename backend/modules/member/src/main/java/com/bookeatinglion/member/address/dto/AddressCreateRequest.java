@@ -8,6 +8,4 @@ public record AddressCreateRequest(
         @NotBlank String zipcode,
         @NotBlank String address,
         String detailAddress,
-        boolean isDefault
-) {
-}
+        boolean isDefault) {}

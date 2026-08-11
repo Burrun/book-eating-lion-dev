@@ -1,7 +1,6 @@
 package com.bookeatinglion.member.address.dto;
 
 import com.bookeatinglion.member.address.domain.Address;
-
 import java.time.LocalDateTime;
 
 public record AddressResponse(
@@ -13,8 +12,7 @@ public record AddressResponse(
         String detailAddress,
         boolean isDefault,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {
+        LocalDateTime updatedAt) {
     public static AddressResponse from(Address address) {
         return new AddressResponse(
                 address.getId(),
@@ -25,7 +23,6 @@ public record AddressResponse(
                 address.getDetailAddress(),
                 address.isDefault(),
                 address.getCreatedAt(),
-                address.getUpdatedAt()
-        );
+                address.getUpdatedAt());
     }
 }
