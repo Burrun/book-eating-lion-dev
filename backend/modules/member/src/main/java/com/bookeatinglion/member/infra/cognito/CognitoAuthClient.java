@@ -4,6 +4,7 @@ import com.bookeatinglion.member.config.CognitoProperties;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserResponse;
@@ -104,7 +105,7 @@ public class CognitoAuthClient {
         Map<String, String> params = new HashMap<>();
         params.put("USERNAME", email);
         params.put("PASSWORD", password);
-        if (properties.clientSecret() != null && !properties.clientSecret().isBlank()) {
+        if (StringUtils.hasText(properties.clientSecret())) {
             params.put("SECRET_HASH", calculateSecretHash(email));
         }
         return params;
