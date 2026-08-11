@@ -122,6 +122,9 @@ export default function Signup() {
                 autoComplete="new-password"
                 className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
               />
+              <p className="text-xs text-[var(--color-ink)] opacity-50">
+                영문 대소문자, 숫자, 특수문자를 포함한 8자 이상
+              </p>
             </label>
 
             <label className="flex flex-col gap-1.5">

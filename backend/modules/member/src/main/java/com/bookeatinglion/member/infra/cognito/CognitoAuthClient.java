@@ -3,11 +3,13 @@ package com.bookeatinglion.member.infra.cognito;
 import com.bookeatinglion.member.config.CognitoProperties;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminCreateUserResponse;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminDeleteUserRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminInitiateAuthRequest;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminInitiateAuthResponse;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AdminSetUserPasswordRequest;
@@ -15,6 +17,7 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.AttributeTy
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AuthFlowType;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AuthenticationResultType;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CognitoIdentityProviderException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.InvalidPasswordException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.MessageActionType;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.NotAuthorizedException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
@@ -27,6 +30,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CognitoAuthClient {
@@ -47,23 +51,63 @@ public class CognitoAuthClient {
                     .messageAction(MessageActionType.SUPPRESS)
                     .build());
 
-            cognitoClient.adminSetUserPassword(AdminSetUserPasswordRequest.builder()
-                    .userPoolId(properties.userPoolId())
-                    .username(email)
-                    .password(password)
-                    .permanent(true)
-                    .build());
+            try {
+                cognitoClient.adminSetUserPassword(AdminSetUserPasswordRequest.builder()
+                        .userPoolId(properties.userPoolId())
+                        .username(email)
+                        .password(password)
+                        .permanent(true)
+                        .build());
+            } catch (CognitoIdentityProviderException e) {
+                rollbackCreatedUser(email);
+                throw e;
+            }
 
             return createUserResponse.user().attributes().stream()
                     .filter(attr -> "sub".equals(attr.name()))
                     .map(AttributeType::value)
                     .findFirst()
                     .orElseThrow(() -> new CognitoAuthException("COGNITO_SIGNUP_FAILED", "Cognito 사용자 식별자(sub)를 확인할 수 없습니다."));
+        } catch (InvalidPasswordException e) {
+            throw new CognitoAuthException("INVALID_PASSWORD", resolvePasswordPolicyMessage(e.awsErrorDetails().errorMessage()), e);
         } catch (UsernameExistsException e) {
-            throw new CognitoAuthException("DUPLICATE_EMAIL", "이미 가입된 이메일입니다: " + email, e);
+            throw new CognitoAuthException("DUPLICATE_EMAIL", "이미 가입된 이메일입니다.", e);
         } catch (CognitoIdentityProviderException e) {
-            throw new CognitoAuthException("COGNITO_SIGNUP_FAILED", e.awsErrorDetails().errorMessage(), e);
+            throw new CognitoAuthException("COGNITO_SIGNUP_FAILED", "회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", e);
         }
+    }
+
+    // adminSetUserPassword 실패 시 방금 adminCreateUser 로 만든 사용자를 되돌린다.
+    // 안 그러면 같은 이메일로는 UsernameExistsException 때문에 영원히 재가입할 수 없다.
+    private void rollbackCreatedUser(String email) {
+        try {
+            cognitoClient.adminDeleteUser(AdminDeleteUserRequest.builder()
+                    .userPoolId(properties.userPoolId())
+                    .username(email)
+                    .build());
+        } catch (Exception rollbackException) {
+            log.error("Cognito 사용자 롤백 삭제 실패 - 수동 정리가 필요합니다. email={}", email, rollbackException);
+        }
+    }
+
+    private String resolvePasswordPolicyMessage(String awsErrorMessage) {
+        String lower = awsErrorMessage == null ? "" : awsErrorMessage.toLowerCase();
+        if (lower.contains("uppercase")) {
+            return "비밀번호에 대문자를 포함해주세요.";
+        }
+        if (lower.contains("lowercase")) {
+            return "비밀번호에 소문자를 포함해주세요.";
+        }
+        if (lower.contains("numeric")) {
+            return "비밀번호에 숫자를 포함해주세요.";
+        }
+        if (lower.contains("symbol")) {
+            return "비밀번호에 특수문자를 포함해주세요.";
+        }
+        if (lower.contains("long") || lower.contains("short")) {
+            return "비밀번호는 8자 이상이어야 합니다.";
+        }
+        return "회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
     }
 
     public AuthenticationResultType login(String email, String password) {
