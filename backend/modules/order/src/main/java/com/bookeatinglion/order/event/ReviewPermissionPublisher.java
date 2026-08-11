@@ -23,8 +23,7 @@ public class ReviewPermissionPublisher {
     public void publish(ReviewPermissionGranted event) {
         redisTemplate
                 .opsForStream()
-                .add(StreamRecords.mapBacked(event.toMap())
-                        .withStreamKey(ReviewPermissionGranted.STREAM_KEY));
+                .add(StreamRecords.mapBacked(event.toMap()).withStreamKey(ReviewPermissionGranted.STREAM_KEY));
 
         log.info("ReviewPermissionGranted 발행: memberId={}, orderItemId={}", event.memberId(), event.orderItemId());
     }
