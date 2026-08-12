@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import Header from "./components/Header.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { getCart } from "./api/cart.js";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
@@ -22,9 +23,14 @@ import KakaoPayCancel from "./pages/payment/KakaoPayCancel.jsx";
 const queryClient = new QueryClient();
 
 function Layout() {
+  // 장바구니 담기/수량변경/삭제/로그인 시 병합 등에서 ["cart"]를 invalidate하면
+  // 헤더 뱃지가 자동으로 갱신된다.
+  const { data: cart } = useQuery({ queryKey: ["cart"], queryFn: getCart });
+  const cartCount = cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
-      <Header cartCount={3} wishlistCount={2} />
+      <Header cartCount={cartCount} wishlistCount={2} />
       <Outlet />
     </div>
   );

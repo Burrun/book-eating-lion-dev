@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2, Ticket, BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Skeleton from "../components/Skeleton.jsx";
@@ -9,6 +10,10 @@ const FREE_SHIPPING_THRESHOLD = 30000;
 
 export default function Cart() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // 이 페이지는 자체 useState로 아이템을 들고 있어 react-query를 쓰지 않는다.
+  // 헤더 뱃지(App.jsx의 ["cart"] 쿼리)만 여기서 갱신 신호를 보낸다.
+  const invalidateHeaderCart = () => queryClient.invalidateQueries({ queryKey: ["cart"] });
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [benefits, setBenefits] = useState({ availableCoupon: null });
@@ -62,9 +67,8 @@ export default function Cart() {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)),
     );
-    // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다
-    // (백엔드 cart 모듈 미구현으로 로그인 상태의 실API 호출은 항상 실패할 수 있음 — BOO-23 TODO).
-    updateQuantity(id, newQuantity).catch(() => {});
+    // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다.
+    updateQuantity(id, newQuantity).then(invalidateHeaderCart).catch(() => {});
   };
 
   const removeItem = (id) => {
@@ -74,14 +78,14 @@ export default function Cart() {
       next.delete(id);
       return next;
     });
-    removeFromCart(id).catch(() => {});
+    removeFromCart(id).then(invalidateHeaderCart).catch(() => {});
   };
 
   const removeSelected = () => {
     const idsToRemove = [...selectedIds];
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
-    idsToRemove.forEach((id) => removeFromCart(id).catch(() => {}));
+    Promise.all(idsToRemove.map((id) => removeFromCart(id))).then(invalidateHeaderCart).catch(() => {});
   };
 
   return (

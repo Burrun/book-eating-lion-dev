@@ -1,14 +1,20 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getBook, getWebtoonCuts } from '../../api/books.ts'
 import { getReviews } from '../../api/reviews.ts'
 import { getMySubscription } from '../../api/member.ts'
+import { addToCart } from '../../api/cart.js'
+import { useToast } from '../../components/Toast.jsx'
 import EbookViewer from '../../components/EbookViewer.jsx'
 import type { Review } from '../../types/book.ts'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
+  const queryClient = useQueryClient()
+  // Toast.jsx는 checkJs:false라 createContext(null)+throw 패턴이 TS 쪽에서 반환 타입을
+  // never로 좁힌다(CardsPage.tsx와 동일한 이슈). 여기서만 실제 형태로 타입을 명시한다.
+  const toast = useToast() as { success: (message: string) => void; error: (message: string) => void }
 
   const {
     data: book,
@@ -47,6 +53,18 @@ export default function ProductDetailPage() {
   const [draftRating, setDraftRating] = useState(5)
   const [draftText, setDraftText] = useState('')
   const [isEbookOpen, setIsEbookOpen] = useState(false)
+
+  // addToCart(api/cart.js)가 로그인/게스트 분기를 내부에서 이미 처리하므로 여기서는 그대로 호출만 한다.
+  const addToCartMutation = useMutation({
+    mutationFn: () => addToCart(Number(id), 1),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] })
+      toast.success('장바구니에 담았습니다')
+    },
+    onError: () => {
+      toast.error('장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.')
+    },
+  })
 
   function handleSubmitReview() {
     if (!draftText.trim()) return
@@ -108,8 +126,12 @@ export default function ProductDetailPage() {
             ⭐ {book.rating}점 (리뷰 {reviewCount}개) | {book.shippingNote}
           </p>
           <div className="mt-3 flex flex-wrap gap-3">
-            <button className="rounded-full bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light">
-              🛒 장바구니
+            <button
+              onClick={() => addToCartMutation.mutate()}
+              disabled={addToCartMutation.isPending}
+              className="rounded-full bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+            >
+              {addToCartMutation.isPending ? '담는 중...' : '🛒 장바구니'}
             </button>
             <button className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40">
               ❤️ 찜하기

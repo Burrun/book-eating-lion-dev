@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -13,9 +14,12 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleLogout = () => {
     logout();
+    // 로그아웃하면 장바구니 조회 기준이 서버 카트 -> 게스트 카트로 바뀌므로 뱃지도 다시 조회한다.
+    queryClient.invalidateQueries({ queryKey: ["cart"] });
     navigate("/");
   };
 

@@ -1,4 +1,4 @@
-import { apiClient } from "./client.ts";
+import { apiClient, unwrap } from "./client.ts";
 import { isLoggedIn } from "./authStorage.js";
 import {
   MOCK_CART_BENEFITS,
@@ -12,9 +12,9 @@ import {
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 const GUEST_CART_KEY = "guest_cart";
 
-// 참고: 기존 cart.js/mypage.js/checkout.js는 ApiResponse<T> envelope({success,message,data,error})을
-// 언래핑하지 않고 그대로 반환하는 기존 패턴을 쓴다(이번 스코프 밖, 손대지 않음).
-// 이 파일의 실API 분기(로그인 상태)는 `data.data`로 명시적으로 언래핑한다.
+// 실 API 분기(로그인 상태)는 GET/POST/PATCH 는 unwrap()으로 ApiResponse<T> 를 벗긴다.
+// DELETE 만 예외 — 백엔드가 204 No Content(응답 바디 없음)로 확정돼 있어 unwrap()을 쓰면
+// 빈 바디를 실패로 오인해 항상 에러를 던지게 된다. 그래서 DELETE 는 apiClient 를 그대로 await 한다.
 
 function readGuestCart() {
   try {
@@ -50,8 +50,7 @@ async function fetchBookSummary(bookId) {
       }
     );
   }
-  const { data } = await apiClient.get(`/catalog/books/${bookId}`);
-  const book = data.data;
+  const book = await unwrap(apiClient.get(`/catalog/books/${bookId}`));
   return {
     bookId: book.id,
     title: book.title,
@@ -106,34 +105,31 @@ function removeFromGuestCart(cartItemId) {
   writeGuestCart(readGuestCart().filter((item) => item.bookId !== cartItemId));
 }
 
+// GET /api/cart — CartResponse: items(CartItemView[]), totalQuantity, totalPrice
 export async function getCart() {
   if (!isLoggedIn()) return getGuestCart();
   if (USE_MOCK) return mockGetCart();
-  // TODO(BOO-23): 백엔드 cart 모듈 구현 대기 중 — 명세는 확정됨(API 명세서 섹션 0), 현재는 mock/게스트만 동작
-  const { data } = await apiClient.get("/cart");
-  return data.data;
+  return unwrap(apiClient.get("/cart"));
 }
 
-export async function addToCart(bookId, quantity) {
+// POST /api/cart — AddCartItemRequest: { bookId(필수), quantity(선택, 기본 1) }
+export async function addToCart(bookId, quantity = 1) {
   if (!isLoggedIn()) return addToGuestCart(bookId, quantity);
   if (USE_MOCK) return mockAddToCart(bookId, quantity);
-  // TODO(BOO-23): 백엔드 cart 모듈 구현 대기 중 — 명세는 확정됨(API 명세서 섹션 0), 현재는 mock/게스트만 동작
-  const { data } = await apiClient.post("/cart", { bookId, quantity });
-  return data.data;
+  return unwrap(apiClient.post("/cart", { bookId, quantity }));
 }
 
+// PATCH /api/cart/{cartItemId} — ChangeCartItemQuantityRequest: { quantity(필수) }
 export async function updateQuantity(cartItemId, quantity) {
   if (!isLoggedIn()) return updateGuestCartQuantity(cartItemId, quantity);
   if (USE_MOCK) return mockUpdateQuantity(cartItemId, quantity);
-  // TODO(BOO-23): 백엔드 cart 모듈 구현 대기 중 — 명세는 확정됨(API 명세서 섹션 0), 현재는 mock/게스트만 동작
-  const { data } = await apiClient.patch(`/cart/${cartItemId}`, { quantity });
-  return data.data;
+  return unwrap(apiClient.patch(`/cart/${cartItemId}`, { quantity }));
 }
 
+// DELETE /api/cart/{cartItemId} — 204 No Content. unwrap()을 쓰지 않는 이유는 파일 상단 주석 참고.
 export async function removeFromCart(cartItemId) {
   if (!isLoggedIn()) return removeFromGuestCart(cartItemId);
   if (USE_MOCK) return mockRemoveFromCart(cartItemId);
-  // TODO(BOO-23): 백엔드 cart 모듈 구현 대기 중 — 명세는 확정됨(API 명세서 섹션 0), 현재는 mock/게스트만 동작
   await apiClient.delete(`/cart/${cartItemId}`);
 }
 

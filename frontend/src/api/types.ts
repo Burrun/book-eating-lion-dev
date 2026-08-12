@@ -127,3 +127,34 @@ export interface CardIssueRequest {
 export interface CardUpdateRequest {
   cardStatus: CardStatus;
 }
+
+// --- 장바구니 (Cart) ---
+// GET /api/cart, POST /api/cart, PATCH /api/cart/{cartItemId} 의 items 항목
+export interface CartItemView {
+  cartItemId: number;
+  bookId: number;
+  title: string;
+  price: number;
+  coverImageUrl: string | null;
+  quantity: number;
+  subtotal: number;
+}
+
+// GET /api/cart
+export interface CartResponse {
+  items: CartItemView[];
+  totalQuantity: number;
+  totalPrice: number;
+}
+
+// POST /api/cart (quantity 생략 시 서버 기본값 1)
+export interface AddCartItemRequest {
+  bookId: number;
+  quantity?: number;
+}
+
+// PATCH /api/cart/{cartItemId}
+export interface ChangeCartItemQuantityRequest {
+  quantity: number;
+}
+// DELETE /api/cart/{cartItemId} — 204 No Content (응답 바디 없음, 별도 타입 없음)
