@@ -54,10 +54,10 @@ class RecentViewedBookServiceTest {
     @Test
     void 처음_보는_책은_새로_기록한다() throws Exception {
         Book book = book(1L);
-        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.empty());
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId("member-1", 1L)).thenReturn(Optional.empty());
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
 
-        recentViewedBookService.recordView(1L, 1L);
+        recentViewedBookService.recordView(1L, "member-1");
 
         verify(recentViewedBookRepository, times(1)).save(any());
     }
@@ -66,20 +66,20 @@ class RecentViewedBookServiceTest {
     void 다시_보는_책은_viewedAt만_갱신하고_새로_저장하지_않는다() throws Exception {
         Book book = book(1L);
         RecentViewedBook existing = RecentViewedBook.builder()
-                .memberId(1L).book(book).viewedAt(LocalDateTime.now().minusDays(1)).build();
-        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.of(existing));
+                .memberId("member-1").book(book).viewedAt(LocalDateTime.now().minusDays(1)).build();
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId("member-1", 1L)).thenReturn(Optional.of(existing));
 
-        recentViewedBookService.recordView(1L, 1L);
+        recentViewedBookService.recordView(1L, "member-1");
 
         verify(recentViewedBookRepository, never()).save(any());
     }
 
     @Test
     void 존재하지_않는_책_기록은_예외를_던진다() {
-        when(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, 999L)).thenReturn(Optional.empty());
+        when(recentViewedBookRepository.findByMemberIdAndBook_BookId("member-1", 999L)).thenReturn(Optional.empty());
         when(bookRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> recentViewedBookService.recordView(999L, 1L))
+        assertThatThrownBy(() -> recentViewedBookService.recordView(999L, "member-1"))
                 .isInstanceOf(BookNotFoundException.class);
     }
 
@@ -88,9 +88,9 @@ class RecentViewedBookServiceTest {
         Book book = book(1L);
         when(recentViewedBookRepository.findByMemberIdOrderByViewedAtDesc(any(), any()))
                 .thenReturn(List.of(RecentViewedBook.builder()
-                        .memberId(1L).book(book).viewedAt(LocalDateTime.now()).build()));
+                        .memberId("member-1").book(book).viewedAt(LocalDateTime.now()).build()));
 
-        List<BookSummaryResponse> result = recentViewedBookService.getMyRecentBooks(1L, 20);
+        List<BookSummaryResponse> result = recentViewedBookService.getMyRecentBooks("member-1", 20);
 
         assertThat(result).extracting(BookSummaryResponse::title).containsExactly("책");
     }

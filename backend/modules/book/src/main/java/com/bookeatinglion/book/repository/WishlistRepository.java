@@ -8,11 +8,11 @@ import java.util.Optional;
 
 public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
 
-    Optional<Wishlist> findByMemberIdAndBook_BookId(Long memberId, Long bookId);
+    Optional<Wishlist> findByMemberIdAndBook_BookId(String memberId, Long bookId);
 
-    List<Wishlist> findByMemberIdOrderByCreatedAtDesc(Long memberId);
+    List<Wishlist> findByMemberIdOrderByCreatedAtDesc(String memberId);
 
-    List<Wishlist> findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(Long memberId);
+    List<Wishlist> findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(String memberId);
 
-    void deleteByMemberIdAndBook_BookId(Long memberId, Long bookId);
+    void deleteByMemberIdAndBook_BookId(String memberId, Long bookId);
 }

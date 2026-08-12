@@ -56,7 +56,7 @@ class ReviewServiceTest {
     @InjectMocks
     private ReviewService reviewService;
 
-    private ReviewPermission permission(Long memberId, Long bookId) {
+    private ReviewPermission permission(String memberId, Long bookId) {
         return new ReviewPermission(memberId, 500L, bookId, "테스트유저", java.time.LocalDateTime.now());
     }
 
@@ -70,7 +70,7 @@ class ReviewServiceTest {
         return book;
     }
 
-    private Review review(Long id, Book book, Long memberId) throws Exception {
+    private Review review(Long id, Book book, String memberId) throws Exception {
         Review review = Review.builder().book(book).memberId(memberId).orderItemId(500L)
                 .rating(5).content("내용").build();
         setField(review, Review.class, "reviewId", id);
@@ -89,7 +89,7 @@ class ReviewServiceTest {
         Book book = book(1L);
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
         when(reviewRepository.findByBook_BookId(1L, pageable))
-                .thenReturn(new PageImpl<>(List.of(review(100L, book, 1L))));
+                .thenReturn(new PageImpl<>(List.of(review(100L, book, "member-1"))));
 
         Page<ReviewResponse> result = reviewService.getReviews(1L, pageable);
 
@@ -103,7 +103,7 @@ class ReviewServiceTest {
         book.delete(java.time.LocalDateTime.now());
         when(bookRepository.existsById(1L)).thenReturn(true);
         when(reviewRepository.findByBook_BookId(1L, pageable))
-                .thenReturn(new PageImpl<>(List.of(review(100L, book, 1L))));
+                .thenReturn(new PageImpl<>(List.of(review(100L, book, "member-1"))));
 
         Page<ReviewResponse> result = reviewService.getAdminReviews(1L, pageable);
 
@@ -121,9 +121,9 @@ class ReviewServiceTest {
     @Test
     void 사전_발급된_권한이_있으면_리뷰를_생성한다() throws Exception {
         Book book = book(1L);
-        ReviewPermission permission = permission(1L, 1L);
+        ReviewPermission permission = permission("member-1", 1L);
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
-        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(1L, 1L))
+        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull("member-1", 1L))
                 .thenReturn(Optional.of(permission));
         when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(5.0);
         when(reviewRepository.countByBook_BookId(1L)).thenReturn(1L);
@@ -133,11 +133,11 @@ class ReviewServiceTest {
             return saved;
         });
 
-        ReviewResponse result = reviewService.createReview(1L, 1L, new ReviewRequest(5, "최고예요"));
+        ReviewResponse result = reviewService.createReview(1L, "member-1", new ReviewRequest(5, "최고예요"));
 
         assertThat(result.rating()).isEqualTo(5);
         assertThat(result.content()).isEqualTo("최고예요");
-        assertThat(result.memberId()).isEqualTo(1L);
+        assertThat(result.memberId()).isEqualTo("member-1");
         // 닉네임은 members 조인이 아니라 이벤트로 받은 스냅샷에서 온다.
         assertThat(result.nickname()).isEqualTo("테스트유저");
         // 1건당 1리뷰 — 권한이 소진됐다.
@@ -149,10 +149,10 @@ class ReviewServiceTest {
     @Test
     void 구매_확정_이력이_없으면_리뷰_생성이_거부된다() throws Exception {
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book(1L)));
-        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(1L, 1L))
+        when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull("member-1", 1L))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> reviewService.createReview(1L, 1L, new ReviewRequest(5, "내용")))
+        assertThatThrownBy(() -> reviewService.createReview(1L, "member-1", new ReviewRequest(5, "내용")))
                 .isInstanceOf(ReviewPermissionRequiredException.class);
         verify(reviewRepository, never()).save(any());
     }
@@ -161,22 +161,22 @@ class ReviewServiceTest {
     void 존재하지_않는_책에_리뷰_생성은_예외를_던진다() {
         when(bookRepository.findByBookIdAndIsDeletedFalse(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> reviewService.createReview(999L, 1L, new ReviewRequest(5, "내용")))
+        assertThatThrownBy(() -> reviewService.createReview(999L, "member-1", new ReviewRequest(5, "내용")))
                 .isInstanceOf(BookNotFoundException.class);
     }
 
     @Test
     void 작성자_본인이_리뷰를_삭제한다() throws Exception {
         Book book = book(1L);
-        Review review = review(100L, book, 1L);
-        ReviewPermission permission = permission(1L, 1L);
+        Review review = review(100L, book, "member-1");
+        ReviewPermission permission = permission("member-1", 1L);
         permission.markUsed(java.time.LocalDateTime.now());
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
         when(reviewPermissionRepository.findById(any())).thenReturn(Optional.of(permission));
         when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(0.0);
         when(reviewRepository.countByBook_BookId(1L)).thenReturn(0L);
 
-        reviewService.deleteReview(100L, 1L);
+        reviewService.deleteReview(100L, "member-1");
 
         verify(reviewRepository, times(1)).delete(review);
         assertThat(permission.isUsed()).isFalse();
@@ -187,13 +187,13 @@ class ReviewServiceTest {
     @Test
     void 작성자_본인이_리뷰를_수정하면_평점과_내용이_변경된다() throws Exception {
         Book book = book(1L);
-        Review review = review(100L, book, 1L);
+        Review review = review(100L, book, "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
         when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(4.0);
         when(reviewRepository.countByBook_BookId(1L)).thenReturn(1L);
 
         ReviewResponse result = reviewService.updateReview(
-                100L, 1L, new ReviewUpdateRequest(4, "수정한 내용"));
+                100L, "member-1", new ReviewUpdateRequest(4, "수정한 내용"));
 
         assertThat(result.rating()).isEqualTo(4);
         assertThat(result.content()).isEqualTo("수정한 내용");
@@ -203,11 +203,11 @@ class ReviewServiceTest {
 
     @Test
     void 작성자가_아니면_리뷰_수정은_거부된다() throws Exception {
-        Review review = review(100L, book(1L), 1L);
+        Review review = review(100L, book(1L), "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
 
         assertThatThrownBy(() -> reviewService.updateReview(
-                100L, 2L, new ReviewUpdateRequest(4, "수정")))
+                100L, "member-2", new ReviewUpdateRequest(4, "수정")))
                 .isInstanceOf(ReviewAccessDeniedException.class);
     }
 
@@ -215,11 +215,11 @@ class ReviewServiceTest {
     void 삭제된_책의_리뷰는_수정할_수_없다() throws Exception {
         Book book = book(1L);
         book.delete(java.time.LocalDateTime.now());
-        Review review = review(100L, book, 1L);
+        Review review = review(100L, book, "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
 
         assertThatThrownBy(() -> reviewService.updateReview(
-                100L, 1L, new ReviewUpdateRequest(4, "수정")))
+                100L, "member-1", new ReviewUpdateRequest(4, "수정")))
                 .isInstanceOf(BookNotFoundException.class);
     }
 
@@ -227,17 +227,17 @@ class ReviewServiceTest {
     void 존재하지_않는_리뷰_삭제는_예외를_던진다() {
         when(reviewRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> reviewService.deleteReview(999L, 1L))
+        assertThatThrownBy(() -> reviewService.deleteReview(999L, "member-1"))
                 .isInstanceOf(ReviewNotFoundException.class);
     }
 
     @Test
     void 작성자가_아니면_리뷰_삭제시_예외를_던진다() throws Exception {
         Book book = book(1L);
-        Review review = review(100L, book, 1L);
+        Review review = review(100L, book, "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
 
-        assertThatThrownBy(() -> reviewService.deleteReview(100L, 999L))
+        assertThatThrownBy(() -> reviewService.deleteReview(100L, "member-999"))
                 .isInstanceOf(ReviewAccessDeniedException.class);
         verify(reviewRepository, never()).delete(any());
     }

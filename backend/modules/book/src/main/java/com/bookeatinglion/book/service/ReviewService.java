@@ -55,7 +55,7 @@ public class ReviewService {
      * 정상 동작한다.
      */
     @Transactional
-    public ReviewResponse createReview(Long bookId, Long memberId, ReviewRequest request) {
+    public ReviewResponse createReview(Long bookId, String memberId, ReviewRequest request) {
         Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
 
@@ -79,7 +79,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponse updateReview(Long reviewId, Long memberId, ReviewUpdateRequest request) {
+    public ReviewResponse updateReview(Long reviewId, String memberId, ReviewUpdateRequest request) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ReviewNotFoundException(reviewId));
         if (!review.getMemberId().equals(memberId)) {
@@ -97,7 +97,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public void deleteReview(Long reviewId, Long memberId) {
+    public void deleteReview(Long reviewId, String memberId) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ReviewNotFoundException(reviewId));
         if (!review.getMemberId().equals(memberId)) {

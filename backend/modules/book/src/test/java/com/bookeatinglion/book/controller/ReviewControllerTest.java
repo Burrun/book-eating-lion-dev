@@ -6,6 +6,7 @@ import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.service.ReviewService;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,8 +46,11 @@ class ReviewControllerTest {
     @MockBean
     private ReviewService reviewService;
 
+    @MockBean
+    private CatalogMemberIdentity memberIdentity;
+
     private ReviewResponse response(Long id) {
-        return new ReviewResponse(id, 1L, 1L, "테스트유저", 5, "좋아요", LocalDateTime.now());
+        return new ReviewResponse(id, 1L, "member-1", "테스트유저", 5, "좋아요", LocalDateTime.now());
     }
 
     @Test
@@ -69,10 +73,10 @@ class ReviewControllerTest {
 
     @Test
     void 리뷰_생성은_201과_데이터를_반환한다() throws Exception {
-        when(reviewService.createReview(eq(1L), eq(1L), any())).thenReturn(response(100L));
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(reviewService.createReview(eq(1L), eq("member-1"), any())).thenReturn(response(100L));
 
         mockMvc.perform(post("/api/catalog/books/1/reviews")
-                        .header("X-Member-Id", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestReviewRequest(5, "좋아요"))))
                 .andExpect(status().isCreated())
@@ -82,7 +86,6 @@ class ReviewControllerTest {
     @Test
     void 평점_범위를_벗어나면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/api/catalog/books/1/reviews")
-                        .header("X-Member-Id", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestReviewRequest(6, "좋아요"))))
                 .andExpect(status().isBadRequest())
@@ -91,7 +94,8 @@ class ReviewControllerTest {
 
     @Test
     void 리뷰_삭제는_200을_반환한다() throws Exception {
-        mockMvc.perform(delete("/api/catalog/reviews/100").header("X-Member-Id", "1"))
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        mockMvc.perform(delete("/api/catalog/reviews/100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
@@ -99,11 +103,11 @@ class ReviewControllerTest {
     @Test
     void 리뷰_수정은_200과_수정된_데이터를_반환한다() throws Exception {
         ReviewResponse updated = new ReviewResponse(
-                100L, 1L, 1L, "테스트유저", 4, "수정했어요", LocalDateTime.now());
-        when(reviewService.updateReview(eq(100L), eq(1L), any())).thenReturn(updated);
+                100L, 1L, "member-1", "테스트유저", 4, "수정했어요", LocalDateTime.now());
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(reviewService.updateReview(eq(100L), eq("member-1"), any())).thenReturn(updated);
 
         mockMvc.perform(patch("/api/catalog/reviews/100")
-                        .header("X-Member-Id", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TestReviewRequest(4, "수정했어요"))))
                 .andExpect(status().isOk())
@@ -114,18 +118,20 @@ class ReviewControllerTest {
     @Test
     void 존재하지_않는_리뷰_삭제는_404를_반환한다() throws Exception {
         org.mockito.Mockito.doThrow(new ReviewNotFoundException(999L))
-                .when(reviewService).deleteReview(999L, 1L);
+                .when(reviewService).deleteReview(999L, "member-1");
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
 
-        mockMvc.perform(delete("/api/catalog/reviews/999").header("X-Member-Id", "1"))
+        mockMvc.perform(delete("/api/catalog/reviews/999"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void 작성자가_아니면_리뷰_삭제는_403을_반환한다() throws Exception {
-        org.mockito.Mockito.doThrow(new ReviewAccessDeniedException(100L, 2L))
-                .when(reviewService).deleteReview(100L, 2L);
+        org.mockito.Mockito.doThrow(new ReviewAccessDeniedException(100L, "member-2"))
+                .when(reviewService).deleteReview(100L, "member-2");
+        when(memberIdentity.requiredMemberId()).thenReturn("member-2");
 
-        mockMvc.perform(delete("/api/catalog/reviews/100").header("X-Member-Id", "2"))
+        mockMvc.perform(delete("/api/catalog/reviews/100"))
                 .andExpect(status().isForbidden());
     }
 

@@ -40,20 +40,20 @@ class ReviewRepositoryTest {
     @Test
     void 리뷰를_저장하고_조회한다() {
         Review review = reviewRepository.save(Review.builder()
-                .book(book).memberId(1L).rating(5).content("최고의 책입니다").build());
+                .book(book).memberId("member-1").rating(5).content("최고의 책입니다").build());
 
         Review found = reviewRepository.findById(review.getReviewId()).orElseThrow();
 
         assertThat(found.getBook().getBookId()).isEqualTo(book.getBookId());
-        assertThat(found.getMemberId()).isEqualTo(1L);
+        assertThat(found.getMemberId()).isEqualTo("member-1");
         assertThat(found.getRating()).isEqualTo(5);
         assertThat(found.getContent()).isEqualTo("최고의 책입니다");
     }
 
     @Test
     void 책_id로_리뷰_목록을_페이징_조회한다() {
-        reviewRepository.save(Review.builder().book(book).memberId(1L).rating(5).content("리뷰1").build());
-        reviewRepository.save(Review.builder().book(book).memberId(2L).rating(3).content("리뷰2").build());
+        reviewRepository.save(Review.builder().book(book).memberId("member-1").rating(5).content("리뷰1").build());
+        reviewRepository.save(Review.builder().book(book).memberId("member-2").rating(3).content("리뷰2").build());
 
         Page<Review> result = reviewRepository.findByBook_BookId(book.getBookId(), PageRequest.of(0, 10));
 
@@ -64,8 +64,8 @@ class ReviewRepositoryTest {
 
     @Test
     void 책의_평균_평점과_리뷰_수를_집계한다() {
-        reviewRepository.save(Review.builder().book(book).memberId(1L).rating(5).content("리뷰1").build());
-        reviewRepository.save(Review.builder().book(book).memberId(2L).rating(3).content("리뷰2").build());
+        reviewRepository.save(Review.builder().book(book).memberId("member-1").rating(5).content("리뷰1").build());
+        reviewRepository.save(Review.builder().book(book).memberId("member-2").rating(3).content("리뷰2").build());
 
         Double average = reviewRepository.findAverageRatingByBookId(book.getBookId());
         long count = reviewRepository.countByBook_BookId(book.getBookId());

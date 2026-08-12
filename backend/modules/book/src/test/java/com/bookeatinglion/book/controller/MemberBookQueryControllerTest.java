@@ -5,6 +5,7 @@ import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -35,45 +36,44 @@ class MemberBookQueryControllerTest {
     @MockBean
     private RecentViewedBookService recentViewedBookService;
 
+    @MockBean
+    private CatalogMemberIdentity memberIdentity;
+
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE);
     }
 
     @Test
     void 내_찜_목록_조회는_200과_데이터를_반환한다() throws Exception {
-        when(wishlistService.getMyWishlist(1L)).thenReturn(List.of(summary(1L, "찜한책")));
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(wishlistService.getMyWishlist("member-1")).thenReturn(List.of(summary(1L, "찜한책")));
 
-        mockMvc.perform(get("/api/catalog/wishlist/me").header("X-Member-Id", "1"))
+        mockMvc.perform(get("/api/catalog/wishlist/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("찜한책"));
     }
 
     @Test
     void 내_최근_본_책_조회는_200과_데이터를_반환한다() throws Exception {
-        when(recentViewedBookService.getMyRecentBooks(eq(1L), eq(20)))
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(recentViewedBookService.getMyRecentBooks(eq("member-1"), eq(20)))
                 .thenReturn(List.of(summary(1L, "최근본책")));
 
-        mockMvc.perform(get("/api/catalog/recent-books/me").header("X-Member-Id", "1"))
+        mockMvc.perform(get("/api/catalog/recent-books/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("최근본책"));
     }
 
     @Test
     void 최근_본_책_조회시_limit을_지정할_수_있다() throws Exception {
-        when(recentViewedBookService.getMyRecentBooks(eq(1L), eq(5)))
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(recentViewedBookService.getMyRecentBooks(eq("member-1"), eq(5)))
                 .thenReturn(List.of(summary(1L, "최근본책")));
 
         mockMvc.perform(get("/api/catalog/recent-books/me")
-                        .header("X-Member-Id", "1")
                         .param("limit", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("최근본책"));
     }
 
-    @Test
-    void 회원_헤더가_없으면_400을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/catalog/wishlist/me"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false));
-    }
 }

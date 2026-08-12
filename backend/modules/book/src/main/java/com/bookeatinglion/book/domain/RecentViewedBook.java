@@ -21,7 +21,7 @@ public class RecentViewedBook extends BaseEntity {
     private Long recentBookId;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private String memberId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id", nullable = false)
@@ -31,7 +31,7 @@ public class RecentViewedBook extends BaseEntity {
     private LocalDateTime viewedAt;
 
     @Builder
-    public RecentViewedBook(Long memberId, Book book, LocalDateTime viewedAt) {
+    public RecentViewedBook(String memberId, Book book, LocalDateTime viewedAt) {
         this.memberId = memberId;
         this.book = book;
         this.viewedAt = viewedAt;

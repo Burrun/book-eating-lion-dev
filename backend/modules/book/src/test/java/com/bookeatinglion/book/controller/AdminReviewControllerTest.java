@@ -36,7 +36,7 @@ class AdminReviewControllerTest {
     @Test
     void 관리자는_삭제된_도서를_포함해_리뷰를_조회한다() throws Exception {
         ReviewResponse review = new ReviewResponse(
-                100L, 1L, 1L, "테스트유저", 5, "좋아요", LocalDateTime.now());
+                100L, 1L, "member-1", "테스트유저", 5, "좋아요", LocalDateTime.now());
         when(reviewService.getAdminReviews(eq(1L), any()))
                 .thenReturn(new PageImpl<>(List.of(review), PageRequest.of(0, 20), 1));
 

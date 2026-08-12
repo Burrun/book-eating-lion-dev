@@ -3,10 +3,10 @@ package com.bookeatinglion.book.controller;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,17 +28,16 @@ public class MemberBookQueryController {
 
     private final WishlistService wishlistService;
     private final RecentViewedBookService recentViewedBookService;
+    private final CatalogMemberIdentity memberIdentity;
 
     @GetMapping("/api/catalog/wishlist/me")
-    public ApiResponse<List<BookSummaryResponse>> getMyWishlist(
-            @RequestHeader("X-Member-Id") Long memberId) {
-        return ApiResponse.success(wishlistService.getMyWishlist(memberId));
+    public ApiResponse<List<BookSummaryResponse>> getMyWishlist() {
+        return ApiResponse.success(wishlistService.getMyWishlist(memberIdentity.requiredMemberId()));
     }
 
     @GetMapping("/api/catalog/recent-books/me")
     public ApiResponse<List<BookSummaryResponse>> getMyRecentBooks(
-            @RequestHeader("X-Member-Id") Long memberId,
             @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberId, limit));
+        return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberIdentity.requiredMemberId(), limit));
     }
 }

@@ -21,7 +21,7 @@ public class WishlistService {
     private final BookRepository bookRepository;
 
     @Transactional
-    public void addWishlist(Long bookId, Long memberId) {
+    public void addWishlist(Long bookId, String memberId) {
         Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
         if (wishlistRepository.findByMemberIdAndBook_BookId(memberId, bookId).isPresent()) {
@@ -31,11 +31,11 @@ public class WishlistService {
     }
 
     @Transactional
-    public void removeWishlist(Long bookId, Long memberId) {
+    public void removeWishlist(Long bookId, String memberId) {
         wishlistRepository.deleteByMemberIdAndBook_BookId(memberId, bookId);
     }
 
-    public List<BookSummaryResponse> getMyWishlist(Long memberId) {
+    public List<BookSummaryResponse> getMyWishlist(String memberId) {
         return wishlistRepository.findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(memberId).stream()
                 .map(wishlist -> BookSummaryResponse.from(wishlist.getBook()))
                 .toList();

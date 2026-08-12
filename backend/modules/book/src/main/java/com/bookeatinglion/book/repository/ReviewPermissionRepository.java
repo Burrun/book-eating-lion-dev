@@ -10,5 +10,5 @@ public interface ReviewPermissionRepository extends JpaRepository<ReviewPermissi
     /**
      * 아직 쓰지 않은 권한 1건. 리뷰 작성은 이 로컬 조회 하나로 끝난다 — 네트워크 홉 0.
      */
-    Optional<ReviewPermission> findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(Long memberId, Long bookId);
+    Optional<ReviewPermission> findFirstByIdMemberIdAndBookIdAndUsedAtIsNull(String memberId, Long bookId);
 }
