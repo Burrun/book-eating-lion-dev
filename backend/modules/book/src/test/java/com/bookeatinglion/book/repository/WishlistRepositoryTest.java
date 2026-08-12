@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ContextConfiguration;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +62,18 @@ class WishlistRepositoryTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getBook().getBookId()).isEqualTo(book.getBookId());
+    }
+
+    @Test
+    void 삭제된_책은_회원의_찜_목록에서_제외한다() {
+        wishlistRepository.save(Wishlist.builder().memberId(1L).book(book).build());
+        book.delete(LocalDateTime.now());
+        bookRepository.flush();
+
+        List<Wishlist> result = wishlistRepository
+                .findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(1L);
+
+        assertThat(result).isEmpty();
     }
 
     @Test

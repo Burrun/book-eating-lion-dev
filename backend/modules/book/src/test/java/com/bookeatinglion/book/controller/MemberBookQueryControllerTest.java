@@ -43,7 +43,7 @@ class MemberBookQueryControllerTest {
     void 내_찜_목록_조회는_200과_데이터를_반환한다() throws Exception {
         when(wishlistService.getMyWishlist(1L)).thenReturn(List.of(summary(1L, "찜한책")));
 
-        mockMvc.perform(get("/api/wishlist/me").header("X-Member-Id", "1"))
+        mockMvc.perform(get("/api/catalog/wishlist/me").header("X-Member-Id", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("찜한책"));
     }
@@ -53,7 +53,7 @@ class MemberBookQueryControllerTest {
         when(recentViewedBookService.getMyRecentBooks(eq(1L), eq(20)))
                 .thenReturn(List.of(summary(1L, "최근본책")));
 
-        mockMvc.perform(get("/api/recent-books/me").header("X-Member-Id", "1"))
+        mockMvc.perform(get("/api/catalog/recent-books/me").header("X-Member-Id", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("최근본책"));
     }
@@ -63,7 +63,7 @@ class MemberBookQueryControllerTest {
         when(recentViewedBookService.getMyRecentBooks(eq(1L), eq(5)))
                 .thenReturn(List.of(summary(1L, "최근본책")));
 
-        mockMvc.perform(get("/api/recent-books/me")
+        mockMvc.perform(get("/api/catalog/recent-books/me")
                         .header("X-Member-Id", "1")
                         .param("limit", "5"))
                 .andExpect(status().isOk())
@@ -72,7 +72,7 @@ class MemberBookQueryControllerTest {
 
     @Test
     void 회원_헤더가_없으면_400을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/wishlist/me"))
+        mockMvc.perform(get("/api/catalog/wishlist/me"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }

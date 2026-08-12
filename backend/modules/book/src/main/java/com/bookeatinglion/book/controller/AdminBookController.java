@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/books")
+@RequestMapping("/api/catalog/admin/books")
 @RequiredArgsConstructor
 public class AdminBookController {
 

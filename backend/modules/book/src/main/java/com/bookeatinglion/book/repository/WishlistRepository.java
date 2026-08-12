@@ -12,5 +12,7 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
 
     List<Wishlist> findByMemberIdOrderByCreatedAtDesc(Long memberId);
 
+    List<Wishlist> findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(Long memberId);
+
     void deleteByMemberIdAndBook_BookId(Long memberId, Long bookId);
 }

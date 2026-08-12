@@ -56,7 +56,7 @@ class BookControllerTest {
         when(bookService.getBooks(eq(null), any()))
                 .thenReturn(new PageImpl<>(List.of(summary(1L, "책1")), PageRequest.of(0, 20), 1));
 
-        mockMvc.perform(get("/api/books"))
+        mockMvc.perform(get("/api/catalog/books"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].title").value("책1"));
@@ -67,7 +67,7 @@ class BookControllerTest {
         when(bookService.search(eq("스프링"), any()))
                 .thenReturn(new PageImpl<>(List.of(summary(1L, "스프링 입문")), PageRequest.of(0, 20), 1));
 
-        mockMvc.perform(get("/api/books/search").param("q", "스프링"))
+        mockMvc.perform(get("/api/catalog/books/search").param("q", "스프링"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].title").value("스프링 입문"));
     }
@@ -76,7 +76,7 @@ class BookControllerTest {
     void 베스트셀러는_200과_리스트를_반환한다() throws Exception {
         when(bookService.getBestsellers(anyInt())).thenReturn(List.of(summary(1L, "베스트셀러책")));
 
-        mockMvc.perform(get("/api/books/bestsellers"))
+        mockMvc.perform(get("/api/catalog/books/bestsellers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("베스트셀러책"));
     }
@@ -85,7 +85,7 @@ class BookControllerTest {
     void 신간은_200과_리스트를_반환한다() throws Exception {
         when(bookService.getNewReleases(anyInt())).thenReturn(List.of(summary(1L, "신간책")));
 
-        mockMvc.perform(get("/api/books/new-releases"))
+        mockMvc.perform(get("/api/catalog/books/new-releases"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("신간책"));
     }
@@ -98,7 +98,7 @@ class BookControllerTest {
                 LocalDateTime.now(), LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/books/1"))
+        mockMvc.perform(get("/api/catalog/books/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("상세책"));
     }
@@ -107,7 +107,7 @@ class BookControllerTest {
     void 존재하지_않는_책_상세조회는_404를_반환한다() throws Exception {
         when(bookService.getBook(999L)).thenThrow(new BookNotFoundException(999L));
 
-        mockMvc.perform(get("/api/books/999"))
+        mockMvc.perform(get("/api/catalog/books/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
     }
@@ -117,7 +117,7 @@ class BookControllerTest {
         when(bookService.getSynopsisDetail(1L))
                 .thenReturn(new BookSynopsisDetailResponse(1L, "책제목", "상세 줄거리 본문"));
 
-        mockMvc.perform(get("/api/books/1/synopsis/detail"))
+        mockMvc.perform(get("/api/catalog/books/1/synopsis/detail"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.detailedSynopsis").value("상세 줄거리 본문"));
     }
@@ -126,7 +126,7 @@ class BookControllerTest {
     void 존재하지_않는_책의_상세줄거리_조회는_404를_반환한다() throws Exception {
         when(bookService.getSynopsisDetail(999L)).thenThrow(new BookNotFoundException(999L));
 
-        mockMvc.perform(get("/api/books/999/synopsis/detail"))
+        mockMvc.perform(get("/api/catalog/books/999/synopsis/detail"))
                 .andExpect(status().isNotFound());
     }
 
@@ -138,7 +138,7 @@ class BookControllerTest {
                 LocalDateTime.now(), LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/books/1").header("X-Member-Id", "1"))
+        mockMvc.perform(get("/api/catalog/books/1").header("X-Member-Id", "1"))
                 .andExpect(status().isOk());
 
         verify(recentViewedBookService, times(1)).recordView(1L, 1L);
@@ -152,7 +152,7 @@ class BookControllerTest {
                 LocalDateTime.now(), LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/books/1"))
+        mockMvc.perform(get("/api/catalog/books/1"))
                 .andExpect(status().isOk());
 
         verify(recentViewedBookService, never()).recordView(any(), any());

@@ -32,7 +32,7 @@ class WishlistControllerTest {
 
     @Test
     void 찜하기는_200을_반환한다() throws Exception {
-        mockMvc.perform(post("/api/wishlist/1").header("X-Member-Id", "1"))
+        mockMvc.perform(post("/api/catalog/wishlist/1").header("X-Member-Id", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
@@ -43,13 +43,13 @@ class WishlistControllerTest {
     void 존재하지_않는_책_찜하기는_404를_반환한다() throws Exception {
         doThrow(new BookNotFoundException(999L)).when(wishlistService).addWishlist(999L, 1L);
 
-        mockMvc.perform(post("/api/wishlist/999").header("X-Member-Id", "1"))
+        mockMvc.perform(post("/api/catalog/wishlist/999").header("X-Member-Id", "1"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void 찜_삭제는_200을_반환한다() throws Exception {
-        mockMvc.perform(delete("/api/wishlist/1").header("X-Member-Id", "1"))
+        mockMvc.perform(delete("/api/catalog/wishlist/1").header("X-Member-Id", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 

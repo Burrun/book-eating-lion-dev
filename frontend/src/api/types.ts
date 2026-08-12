@@ -19,7 +19,7 @@ export interface Page<T> {
 
 export type SaleStatus = "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
 
-// GET /api/books, /bestsellers, /new-releases, /members/me/wishlist, /members/me/recent-books
+// GET /api/catalog/books, /bestsellers, /new-releases, /wishlist/me, /recent-books/me
 export interface BookSummaryResponse {
   id: number;
   title: string;
@@ -30,7 +30,7 @@ export interface BookSummaryResponse {
   saleStatus: SaleStatus;
 }
 
-// GET /api/books/{bookId}
+// GET /api/catalog/books/{bookId}
 export interface BookDetailResponse {
   id: number;
   title: string;
@@ -48,14 +48,14 @@ export interface BookDetailResponse {
   updatedAt: string;
 }
 
-// GET /api/books/{bookId}/synopsis/detail
+// GET /api/catalog/books/{bookId}/synopsis/detail
 export interface BookSynopsisDetailResponse {
   bookId: number;
   title: string;
   detailedSynopsis: string;
 }
 
-// GET/POST /api/books/{bookId}/reviews
+// GET/POST /api/catalog/books/{bookId}/reviews
 export interface ReviewResponse {
   id: number;
   bookId: number;

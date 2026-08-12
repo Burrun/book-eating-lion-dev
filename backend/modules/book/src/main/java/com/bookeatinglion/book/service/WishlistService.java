@@ -22,11 +22,11 @@ public class WishlistService {
 
     @Transactional
     public void addWishlist(Long bookId, Long memberId) {
+        Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
         if (wishlistRepository.findByMemberIdAndBook_BookId(memberId, bookId).isPresent()) {
             return;
         }
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new BookNotFoundException(bookId));
         wishlistRepository.save(Wishlist.builder().memberId(memberId).book(book).build());
     }
 
@@ -36,7 +36,7 @@ public class WishlistService {
     }
 
     public List<BookSummaryResponse> getMyWishlist(Long memberId) {
-        return wishlistRepository.findByMemberIdOrderByCreatedAtDesc(memberId).stream()
+        return wishlistRepository.findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(memberId).stream()
                 .map(wishlist -> BookSummaryResponse.from(wishlist.getBook()))
                 .toList();
     }

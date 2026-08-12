@@ -54,7 +54,7 @@ class WishlistServiceTest {
     void 찜하지_않은_책을_찜한다() throws Exception {
         Book book = book(1L);
         when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 1L)).thenReturn(Optional.empty());
-        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
 
         wishlistService.addWishlist(1L, 1L);
 
@@ -64,6 +64,7 @@ class WishlistServiceTest {
     @Test
     void 이미_찜한_책을_다시_찜해도_중복_저장하지_않는다() throws Exception {
         Book book = book(1L);
+        when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
         when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 1L))
                 .thenReturn(Optional.of(Wishlist.builder().memberId(1L).book(book).build()));
 
@@ -74,11 +75,19 @@ class WishlistServiceTest {
 
     @Test
     void 존재하지_않는_책을_찜하면_예외를_던진다() {
-        when(wishlistRepository.findByMemberIdAndBook_BookId(1L, 999L)).thenReturn(Optional.empty());
-        when(bookRepository.findById(999L)).thenReturn(Optional.empty());
+        when(bookRepository.findByBookIdAndIsDeletedFalse(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> wishlistService.addWishlist(999L, 1L))
                 .isInstanceOf(BookNotFoundException.class);
+    }
+
+    @Test
+    void 삭제된_책을_이미_찜했어도_다시_추가할_수_없다() {
+        when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> wishlistService.addWishlist(1L, 1L))
+                .isInstanceOf(BookNotFoundException.class);
+        verify(wishlistRepository, never()).findByMemberIdAndBook_BookId(any(), any());
     }
 
     @Test
@@ -91,7 +100,7 @@ class WishlistServiceTest {
     @Test
     void 내_찜_목록을_책_요약_정보로_조회한다() throws Exception {
         Book book = book(1L);
-        when(wishlistRepository.findByMemberIdOrderByCreatedAtDesc(1L))
+        when(wishlistRepository.findByMemberIdAndBook_IsDeletedFalseOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(Wishlist.builder().memberId(1L).book(book).build()));
 
         List<BookSummaryResponse> result = wishlistService.getMyWishlist(1L);

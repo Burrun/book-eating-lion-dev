@@ -54,4 +54,8 @@ public class ReviewPermission {
     public void markUsed(LocalDateTime now) {
         this.usedAt = now;
     }
+
+    public void restore() {
+        this.usedAt = null;
+    }
 }

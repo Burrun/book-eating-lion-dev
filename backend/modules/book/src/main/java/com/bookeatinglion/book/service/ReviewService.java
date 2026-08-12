@@ -3,8 +3,10 @@ package com.bookeatinglion.book.service;
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
 import com.bookeatinglion.book.domain.ReviewPermission;
+import com.bookeatinglion.book.domain.ReviewPermissionId;
 import com.bookeatinglion.book.dto.ReviewRequest;
 import com.bookeatinglion.book.dto.ReviewResponse;
+import com.bookeatinglion.book.dto.ReviewUpdateRequest;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
@@ -13,6 +15,8 @@ import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import com.bookeatinglion.book.repository.ReviewRepository;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +33,13 @@ public class ReviewService {
     private final ReviewPermissionRepository reviewPermissionRepository;
 
     public Page<ReviewResponse> getReviews(Long bookId, Pageable pageable) {
+        if (bookRepository.findByBookIdAndIsDeletedFalse(bookId).isEmpty()) {
+            throw new BookNotFoundException(bookId);
+        }
+        return reviewRepository.findByBook_BookId(bookId, pageable).map(ReviewResponse::from);
+    }
+
+    public Page<ReviewResponse> getAdminReviews(Long bookId, Pageable pageable) {
         if (!bookRepository.existsById(bookId)) {
             throw new BookNotFoundException(bookId);
         }
@@ -45,7 +56,7 @@ public class ReviewService {
      */
     @Transactional
     public ReviewResponse createReview(Long bookId, Long memberId, ReviewRequest request) {
-        Book book = bookRepository.findById(bookId)
+        Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
 
         ReviewPermission permission = reviewPermissionRepository
@@ -62,7 +73,27 @@ public class ReviewService {
                 .rating(request.rating())
                 .content(request.content())
                 .build();
-        return ReviewResponse.from(reviewRepository.save(review));
+        Review savedReview = reviewRepository.save(review);
+        updateReviewStatistics(book);
+        return ReviewResponse.from(savedReview);
+    }
+
+    @Transactional
+    public ReviewResponse updateReview(Long reviewId, Long memberId, ReviewUpdateRequest request) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ReviewNotFoundException(reviewId));
+        if (!review.getMemberId().equals(memberId)) {
+            throw new ReviewAccessDeniedException(reviewId, memberId);
+        }
+
+        Book book = review.getBook();
+        if (book.isDeleted()) {
+            throw new BookNotFoundException(book.getBookId());
+        }
+
+        review.update(request.rating(), request.content());
+        updateReviewStatistics(book);
+        return ReviewResponse.from(review);
     }
 
     @Transactional
@@ -72,6 +103,24 @@ public class ReviewService {
         if (!review.getMemberId().equals(memberId)) {
             throw new ReviewAccessDeniedException(reviewId, memberId);
         }
+
+        if (review.getOrderItemId() != null) {
+            reviewPermissionRepository.findById(
+                            new ReviewPermissionId(memberId, review.getOrderItemId()))
+                    .ifPresent(ReviewPermission::restore);
+        }
+
+        Book book = review.getBook();
         reviewRepository.delete(review);
+        reviewRepository.flush();
+        updateReviewStatistics(book);
+    }
+
+    private void updateReviewStatistics(Book book) {
+        Double average = reviewRepository.findAverageRatingByBookId(book.getBookId());
+        long count = reviewRepository.countByBook_BookId(book.getBookId());
+        BigDecimal averageRating = BigDecimal.valueOf(average == null ? 0.0 : average)
+                .setScale(2, RoundingMode.HALF_UP);
+        book.updateReviewStatistics(averageRating, Math.toIntExact(count));
     }
 }

@@ -61,4 +61,16 @@ class ReviewRepositoryTest {
         assertThat(result.getContent()).extracting(Review::getContent)
                 .containsExactlyInAnyOrder("리뷰1", "리뷰2");
     }
+
+    @Test
+    void 책의_평균_평점과_리뷰_수를_집계한다() {
+        reviewRepository.save(Review.builder().book(book).memberId(1L).rating(5).content("리뷰1").build());
+        reviewRepository.save(Review.builder().book(book).memberId(2L).rating(3).content("리뷰2").build());
+
+        Double average = reviewRepository.findAverageRatingByBookId(book.getBookId());
+        long count = reviewRepository.countByBook_BookId(book.getBookId());
+
+        assertThat(average).isEqualTo(4.0);
+        assertThat(count).isEqualTo(2L);
+    }
 }
