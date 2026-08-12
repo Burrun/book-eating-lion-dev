@@ -140,4 +140,18 @@ class CartServiceTest {
 
         verify(cartItemRepository, never()).delete(any());
     }
+
+    @Test
+    void 선택한_항목들을_삭제한다() {
+        cartService.removeSelectedItems(MEMBER_ID, List.of(1L, 2L));
+
+        verify(cartItemRepository).deleteByMemberIdAndIdIn(MEMBER_ID, List.of(1L, 2L));
+    }
+
+    @Test
+    void 장바구니를_전체_비운다() {
+        cartService.clearCart(MEMBER_ID);
+
+        verify(cartItemRepository).deleteByMemberId(MEMBER_ID);
+    }
 }

@@ -1,6 +1,7 @@
 package com.bookeatinglion.order.delivery.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
+import com.bookeatinglion.order.delivery.exception.InvalidDeliveryStatusTransitionException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -41,5 +42,13 @@ public class Delivery extends BaseEntity {
         this.courierCompany = courierCompany;
         this.trackingNumber = trackingNumber;
         this.deliveryStatus = deliveryStatus != null ? deliveryStatus : DeliveryStatus.PENDING;
+    }
+
+    /** PENDING → SHIPPED → IN_TRANSIT → DELIVERED 순서로 한 단계씩만 전이한다 — 건너뛰기/역행 모두 금지. */
+    public void updateStatus(DeliveryStatus newStatus) {
+        if (this.deliveryStatus.next() != newStatus) {
+            throw new InvalidDeliveryStatusTransitionException(this.orderId, this.deliveryStatus, newStatus);
+        }
+        this.deliveryStatus = newStatus;
     }
 }

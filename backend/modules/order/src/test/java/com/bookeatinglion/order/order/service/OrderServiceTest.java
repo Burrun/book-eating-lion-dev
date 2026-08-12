@@ -18,6 +18,9 @@ import com.bookeatinglion.order.client.CatalogClient.BookView;
 import com.bookeatinglion.order.coupon.domain.Coupon;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
+import com.bookeatinglion.order.delivery.domain.Delivery;
+import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
+import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
 import com.bookeatinglion.order.inventory.domain.Inventory;
 import com.bookeatinglion.order.inventory.repository.InventoryRepository;
 import com.bookeatinglion.order.lock.InventoryLockExecutor;
@@ -27,6 +30,7 @@ import com.bookeatinglion.order.order.domain.OrderStatus;
 import com.bookeatinglion.order.order.dto.CreateOrderRequest;
 import com.bookeatinglion.order.order.dto.OrderItemRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
+import com.bookeatinglion.order.order.dto.OrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.Recipient;
 import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
@@ -58,8 +62,13 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -95,6 +104,9 @@ class OrderServiceTest {
     @Mock
     private KakaoPayClient kakaoPayClient;
 
+    @Mock
+    private DeliveryRepository deliveryRepository;
+
     private InventoryLockExecutor passThroughLockExecutor;
 
     private PaymentService paymentService;
@@ -118,7 +130,8 @@ class OrderServiceTest {
                 cartItemRepository,
                 catalogClient,
                 passThroughLockExecutor,
-                paymentService);
+                paymentService,
+                deliveryRepository);
     }
 
     private Inventory inventory(Long bookId, int stock) {
@@ -223,6 +236,25 @@ class OrderServiceTest {
         assertThat(memberCoupon.getUsedOrderId()).isEqualTo(1L);
     }
 
+    @Test
+    void 카드_결제_완료시_배송이_PENDING_상태로_생성된다() {
+        setUp();
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
+        stubOrderAndPaymentSave();
+        when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(true, null));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
+
+        orderService.createOrder(MEMBER_ID, request);
+
+        ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
+        verify(deliveryRepository).save(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(1L);
+        assertThat(captor.getValue().getDeliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
+    }
+
     // ---------------------------------------------------------------- createOrder / KAKAOPAY (ready)
 
     @Test
@@ -246,6 +278,7 @@ class OrderServiceTest {
         assertThat(inventory.getStock()).isEqualTo(10); // 아직 차감되지 않았다
         verify(cartItemRepository, never()).deleteByMemberIdAndBookIdIn(any(), any());
         verify(kakaoPayClient, never()).approve(any(), any(), any(), any());
+        verify(deliveryRepository, never()).save(any());
     }
 
     @Test
@@ -460,6 +493,62 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 999L, "pg-token"))
                 .isInstanceOf(OrderNotFoundException.class);
+    }
+
+    @Test
+    void 카카오페이_승인_완료시_배송이_PENDING_상태로_생성된다() {
+        setUp();
+        Order order = pendingKakaoOrder(7000, null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        Payment payment = readyPayment(order, 7000);
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
+
+        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+
+        ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
+        verify(deliveryRepository).save(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(1L);
+        assertThat(captor.getValue().getDeliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
+    }
+
+    @Test
+    void 배송이_이미_생성돼_있으면_승인_재시도에도_중복_생성하지_않는다() {
+        setUp();
+        Order order = pendingKakaoOrder(7000, null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        Payment payment = readyPayment(order, 7000);
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
+        when(deliveryRepository.findByOrderId(1L))
+                .thenReturn(Optional.of(Delivery.builder().orderId(1L).build()));
+
+        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+
+        verify(deliveryRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------- getOrders
+
+    @Test
+    void 본인_주문_목록을_페이징으로_조회한다() {
+        setUp();
+        Order order1 = order(1L, MEMBER_ID, 10000);
+        Order order2 = order(2L, MEMBER_ID, 20000);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(orderRepository.findByMemberId(MEMBER_ID, pageable))
+                .thenReturn(new PageImpl<>(List.of(order2, order1), pageable, 2));
+
+        Page<OrderSummaryResponse> result = orderService.getOrders(MEMBER_ID, pageable);
+
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getContent()).extracting(OrderSummaryResponse::orderId).containsExactly(2L, 1L);
     }
 
     // ---------------------------------------------------------------- getOrder

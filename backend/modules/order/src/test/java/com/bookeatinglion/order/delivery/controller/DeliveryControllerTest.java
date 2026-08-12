@@ -1,8 +1,10 @@
 package com.bookeatinglion.order.delivery.controller;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +12,7 @@ import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.dto.DeliveryResponse;
 import com.bookeatinglion.order.delivery.exception.DeliveryNotFoundException;
+import com.bookeatinglion.order.delivery.exception.InvalidDeliveryStatusTransitionException;
 import com.bookeatinglion.order.delivery.exception.UnauthorizedDeliveryAccessException;
 import com.bookeatinglion.order.delivery.service.DeliveryService;
 import java.time.LocalDateTime;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -73,6 +77,47 @@ class DeliveryControllerTest {
 
         mockMvc.perform(get("/api/orders/100/delivery").with(authenticated()))
                 .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 배송_상태_변경은_200과_변경된_데이터를_반환한다() throws Exception {
+        when(deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.SHIPPED))
+                .thenReturn(new DeliveryResponse(
+                        1L, 100L, null, null, DeliveryStatus.SHIPPED, LocalDateTime.now(), LocalDateTime.now()));
+
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SHIPPED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deliveryStatus").value("SHIPPED"));
+    }
+
+    @Test
+    void 잘못된_상태_전이는_409를_반환한다() throws Exception {
+        when(deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.PENDING))
+                .thenThrow(new InvalidDeliveryStatusTransitionException(
+                        100L, DeliveryStatus.SHIPPED, DeliveryStatus.PENDING));
+
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PENDING\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void status가_없으면_배송_상태_변경은_400을_반환한다() throws Exception {
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
 }

@@ -5,6 +5,8 @@ import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
+import com.bookeatinglion.order.delivery.domain.Delivery;
+import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
 import com.bookeatinglion.order.inventory.domain.Inventory;
 import com.bookeatinglion.order.inventory.repository.InventoryRepository;
 import com.bookeatinglion.order.lock.InventoryLockExecutor;
@@ -14,6 +16,7 @@ import com.bookeatinglion.order.order.domain.OrderStatus;
 import com.bookeatinglion.order.order.dto.CreateOrderRequest;
 import com.bookeatinglion.order.order.dto.OrderItemRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
+import com.bookeatinglion.order.order.dto.OrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.Recipient;
 import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
@@ -40,6 +43,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,6 +72,7 @@ public class OrderService {
     private final CatalogClient catalogClient;
     private final InventoryLockExecutor inventoryLockExecutor;
     private final PaymentService paymentService;
+    private final DeliveryRepository deliveryRepository;
 
     @Transactional
     public OrderResponse createOrder(String memberId, CreateOrderRequest request) {
@@ -126,6 +132,7 @@ public class OrderService {
                 }
                 deductStock(inventories, quantityByBookId);
                 cartItemRepository.deleteByMemberIdAndBookIdIn(memberId, bookIds);
+                createDelivery(order.getId());
                 return OrderResponse.of(order, items, payment);
             }
 
@@ -189,9 +196,27 @@ public class OrderService {
 
             deductStock(inventories, quantityByBookId);
             cartItemRepository.deleteByMemberIdAndBookIdIn(memberId, bookIds);
+            createDelivery(orderId);
 
             return OrderResponse.of(order, items, payment);
         });
+    }
+
+    /**
+     * 결제가 최종 확정되는 시점(카드 1단계 완료 / 카카오 approve)에 재고차감과 같은 자리에서 배송을 만든다.
+     * find-or-create — 재시도로 이 지점이 두 번 불리는 경우, 이미 있으면 새로 만들지 않는다. orderId 에는
+     * DB unique 제약도 걸려 있어(Delivery 참고) 이 조회와 저장 사이의 아주 좁은 동시성 창을 뚫고 들어와도
+     * 중복 행 자체는 만들어지지 않는다 — 다만 그 경우엔 이 메서드가 처리하지 않은 제약 위반 예외를 던진다.
+     */
+    private void createDelivery(Long orderId) {
+        if (deliveryRepository.findByOrderId(orderId).isPresent()) {
+            return;
+        }
+        deliveryRepository.save(Delivery.builder().orderId(orderId).build());
+    }
+
+    public Page<OrderSummaryResponse> getOrders(String memberId, Pageable pageable) {
+        return orderRepository.findByMemberId(memberId, pageable).map(OrderSummaryResponse::from);
     }
 
     public OrderResponse getOrder(String memberId, Long orderId) {
