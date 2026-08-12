@@ -83,18 +83,16 @@ export function toSubscription(dto: SubscriptionResponse | null): Subscription {
 
 export function toCard(dto: CardResponse): Card {
   return {
-    id: String(dto.id),
-    company: dto.cardCompany,
+    id: String(dto.cardId),
     maskedNumber: dto.maskedCardNumber,
     status: dto.cardStatus,
     monthlyLimit: dto.monthlyLimit,
     currentUsage: dto.currentUsage,
-    virtualBalance: dto.virtualBalance,
-    isDefault: dto.isDefault,
-    issuedDate: dto.issuedDate,
-    expiryDate: dto.expiryDate,
+    availableLimit: Math.max(dto.monthlyLimit - dto.currentUsage, 0),
     // 한도가 0이면 나눗셈이 Infinity/NaN 이 되므로 방어한다.
     usageRatio: dto.monthlyLimit > 0 ? Math.min(dto.currentUsage / dto.monthlyLimit, 1) : 0,
+    issuedDate: dto.issuedDate,
+    expiryDate: dto.expiryDate,
   };
 }
 

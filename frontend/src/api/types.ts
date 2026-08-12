@@ -98,35 +98,27 @@ export interface SubscriptionResponse {
 }
 
 // --- 가상 카드 (Card) ---
-// 주의: API 명세서 초안에 카드 엔드포인트가 아직 없다.
-// 아래 필드는 db/schema.sql 의 cards 테이블을 기준으로 정의했고,
-// 경로는 기존 명세 컨벤션(/api/members/me/*)을 따랐다. 백엔드 확정 시 조정 필요.
-// card_token 은 결제 토큰이라 프론트로 내려오면 안 되므로 의도적으로 제외했다.
-export type CardStatus = "ACTIVE" | "SUSPENDED" | "TERMINATED";
+// member-service 실제 명세 기준 (backend/docs/member-service-spec.md 섹션 2.4).
+// card_token 은 결제 토큰이라 프론트로 내려오면 안 되므로 응답에 포함되지 않는다.
+export type CardStatus = "ACTIVE" | "SUSPENDED" | "CLOSED";
 
-// GET /api/members/me/cards
+// GET /api/cards/me, POST /api/cards, PATCH /api/cards/{cardId}/status
 export interface CardResponse {
-  id: number;
-  cardCompany: string | null;
+  cardId: number;
   maskedCardNumber: string;
   cardStatus: CardStatus;
   monthlyLimit: number;
   currentUsage: number;
-  virtualBalance: number;
-  isDefault: boolean;
   issuedDate: string;
   expiryDate: string;
 }
 
-// POST /api/members/me/cards
+// POST /api/cards (body 자체도 생략 가능)
 export interface CardIssueRequest {
-  monthlyLimit: number;
-  virtualBalance: number;
-  cardCompany?: string;
+  monthlyLimit?: number;
 }
 
-// PATCH /api/cards/{cardId}
+// PATCH /api/cards/{cardId}/status — 카드 상태 변경만 지원한다(월 한도 변경 API는 없음).
 export interface CardUpdateRequest {
-  monthlyLimit?: number;
-  cardStatus?: CardStatus;
+  cardStatus: CardStatus;
 }

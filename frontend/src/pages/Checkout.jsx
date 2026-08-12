@@ -20,7 +20,7 @@ const REQUIRED_FIELDS = [
 const CARD_STATUS_LABEL = {
   ACTIVE: "사용중",
   SUSPENDED: "정지됨",
-  TERMINATED: "해지됨",
+  CLOSED: "해지됨",
 };
 
 const PAYMENT_METHODS = [
@@ -123,8 +123,8 @@ export default function Checkout() {
         toast.error("결제할 카드를 선택해주세요.");
         return;
       }
-      if (chosenCard.virtualBalance < finalTotal) {
-        toast.error("카드 잔액이 부족합니다.");
+      if (chosenCard.availableLimit < finalTotal) {
+        toast.error("카드 가용 한도가 부족합니다.");
         return;
       }
     }
@@ -340,8 +340,8 @@ export default function Checkout() {
                           }`}
                         >
                           <span className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-[var(--color-ink)]">
-                              {card.company ?? "카드사 미지정"}
+                            <span className="font-mono text-sm font-medium text-[var(--color-ink)]">
+                              {card.maskedNumber}
                             </span>
                             {!isSelectable && (
                               <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--color-ink)] opacity-70">
@@ -349,11 +349,8 @@ export default function Checkout() {
                               </span>
                             )}
                           </span>
-                          <span className="font-mono text-xs text-[var(--color-ink)] opacity-60">
-                            {card.maskedNumber}
-                          </span>
                           <span className="text-xs text-[var(--color-ink)] opacity-50">
-                            잔액 {card.virtualBalance.toLocaleString()}원
+                            가용 한도 {card.availableLimit.toLocaleString()}원
                           </span>
                         </button>
                       );

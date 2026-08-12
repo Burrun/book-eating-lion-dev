@@ -62,8 +62,22 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/wishlist" element={<WishlistPage />} />
-                <Route path="/cards" element={<CardsPage />} />
+                <Route
+                  path="/wishlist"
+                  element={
+                    <ProtectedRoute>
+                      <WishlistPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cards"
+                  element={
+                    <ProtectedRoute>
+                      <CardsPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/payment/kakao/success"
                   element={
