@@ -55,6 +55,8 @@ export function toBook(dto: BookDetailResponse): Book {
     synopsis: dto.description, // 무료 회원용 줄거리
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다
     reviews: [], // 별도 API(/books/{id}/reviews)에서 toReview로 채운다
+    ebookAvailable: dto.ebookAvailable,
+    ebookUrl: dto.ebookUrl,
   };
 }
 

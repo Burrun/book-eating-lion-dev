@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getBook, getWebtoonCuts } from '../../api/books.ts'
 import { getReviews } from '../../api/reviews.ts'
 import { getMySubscription } from '../../api/member.ts'
+import EbookViewer from '../../components/EbookViewer.jsx'
 import type { Review } from '../../types/book.ts'
 
 export default function ProductDetailPage() {
@@ -45,6 +46,7 @@ export default function ProductDetailPage() {
   const [addedReviews, setAddedReviews] = useState<Review[]>([])
   const [draftRating, setDraftRating] = useState(5)
   const [draftText, setDraftText] = useState('')
+  const [isEbookOpen, setIsEbookOpen] = useState(false)
 
   function handleSubmitReview() {
     if (!draftText.trim()) return
@@ -112,6 +114,21 @@ export default function ProductDetailPage() {
             <button className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40">
               ❤️ 찜하기
             </button>
+            {book.ebookAvailable ? (
+              <button
+                onClick={() => setIsEbookOpen(true)}
+                className="rounded-full border-2 border-forest px-6 py-2.5 font-semibold text-forest transition hover:bg-forest hover:text-paper"
+              >
+                📱 ebook 보기
+              </button>
+            ) : (
+              <button
+                disabled
+                className="cursor-not-allowed rounded-full border-2 border-forest/15 px-6 py-2.5 font-semibold text-forest/40"
+              >
+                📱 ebook 준비중
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -189,6 +206,13 @@ export default function ProductDetailPage() {
           ))}
         </div>
       </section>
+
+      <EbookViewer
+        isOpen={isEbookOpen}
+        onClose={() => setIsEbookOpen(false)}
+        url={book.ebookUrl}
+        title={book.title}
+      />
     </main>
   )
 }
