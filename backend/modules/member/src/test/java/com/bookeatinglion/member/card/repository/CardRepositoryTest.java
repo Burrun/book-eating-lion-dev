@@ -18,12 +18,12 @@ class CardRepositoryTest {
     private CardRepository cardRepository;
 
     @Test
-    void 회원ID로_카드_목록을_조회한다() {
-        cardRepository.save(new Card(1L, "token-1", "5361-****-****-1111", 1_000_000L));
-        cardRepository.save(new Card(1L, "token-2", "5361-****-****-2222", 500_000L));
-        cardRepository.save(new Card(2L, "token-3", "5361-****-****-3333", 1_000_000L));
+    void 회원SUB로_카드_목록을_조회한다() {
+        cardRepository.save(new Card("member-sub-1", "token-1", "5361-****-****-1111", 1_000_000L));
+        cardRepository.save(new Card("member-sub-1", "token-2", "5361-****-****-2222", 500_000L));
+        cardRepository.save(new Card("member-sub-2", "token-3", "5361-****-****-3333", 1_000_000L));
 
-        List<Card> cards = cardRepository.findByMemberId(1L);
+        List<Card> cards = cardRepository.findByMemberSub("member-sub-1");
 
         assertThat(cards).hasSize(2);
     }

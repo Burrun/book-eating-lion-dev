@@ -25,23 +25,23 @@ public class CardService {
     private final CardRepository cardRepository;
 
     @Transactional
-    public CardResponse issueCard(Long memberId, IssueCardRequest request) {
+    public CardResponse issueCard(String memberSub, IssueCardRequest request) {
         long monthlyLimit = request.monthlyLimit() != null ? request.monthlyLimit() : DEFAULT_MONTHLY_LIMIT;
 
-        Card card =
-                new Card(memberId, UUID.randomUUID().toString(), CardNumberGenerator.generateMasked(), monthlyLimit);
+        Card card = new Card(
+                memberSub, UUID.randomUUID().toString(), CardNumberGenerator.generateMasked(), monthlyLimit);
         return CardResponse.from(cardRepository.save(card));
     }
 
-    public List<CardResponse> getMyCards(Long memberId) {
-        return cardRepository.findByMemberId(memberId).stream()
+    public List<CardResponse> getMyCards(String memberSub) {
+        return cardRepository.findByMemberSub(memberSub).stream()
                 .map(CardResponse::from)
                 .toList();
     }
 
     @Transactional
-    public CardResponse changeStatus(Long memberId, Long cardId, CardStatus newStatus) {
-        Card card = getOwnedCard(memberId, cardId);
+    public CardResponse changeStatus(String memberSub, Long cardId, CardStatus newStatus) {
+        Card card = getOwnedCard(memberSub, cardId);
         card.changeStatus(newStatus);
         return CardResponse.from(card);
     }
@@ -70,9 +70,9 @@ public class CardService {
         return CardOperationResult.approve();
     }
 
-    private Card getOwnedCard(Long memberId, Long cardId) {
+    private Card getOwnedCard(String memberSub, Long cardId) {
         Card card = cardRepository.findById(cardId).orElseThrow(() -> new CardNotFoundException(cardId));
-        if (!card.isOwnedBy(memberId)) {
+        if (!card.isOwnedBy(memberSub)) {
             throw new UnauthorizedCardAccessException(cardId);
         }
         return card;

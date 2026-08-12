@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @ContextConfiguration(classes = MemberModuleTestApplication.class)
 class CardControllerTest {
 
-    private static final long MEMBER_ID = 1L;
+    private static final String MEMBER_SUB = "member-sub-1";
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,7 +42,7 @@ class CardControllerTest {
     private CardService cardService;
 
     private static RequestPostProcessor authenticated() {
-        return jwt().jwt(jwt -> jwt.subject("member-sub-1").claim("member_id", MEMBER_ID));
+        return jwt().jwt(jwt -> jwt.subject(MEMBER_SUB));
     }
 
     private CardResponse cardResponse(CardStatus status) {
@@ -58,7 +58,7 @@ class CardControllerTest {
 
     @Test
     void 카드_발급은_201과_데이터를_반환한다() throws Exception {
-        when(cardService.issueCard(eq(MEMBER_ID), any())).thenReturn(cardResponse(CardStatus.ACTIVE));
+        when(cardService.issueCard(eq(MEMBER_SUB), any())).thenReturn(cardResponse(CardStatus.ACTIVE));
 
         mockMvc.perform(post("/api/cards").with(authenticated()).with(csrf()))
                 .andExpect(status().isCreated())
@@ -68,7 +68,7 @@ class CardControllerTest {
 
     @Test
     void 내_카드_목록_조회는_200과_데이터를_반환한다() throws Exception {
-        when(cardService.getMyCards(MEMBER_ID)).thenReturn(List.of(cardResponse(CardStatus.ACTIVE)));
+        when(cardService.getMyCards(MEMBER_SUB)).thenReturn(List.of(cardResponse(CardStatus.ACTIVE)));
 
         mockMvc.perform(get("/api/cards/me").with(authenticated()))
                 .andExpect(status().isOk())
@@ -77,7 +77,7 @@ class CardControllerTest {
 
     @Test
     void 카드_상태_변경은_200과_데이터를_반환한다() throws Exception {
-        when(cardService.changeStatus(MEMBER_ID, 1L, CardStatus.SUSPENDED))
+        when(cardService.changeStatus(MEMBER_SUB, 1L, CardStatus.SUSPENDED))
                 .thenReturn(cardResponse(CardStatus.SUSPENDED));
 
         mockMvc.perform(patch("/api/cards/1/status")
@@ -91,7 +91,7 @@ class CardControllerTest {
 
     @Test
     void 타인의_카드_상태변경은_403을_반환한다() throws Exception {
-        when(cardService.changeStatus(MEMBER_ID, 1L, CardStatus.SUSPENDED))
+        when(cardService.changeStatus(MEMBER_SUB, 1L, CardStatus.SUSPENDED))
                 .thenThrow(new UnauthorizedCardAccessException(1L));
 
         mockMvc.perform(patch("/api/cards/1/status")
@@ -105,7 +105,7 @@ class CardControllerTest {
 
     @Test
     void 존재하지_않는_카드_상태변경은_404를_반환한다() throws Exception {
-        when(cardService.changeStatus(MEMBER_ID, 999L, CardStatus.SUSPENDED))
+        when(cardService.changeStatus(MEMBER_SUB, 999L, CardStatus.SUSPENDED))
                 .thenThrow(new CardNotFoundException(999L));
 
         mockMvc.perform(patch("/api/cards/999/status")
@@ -119,7 +119,7 @@ class CardControllerTest {
 
     @Test
     void CLOSED_카드_상태변경은_400을_반환한다() throws Exception {
-        when(cardService.changeStatus(MEMBER_ID, 1L, CardStatus.ACTIVE))
+        when(cardService.changeStatus(MEMBER_SUB, 1L, CardStatus.ACTIVE))
                 .thenThrow(new InvalidCardStatusChangeException(1L));
 
         mockMvc.perform(patch("/api/cards/1/status")

@@ -52,9 +52,11 @@ CREATE TABLE addresses (
 -- "회원당 기본배송지 1건"을 강제했다. PostgreSQL 은 부분 인덱스로 직접 표현한다.
 CREATE UNIQUE INDEX uk_addresses_default ON addresses (member_sub) WHERE is_default;
 
+-- member_id(BIGINT, members.member_id FK) 대신 member_sub(members.cognito_sub FK)로 소유권을 식별한다.
+-- addresses 테이블과 동일한 패턴 — Cognito PreTokenGeneration 의 member_id 커스텀 클레임 의존을 없애는 방향.
 CREATE TABLE cards (
     card_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id          BIGINT NOT NULL,
+    member_sub         VARCHAR(255) NOT NULL,
     card_company       VARCHAR(100) NULL,
     card_token         VARCHAR(255) NOT NULL,
     masked_card_number VARCHAR(19)  NOT NULL,
@@ -70,14 +72,14 @@ CREATE TABLE cards (
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_cards_token UNIQUE (card_token),
-    CONSTRAINT fk_cards_member FOREIGN KEY (member_id)
-        REFERENCES members (member_id) ON DELETE CASCADE,
+    CONSTRAINT fk_cards_member FOREIGN KEY (member_sub)
+        REFERENCES members (cognito_sub) ON DELETE CASCADE,
     CONSTRAINT chk_cards_status  CHECK (card_status IN ('ACTIVE', 'SUSPENDED', 'TERMINATED')),
     CONSTRAINT chk_cards_balance CHECK (virtual_balance >= 0),
     CONSTRAINT chk_cards_expiry  CHECK (expiry_date > issued_date)
 );
 
-CREATE UNIQUE INDEX uk_cards_default ON cards (member_id) WHERE is_default;
+CREATE UNIQUE INDEX uk_cards_default ON cards (member_sub) WHERE is_default;
 
 CREATE TABLE premium_memberships (
     membership_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
