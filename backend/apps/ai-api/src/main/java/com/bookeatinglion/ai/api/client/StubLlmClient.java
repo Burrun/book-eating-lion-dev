@@ -1,12 +1,12 @@
 package com.bookeatinglion.ai.api.client;
 
 import com.bookeatinglion.ai.client.LlmClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** Bedrock 연동 전 자리를 채우는 스텁. Phase 1 의 ai 팀 산출물로 교체된다. */
+/** AWS 자격증명 없이 로컬을 띄우기 위한 스텁. 판별 방식은 {@link StubEmbeddingClient} 와 같다. */
 @Component
-@ConditionalOnMissingBean(name = "bedrockLlmClient")
+@ConditionalOnProperty(name = "app.ai.clients", havingValue = "stub", matchIfMissing = true)
 public class StubLlmClient implements LlmClient {
 
     @Override

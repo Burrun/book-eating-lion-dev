@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lion-app
+---
+# Aurora MySQL (RDS)를 클러스터 내부 DNS 이름으로 감싸기 위한 네임스페이스.
+# 애플리케이션은 엔드포인트를 직접 알지 못하고 ExternalName 서비스만 바라본다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lion-db
+  labels:
+    access-to-db: allowed

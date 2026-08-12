@@ -88,6 +88,89 @@ jobs:
           done
           exit $FAILED
 
+  # ---------------------------------------------------------------------------
+  # YAML 정적 검사 — Gradle 이 필요 없는 것들을 한 잡에 모았다.
+  #
+  # 두 검사는 성격이 다르다(배포 배선 vs API 계약). 잡을 나누지 않은 이유는 둘 다
+  # PyYAML 하나만 있으면 되고 수 초 안에 끝나서, 러너를 두 개 띄우는 비용이 검사
+  # 자체보다 크기 때문이다. 둘 중 하나가 무거워지면 그때 쪼갠다.
+  # ---------------------------------------------------------------------------
+  yaml-checks:
+    name: YAML 정적 검사 (k8s · contracts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      # --- [1] 배포 배선 ---
+      # configMapKeyRef 의 키 오타는 kubectl apply 도 통과하고 파드도 뜬다. 그 환경변수만
+      # 조용히 비어서 앱이 자기 기본값으로 동작한다 — 봇이 RAG 용 비싼 모델을 쓰고 있어도
+      # 에러도 로그도 없다. 배포 전에 잡을 수 있는 유일한 지점이 여기다.
+      - name: k8s 매니페스트 파싱 + ConfigMap 키 참조 검사
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          docs = [d for p in sorted(glob.glob("k8s/**/*.yaml", recursive=True))
+                    for d in yaml.safe_load_all(open(p, encoding="utf-8")) if d]
+          if not docs:
+              sys.exit("k8s/**/*.yaml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          configmaps = {d["metadata"]["name"]: set((d.get("data") or {}).keys())
+                        for d in docs if d.get("kind") == "ConfigMap"}
+
+          bad, checked = [], 0
+          for d in docs:
+              spec = d.get("spec") or {}
+              pod = (spec.get("template") or {}).get("spec") or spec
+              for c in (pod.get("containers") or []) + (pod.get("initContainers") or []):
+                  for env in c.get("env") or []:
+                      ref = (env.get("valueFrom") or {}).get("configMapKeyRef")
+                      if not ref:
+                          continue
+                      checked += 1
+                      name, key = ref.get("name"), ref.get("key")
+                      ok = key in configmaps.get(name, ())
+                      owner = d["metadata"]["name"]
+                      print(f"  [{'OK ' if ok else 'FAIL'}] {owner}: {env['name']} <- {name}/{key}")
+                      if not ok:
+                          known = ", ".join(sorted(configmaps.get(name, ()))) or "(없음)"
+                          bad.append(f"{owner}: {name}/{key} 가 없다. 있는 키: {known}")
+
+          print(f"\n매니페스트 {len(docs)}건 / ConfigMap {len(configmaps)}개 / 키 참조 {checked}건")
+          if bad:
+              sys.exit("\n참조 오류:\n  - " + "\n  - ".join(bad))
+          PY
+
+      # --- [2] API 계약 (contracts/README.md §검증, "아직 하지 않은 것" 해소) ---
+      # 계약이 파싱조차 안 되는 상태로 커밋된 전례가 있다 — flow mapping `{ }` 안의 `?` 가
+      # YAML 복합 키 지시자로 잡혔고, 사람이 읽어서는 못 잡았다. 파싱 2줄이 그걸 잡는다.
+      #
+      # 파일이 0건이면 통과해 버리므로 건수도 함께 확인한다. 못 깨지는 검사는 검사가 아니다.
+      - name: 계약 YAML 파싱
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          paths = sorted(glob.glob("backend/contracts/*.yaml"))
+          if not paths:
+              sys.exit("backend/contracts/*.yaml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          for p in paths:
+              yaml.safe_load(open(p, encoding="utf-8"))
+              print(f"  OK  {p}")
+
+          print(f"\n계약 {len(paths)}건 파싱 통과")
+          PY
+
   build:
     name: Build & Test
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 spring:
   datasource:
-    # 클러스터 A. catalog_svc 계정은 catalog_db 스키마에만 권한이 있다.
+    # catalog_svc 계정은 catalog_db 스키마에만 권한이 있다.
     # 다른 서비스 테이블에 조인을 걸면 여기서 런타임 권한 에러가 난다 — 의도된 설계다.
     url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=catalog_db
     username: catalog_svc

@@ -107,9 +107,8 @@ jobs:
       - name: Render & apply base manifests
         env:
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          RDS_ENDPOINT: ${{ vars.RDS_ENDPOINT }}
-          RDS_READER_ENDPOINT: ${{ vars.RDS_READER_ENDPOINT }}
-          AI_RDS_ENDPOINT: ${{ vars.AI_RDS_ENDPOINT }}
+          AURORA_ENDPOINT: ${{ vars.AURORA_ENDPOINT }}
+          AURORA_READER_ENDPOINT: ${{ vars.AURORA_READER_ENDPOINT }}
           API_HOST: ${{ vars.API_HOST }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
           VPC_CIDR: ${{ vars.VPC_CIDR }}
@@ -125,7 +124,7 @@ jobs:
           AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          for v in RDS_ENDPOINT RDS_READER_ENDPOINT AI_RDS_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR \
+          for v in AURORA_ENDPOINT AURORA_READER_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
             if [ -z "${!v}" ]; then
@@ -134,7 +133,7 @@ jobs:
             fi
           done
 
-          VARS='$SPRING_PROFILE $RDS_ENDPOINT $RDS_READER_ENDPOINT $AI_RDS_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$SPRING_PROFILE $AURORA_ENDPOINT $AURORA_READER_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -236,11 +235,18 @@ jobs:
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
           DB_NAME: ${{ vars.DB_NAME }}
           AI_DB_NAME: ${{ vars.AI_DB_NAME }}
+          AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
           REDIS_HOST: ${{ vars.REDIS_HOST }}
           AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
         run: |
           set -euo pipefail
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID'
+          # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
+          if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_VECTOR_BUCKET" ]; then
+            echo "::error::필수 값 AI_VECTOR_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

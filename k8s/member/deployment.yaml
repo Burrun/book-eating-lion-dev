@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-deployment
+  namespace: lion-app
+  labels:
+    app: member-service
+    tier: backend
+spec:
+  selector:
+    matchLabels:
+      app: member-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: member-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - member-service
+                topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: member-service
+          image: "${ECR_REGISTRY}/${ECR_MEMBER_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: member-config
+            - secretRef:
+                name: member-secret
+
+          # 경량 서비스다. 인증은 BCrypt 해시와 JWT 검증이 전부라
+          # 큰 자원이 필요 없다 — RAG 를 여기 두지 않은 이유이기도 하다.
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "500m"
+              memory: "768Mi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            # 무거운 초기화가 없으므로 상한을 짧게 가져간다(1분).
+            # RAG 가 있었다면 임베딩 로딩 때문에 3분이 필요했을 것이고,
+            # 인증 서비스가 AI 때문에 느리게 뜨는 상황이 됐을 것이다.
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30
