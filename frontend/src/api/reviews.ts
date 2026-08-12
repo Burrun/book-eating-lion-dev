@@ -8,7 +8,7 @@ import type { Paged } from '../types/common.ts'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-// GET /api/books/{bookId}/reviews — 리뷰 목록
+// GET /api/catalog/books/{bookId}/reviews — 리뷰 목록
 export async function getReviews(
   bookId: number | string,
   params: { page?: number; size?: number } = {},
@@ -16,17 +16,19 @@ export async function getReviews(
   const page = USE_MOCK
     ? await mockDelay(mockGetReviews(bookId, params.page, params.size))
     : await unwrap(
-        apiClient.get<ApiResponse<Page<ReviewResponse>>>(`/books/${bookId}/reviews`, { params }),
+        apiClient.get<ApiResponse<Page<ReviewResponse>>>(`/catalog/books/${bookId}/reviews`, { params }),
       )
   return toPaged(page, toReview)
 }
 
-// POST /api/books/{bookId}/reviews — 리뷰 작성 (X-Member-Id 필요)
+// POST /api/catalog/books/{bookId}/reviews — 리뷰 작성 (X-Member-Id 필요)
 export async function createReview(bookId: number | string, body: ReviewRequest): Promise<Review> {
-  return toReview(await unwrap(apiClient.post<ApiResponse<ReviewResponse>>(`/books/${bookId}/reviews`, body)))
+  return toReview(
+    await unwrap(apiClient.post<ApiResponse<ReviewResponse>>(`/catalog/books/${bookId}/reviews`, body)),
+  )
 }
 
-// DELETE /api/reviews/{reviewId} — 리뷰 삭제 (작성자 본인만, X-Member-Id 필요)
+// DELETE /api/catalog/reviews/{reviewId} — 리뷰 삭제 (작성자 본인만, X-Member-Id 필요)
 export async function deleteReview(reviewId: number | string): Promise<void> {
-  await unwrap(apiClient.delete<ApiResponse<void>>(`/reviews/${reviewId}`))
+  await unwrap(apiClient.delete<ApiResponse<void>>(`/catalog/reviews/${reviewId}`))
 }

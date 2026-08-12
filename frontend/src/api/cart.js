@@ -50,7 +50,7 @@ async function fetchBookSummary(bookId) {
       }
     );
   }
-  const { data } = await apiClient.get(`/books/${bookId}`);
+  const { data } = await apiClient.get(`/catalog/books/${bookId}`);
   const book = data.data;
   return {
     bookId: book.id,
