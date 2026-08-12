@@ -44,9 +44,9 @@ public class Delivery extends BaseEntity {
         this.deliveryStatus = deliveryStatus != null ? deliveryStatus : DeliveryStatus.PENDING;
     }
 
-    /** PENDING → SHIPPED → IN_TRANSIT → DELIVERED 순서로만 전이한다 — enum 선언 순서가 곧 진행 순서다. */
+    /** PENDING → SHIPPED → IN_TRANSIT → DELIVERED 순서로 한 단계씩만 전이한다 — 건너뛰기/역행 모두 금지. */
     public void updateStatus(DeliveryStatus newStatus) {
-        if (newStatus.ordinal() <= this.deliveryStatus.ordinal()) {
+        if (this.deliveryStatus.next() != newStatus) {
             throw new InvalidDeliveryStatusTransitionException(this.orderId, this.deliveryStatus, newStatus);
         }
         this.deliveryStatus = newStatus;

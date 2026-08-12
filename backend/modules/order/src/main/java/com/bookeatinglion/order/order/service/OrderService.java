@@ -202,8 +202,16 @@ public class OrderService {
         });
     }
 
-    /** 결제가 최종 확정되는 시점(카드 1단계 완료 / 카카오 approve)에 재고차감과 같은 자리에서 배송을 만든다. */
+    /**
+     * 결제가 최종 확정되는 시점(카드 1단계 완료 / 카카오 approve)에 재고차감과 같은 자리에서 배송을 만든다.
+     * find-or-create — 재시도로 이 지점이 두 번 불리는 경우, 이미 있으면 새로 만들지 않는다. orderId 에는
+     * DB unique 제약도 걸려 있어(Delivery 참고) 이 조회와 저장 사이의 아주 좁은 동시성 창을 뚫고 들어와도
+     * 중복 행 자체는 만들어지지 않는다 — 다만 그 경우엔 이 메서드가 처리하지 않은 제약 위반 예외를 던진다.
+     */
     private void createDelivery(Long orderId) {
+        if (deliveryRepository.findByOrderId(orderId).isPresent()) {
+            return;
+        }
         deliveryRepository.save(Delivery.builder().orderId(orderId).build());
     }
 

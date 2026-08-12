@@ -515,6 +515,25 @@ class OrderServiceTest {
         assertThat(captor.getValue().getDeliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
     }
 
+    @Test
+    void 배송이_이미_생성돼_있으면_승인_재시도에도_중복_생성하지_않는다() {
+        setUp();
+        Order order = pendingKakaoOrder(7000, null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        Payment payment = readyPayment(order, 7000);
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
+        when(deliveryRepository.findByOrderId(1L))
+                .thenReturn(Optional.of(Delivery.builder().orderId(1L).build()));
+
+        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+
+        verify(deliveryRepository, never()).save(any());
+    }
+
     // ---------------------------------------------------------------- getOrders
 
     @Test

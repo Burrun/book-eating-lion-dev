@@ -52,4 +52,21 @@ class DeliveryTest {
         assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.PENDING))
                 .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
     }
+
+    @Test
+    void 중간_단계를_건너뛸_수_없다() {
+        Delivery delivery = Delivery.builder().orderId(1L).build(); // PENDING
+
+        assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.DELIVERED))
+                .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
+    }
+
+    @Test
+    void DELIVERED는_종단_상태라_더이상_전이할_수_없다() {
+        Delivery delivery =
+                Delivery.builder().orderId(1L).deliveryStatus(DeliveryStatus.DELIVERED).build();
+
+        assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.DELIVERED))
+                .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
+    }
 }
