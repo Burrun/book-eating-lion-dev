@@ -1,6 +1,7 @@
 package com.bookeatinglion.order.delivery.service;
 
 import com.bookeatinglion.order.delivery.domain.Delivery;
+import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.dto.DeliveryResponse;
 import com.bookeatinglion.order.delivery.exception.DeliveryNotFoundException;
 import com.bookeatinglion.order.delivery.exception.UnauthorizedDeliveryAccessException;
@@ -36,6 +37,21 @@ public class DeliveryService {
 
         Delivery delivery =
                 deliveryRepository.findByOrderId(orderId).orElseThrow(() -> new DeliveryNotFoundException(orderId));
+
+        return DeliveryResponse.from(delivery);
+    }
+
+    @Transactional
+    public DeliveryResponse updateDeliveryStatus(String memberId, Long orderId, DeliveryStatus newStatus) {
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new DeliveryNotFoundException(orderId));
+
+        if (!order.getMemberId().equals(memberId)) {
+            throw new UnauthorizedDeliveryAccessException(orderId);
+        }
+
+        Delivery delivery =
+                deliveryRepository.findByOrderId(orderId).orElseThrow(() -> new DeliveryNotFoundException(orderId));
+        delivery.updateStatus(newStatus);
 
         return DeliveryResponse.from(delivery);
     }

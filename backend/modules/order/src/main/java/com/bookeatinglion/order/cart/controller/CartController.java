@@ -6,6 +6,7 @@ import com.bookeatinglion.order.cart.dto.AddCartItemRequest;
 import com.bookeatinglion.order.cart.dto.CartItemView;
 import com.bookeatinglion.order.cart.dto.CartResponse;
 import com.bookeatinglion.order.cart.dto.ChangeCartItemQuantityRequest;
+import com.bookeatinglion.order.cart.dto.RemoveSelectedCartItemsRequest;
 import com.bookeatinglion.order.cart.service.CartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,21 @@ public class CartController {
     public ResponseEntity<Void> removeItem(@PathVariable Long cartItemId) {
         String memberId = SecurityUtils.currentMemberSub();
         cartService.removeItem(memberId, cartItemId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 정적 경로("selected")가 {cartItemId} 패턴보다 우선 매칭되므로 순서와 무관하게 안전하다. */
+    @DeleteMapping("/selected")
+    public ResponseEntity<Void> removeSelectedItems(@Valid @RequestBody RemoveSelectedCartItemsRequest request) {
+        String memberId = SecurityUtils.currentMemberSub();
+        cartService.removeSelectedItems(memberId, request.cartItemIds());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/clear")
+    public ResponseEntity<Void> clearCart() {
+        String memberId = SecurityUtils.currentMemberSub();
+        cartService.clearCart(memberId);
         return ResponseEntity.noContent().build();
     }
 }

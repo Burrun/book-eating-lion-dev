@@ -58,4 +58,37 @@ class CartItemRepositoryTest {
         assertThatThrownBy(() -> cartItemRepository.saveAndFlush(new CartItem(MEMBER_ID, 100L, 1)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void 선택한_항목만_삭제하고_나머지는_남긴다() {
+        CartItem item1 = cartItemRepository.save(new CartItem(MEMBER_ID, 100L, 1));
+        CartItem item2 = cartItemRepository.save(new CartItem(MEMBER_ID, 200L, 1));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 300L, 1));
+
+        cartItemRepository.deleteByMemberIdAndIdIn(MEMBER_ID, List.of(item1.getId(), item2.getId()));
+
+        List<CartItem> remaining = cartItemRepository.findByMemberId(MEMBER_ID);
+        assertThat(remaining).hasSize(1).extracting(CartItem::getBookId).containsExactly(300L);
+    }
+
+    @Test
+    void 선택_삭제는_다른_회원의_항목을_건드리지_않는다() {
+        CartItem other = cartItemRepository.save(new CartItem(OTHER_MEMBER_ID, 100L, 1));
+
+        cartItemRepository.deleteByMemberIdAndIdIn(MEMBER_ID, List.of(other.getId()));
+
+        assertThat(cartItemRepository.findById(other.getId())).isPresent();
+    }
+
+    @Test
+    void 회원의_장바구니를_전체_비운다() {
+        cartItemRepository.save(new CartItem(MEMBER_ID, 100L, 1));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 200L, 1));
+        cartItemRepository.save(new CartItem(OTHER_MEMBER_ID, 100L, 1));
+
+        cartItemRepository.deleteByMemberId(MEMBER_ID);
+
+        assertThat(cartItemRepository.findByMemberId(MEMBER_ID)).isEmpty();
+        assertThat(cartItemRepository.findByMemberId(OTHER_MEMBER_ID)).hasSize(1);
+    }
 }

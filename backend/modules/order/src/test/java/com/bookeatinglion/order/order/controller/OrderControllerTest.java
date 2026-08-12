@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.order.domain.OrderStatus;
 import com.bookeatinglion.order.order.dto.OrderResponse;
+import com.bookeatinglion.order.order.dto.OrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.Recipient;
 import com.bookeatinglion.order.order.exception.OrderCannotBeCancelledException;
 import com.bookeatinglion.order.order.exception.OrderCannotBeRefundedException;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
@@ -136,6 +139,20 @@ class OrderControllerTest {
                                 + "\"paymentMethod\":\"KAKAO_PAY\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 주문_목록_조회는_200과_페이징된_데이터를_반환한다() throws Exception {
+        OrderSummaryResponse summary = new OrderSummaryResponse(1L, OrderStatus.PAID, 20000);
+        when(orderService.getOrders(eq(MEMBER_ID), any()))
+                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/orders").with(authenticated()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderStatus").value("PAID"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.bookeatinglion.order.delivery.domain.Delivery;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.dto.DeliveryResponse;
 import com.bookeatinglion.order.delivery.exception.DeliveryNotFoundException;
+import com.bookeatinglion.order.delivery.exception.InvalidDeliveryStatusTransitionException;
 import com.bookeatinglion.order.delivery.exception.UnauthorizedDeliveryAccessException;
 import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
 import com.bookeatinglion.order.order.domain.Order;
@@ -96,5 +97,45 @@ class DeliveryServiceTest {
 
         assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(MEMBER_ID, 100L))
                 .isInstanceOf(DeliveryNotFoundException.class);
+    }
+
+    @Test
+    void 본인_주문의_배송_상태를_변경한다() {
+        Order order = orderOwnedBy(MEMBER_ID);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        Delivery delivery = Delivery.builder().orderId(100L).build();
+        when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.of(delivery));
+
+        DeliveryResponse response = deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.SHIPPED);
+
+        assertThat(response.deliveryStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+    }
+
+    @Test
+    void 타인의_주문은_배송_상태를_변경할_수_없다() {
+        Order order = orderOwnedBy(MEMBER_ID);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(
+                        () -> deliveryService.updateDeliveryStatus(OTHER_MEMBER_ID, 100L, DeliveryStatus.SHIPPED))
+                .isInstanceOf(UnauthorizedDeliveryAccessException.class);
+    }
+
+    @Test
+    void 존재하지_않는_주문의_배송_상태는_변경할_수_없다() {
+        when(orderRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> deliveryService.updateDeliveryStatus(MEMBER_ID, 999L, DeliveryStatus.SHIPPED))
+                .isInstanceOf(DeliveryNotFoundException.class);
+    }
+
+    @Test
+    void 잘못된_상태_전이는_예외를_던진다() {
+        Order order = orderOwnedBy(MEMBER_ID);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.of(delivery(100L))); // IN_TRANSIT
+
+        assertThatThrownBy(() -> deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.PENDING))
+                .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
     }
 }

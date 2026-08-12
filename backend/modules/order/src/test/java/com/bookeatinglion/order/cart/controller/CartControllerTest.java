@@ -147,4 +147,31 @@ class CartControllerTest {
         mockMvc.perform(delete("/api/cart/1").with(authenticated()).with(csrf()))
                 .andExpect(status().isNoContent());
     }
+
+    @Test
+    void 선택_삭제는_204를_반환한다() throws Exception {
+        mockMvc.perform(delete("/api/cart/selected")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cartItemIds\":[1,2]}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void cartItemIds가_비어있으면_선택_삭제는_400을_반환한다() throws Exception {
+        mockMvc.perform(delete("/api/cart/selected")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cartItemIds\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 전체_비우기는_204를_반환한다() throws Exception {
+        mockMvc.perform(delete("/api/cart/clear").with(authenticated()).with(csrf()))
+                .andExpect(status().isNoContent());
+    }
 }

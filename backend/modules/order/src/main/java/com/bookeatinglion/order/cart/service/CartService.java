@@ -8,6 +8,7 @@ import com.bookeatinglion.order.cart.exception.UnauthorizedCartAccessException;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
 import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookView;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +62,17 @@ public class CartService {
     public void removeItem(String memberId, Long cartItemId) {
         CartItem cartItem = getOwnedCartItem(memberId, cartItemId);
         cartItemRepository.delete(cartItem);
+    }
+
+    /** 소유권 검증은 쿼리 조건(memberId + id in)이 대신한다 — 남의 cartItemId 가 섞여 있어도 그 항목만 조용히 무시된다. */
+    @Transactional
+    public void removeSelectedItems(String memberId, List<Long> cartItemIds) {
+        cartItemRepository.deleteByMemberIdAndIdIn(memberId, cartItemIds);
+    }
+
+    @Transactional
+    public void clearCart(String memberId) {
+        cartItemRepository.deleteByMemberId(memberId);
     }
 
     private CartItem getOwnedCartItem(String memberId, Long cartItemId) {
