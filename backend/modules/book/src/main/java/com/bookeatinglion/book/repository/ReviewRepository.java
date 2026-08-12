@@ -11,8 +11,12 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Page<Review> findByBook_BookId(Long bookId, Pageable pageable);
 
-    @Query("select coalesce(avg(r.rating), 0.0) from Review r where r.book.bookId = :bookId")
-    Double findAverageRatingByBookId(@Param("bookId") Long bookId);
-
-    long countByBook_BookId(Long bookId);
+    @Query(
+            """
+            select coalesce(avg(r.rating), 0.0) as averageRating,
+                   count(r) as reviewCount
+            from Review r
+            where r.book.bookId = :bookId
+            """)
+    ReviewStatistics findStatisticsByBookId(@Param("bookId") Long bookId);
 }

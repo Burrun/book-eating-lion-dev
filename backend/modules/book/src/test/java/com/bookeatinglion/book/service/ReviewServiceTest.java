@@ -1,5 +1,13 @@
 package com.bookeatinglion.book.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
 import com.bookeatinglion.book.domain.ReviewPermission;
@@ -14,6 +22,11 @@ import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
 import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import com.bookeatinglion.book.repository.ReviewRepository;
+import com.bookeatinglion.book.repository.ReviewStatistics;
+import java.lang.reflect.Field;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,19 +36,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-
-import java.lang.reflect.Field;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewServiceTest {
@@ -62,19 +62,44 @@ class ReviewServiceTest {
 
     private Book book(Long id) throws Exception {
         Book book = Book.builder()
-                .title("책").author("저자").publisher("출판사").isbn("978110000" + id)
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.now()).salesCount(0)
+                .title("책")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("978110000" + id)
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.now())
+                .salesCount(0)
                 .build();
         setField(book, Book.class, "bookId", id);
         return book;
     }
 
     private Review review(Long id, Book book, String memberId) throws Exception {
-        Review review = Review.builder().book(book).memberId(memberId).orderItemId(500L)
-                .rating(5).content("내용").build();
+        Review review = Review.builder()
+                .book(book)
+                .memberId(memberId)
+                .orderItemId(500L)
+                .rating(5)
+                .content("내용")
+                .build();
         setField(review, Review.class, "reviewId", id);
         return review;
+    }
+
+    private ReviewStatistics statistics(double averageRating, long reviewCount) {
+        return new ReviewStatistics() {
+            @Override
+            public Double getAverageRating() {
+                return averageRating;
+            }
+
+            @Override
+            public Long getReviewCount() {
+                return reviewCount;
+            }
+        };
     }
 
     private void setField(Object target, Class<?> type, String fieldName, Long value) throws Exception {
@@ -125,8 +150,7 @@ class ReviewServiceTest {
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
         when(reviewPermissionRepository.findFirstByIdMemberIdAndBookIdAndUsedAtIsNull("member-1", 1L))
                 .thenReturn(Optional.of(permission));
-        when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(5.0);
-        when(reviewRepository.countByBook_BookId(1L)).thenReturn(1L);
+        when(reviewRepository.findStatisticsByBookId(1L)).thenReturn(statistics(5.0, 1L));
         when(reviewRepository.save(any())).thenAnswer(invocation -> {
             Review saved = invocation.getArgument(0);
             setField(saved, Review.class, "reviewId", 100L);
@@ -173,8 +197,7 @@ class ReviewServiceTest {
         permission.markUsed(java.time.LocalDateTime.now());
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
         when(reviewPermissionRepository.findById(any())).thenReturn(Optional.of(permission));
-        when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(0.0);
-        when(reviewRepository.countByBook_BookId(1L)).thenReturn(0L);
+        when(reviewRepository.findStatisticsByBookId(1L)).thenReturn(statistics(0.0, 0L));
 
         reviewService.deleteReview(100L, "member-1");
 
@@ -189,11 +212,9 @@ class ReviewServiceTest {
         Book book = book(1L);
         Review review = review(100L, book, "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
-        when(reviewRepository.findAverageRatingByBookId(1L)).thenReturn(4.0);
-        when(reviewRepository.countByBook_BookId(1L)).thenReturn(1L);
+        when(reviewRepository.findStatisticsByBookId(1L)).thenReturn(statistics(4.0, 1L));
 
-        ReviewResponse result = reviewService.updateReview(
-                100L, "member-1", new ReviewUpdateRequest(4, "수정한 내용"));
+        ReviewResponse result = reviewService.updateReview(100L, "member-1", new ReviewUpdateRequest(4, "수정한 내용"));
 
         assertThat(result.rating()).isEqualTo(4);
         assertThat(result.content()).isEqualTo("수정한 내용");
@@ -206,8 +227,7 @@ class ReviewServiceTest {
         Review review = review(100L, book(1L), "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
 
-        assertThatThrownBy(() -> reviewService.updateReview(
-                100L, "member-2", new ReviewUpdateRequest(4, "수정")))
+        assertThatThrownBy(() -> reviewService.updateReview(100L, "member-2", new ReviewUpdateRequest(4, "수정")))
                 .isInstanceOf(ReviewAccessDeniedException.class);
     }
 
@@ -218,8 +238,7 @@ class ReviewServiceTest {
         Review review = review(100L, book, "member-1");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
 
-        assertThatThrownBy(() -> reviewService.updateReview(
-                100L, "member-1", new ReviewUpdateRequest(4, "수정")))
+        assertThatThrownBy(() -> reviewService.updateReview(100L, "member-1", new ReviewUpdateRequest(4, "수정")))
                 .isInstanceOf(BookNotFoundException.class);
     }
 

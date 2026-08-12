@@ -6,11 +6,10 @@ import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.WishlistRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -22,11 +21,12 @@ public class WishlistService {
 
     @Transactional
     public void addWishlist(Long bookId, String memberId) {
-        Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
-                .orElseThrow(() -> new BookNotFoundException(bookId));
-        if (wishlistRepository.findByMemberIdAndBook_BookId(memberId, bookId).isPresent()) {
+        if (wishlistRepository.existsByMemberIdAndBook_BookIdAndBook_IsDeletedFalse(memberId, bookId)) {
             return;
         }
+        Book book = bookRepository
+                .findByBookIdAndIsDeletedFalse(bookId)
+                .orElseThrow(() -> new BookNotFoundException(bookId));
         wishlistRepository.save(Wishlist.builder().memberId(memberId).book(book).build());
     }
 

@@ -14,9 +14,10 @@ import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
 import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import com.bookeatinglion.book.repository.ReviewRepository;
-import java.time.LocalDateTime;
+import com.bookeatinglion.book.repository.ReviewStatistics;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,7 +57,8 @@ public class ReviewService {
      */
     @Transactional
     public ReviewResponse createReview(Long bookId, String memberId, ReviewRequest request) {
-        Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
+        Book book = bookRepository
+                .findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
 
         ReviewPermission permission = reviewPermissionRepository
@@ -80,8 +82,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewResponse updateReview(Long reviewId, String memberId, ReviewUpdateRequest request) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewNotFoundException(reviewId));
+        Review review = reviewRepository.findById(reviewId).orElseThrow(() -> new ReviewNotFoundException(reviewId));
         if (!review.getMemberId().equals(memberId)) {
             throw new ReviewAccessDeniedException(reviewId, memberId);
         }
@@ -98,15 +99,14 @@ public class ReviewService {
 
     @Transactional
     public void deleteReview(Long reviewId, String memberId) {
-        Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ReviewNotFoundException(reviewId));
+        Review review = reviewRepository.findById(reviewId).orElseThrow(() -> new ReviewNotFoundException(reviewId));
         if (!review.getMemberId().equals(memberId)) {
             throw new ReviewAccessDeniedException(reviewId, memberId);
         }
 
         if (review.getOrderItemId() != null) {
-            reviewPermissionRepository.findById(
-                            new ReviewPermissionId(memberId, review.getOrderItemId()))
+            reviewPermissionRepository
+                    .findById(new ReviewPermissionId(memberId, review.getOrderItemId()))
                     .ifPresent(ReviewPermission::restore);
         }
 
@@ -117,10 +117,9 @@ public class ReviewService {
     }
 
     private void updateReviewStatistics(Book book) {
-        Double average = reviewRepository.findAverageRatingByBookId(book.getBookId());
-        long count = reviewRepository.countByBook_BookId(book.getBookId());
-        BigDecimal averageRating = BigDecimal.valueOf(average == null ? 0.0 : average)
-                .setScale(2, RoundingMode.HALF_UP);
-        book.updateReviewStatistics(averageRating, Math.toIntExact(count));
+        ReviewStatistics statistics = reviewRepository.findStatisticsByBookId(book.getBookId());
+        BigDecimal averageRating =
+                BigDecimal.valueOf(statistics.getAverageRating()).setScale(2, RoundingMode.HALF_UP);
+        book.updateReviewStatistics(averageRating, Math.toIntExact(statistics.getReviewCount()));
     }
 }
