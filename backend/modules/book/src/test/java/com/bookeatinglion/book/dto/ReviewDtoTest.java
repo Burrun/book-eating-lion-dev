@@ -21,14 +21,14 @@ class ReviewDtoTest {
                 .build();
         setField(book, Book.class, "bookId", 10L);
 
-        Review review = Review.builder().book(book).memberId(1L).rating(4).content("괜찮아요").build();
+        Review review = Review.builder().book(book).memberId("member-1").rating(4).content("괜찮아요").build();
         setField(review, Review.class, "reviewId", 100L);
 
         ReviewResponse response = ReviewResponse.from(review);
 
         assertThat(response.id()).isEqualTo(100L);
         assertThat(response.bookId()).isEqualTo(10L);
-        assertThat(response.memberId()).isEqualTo(1L);
+        assertThat(response.memberId()).isEqualTo("member-1");
         assertThat(response.rating()).isEqualTo(4);
         assertThat(response.content()).isEqualTo("괜찮아요");
     }

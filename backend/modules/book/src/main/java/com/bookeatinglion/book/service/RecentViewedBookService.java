@@ -24,7 +24,7 @@ public class RecentViewedBookService {
     private final BookRepository bookRepository;
 
     @Transactional
-    public void recordView(Long bookId, Long memberId) {
+    public void recordView(Long bookId, String memberId) {
         recentViewedBookRepository.findByMemberIdAndBook_BookId(memberId, bookId).ifPresentOrElse(
                 existing -> existing.touch(LocalDateTime.now()), // 영속 상태 엔티티라 dirty checking으로 자동 UPDATE, save() 불필요
                 () -> {
@@ -38,7 +38,7 @@ public class RecentViewedBookService {
                 });
     }
 
-    public List<BookSummaryResponse> getMyRecentBooks(Long memberId, int limit) {
+    public List<BookSummaryResponse> getMyRecentBooks(String memberId, int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         return recentViewedBookRepository.findByMemberIdOrderByViewedAtDesc(memberId, pageable).stream()
                 .map(recentViewedBook -> BookSummaryResponse.from(recentViewedBook.getBook()))

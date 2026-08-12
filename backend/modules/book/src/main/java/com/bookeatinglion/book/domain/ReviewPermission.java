@@ -40,7 +40,7 @@ public class ReviewPermission {
     /** 1건당 1리뷰 강제. 소진되면 채워진다. */
     private LocalDateTime usedAt;
 
-    public ReviewPermission(Long memberId, Long orderItemId, Long bookId, String nickname, LocalDateTime grantedAt) {
+    public ReviewPermission(String memberId, Long orderItemId, Long bookId, String nickname, LocalDateTime grantedAt) {
         this.id = new ReviewPermissionId(memberId, orderItemId);
         this.bookId = bookId;
         this.nickname = nickname;
@@ -53,5 +53,9 @@ public class ReviewPermission {
 
     public void markUsed(LocalDateTime now) {
         this.usedAt = now;
+    }
+
+    public void restore() {
+        this.usedAt = null;
     }
 }

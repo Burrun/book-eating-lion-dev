@@ -28,13 +28,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         // 도서 조회는 비로그인도 가능하다.
-                        .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/books/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/categories/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/wishlist/**", "/api/recent-books/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/books/*/reviews").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/reviews/**").authenticated()
+                        .requestMatchers("/api/catalog/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/catalog/reviews/**").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/catalog/reviews/**").authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                         jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));

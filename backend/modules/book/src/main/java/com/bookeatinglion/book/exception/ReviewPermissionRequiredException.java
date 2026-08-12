@@ -11,7 +11,7 @@ public class ReviewPermissionRequiredException extends RuntimeException {
 
     private final BookErrorCode errorCode = BookErrorCode.REVIEW_PERMISSION_REQUIRED;
 
-    public ReviewPermissionRequiredException(Long memberId, Long bookId) {
+    public ReviewPermissionRequiredException(String memberId, Long bookId) {
         super("구매 확정 이력이 없어 리뷰를 작성할 수 없습니다: memberId=" + memberId + ", bookId=" + bookId);
     }
 

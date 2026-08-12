@@ -3,17 +3,17 @@ package com.bookeatinglion.book.controller;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 /**
- * 경로가 /api/members/me/* 에서 /api/wishlist/me · /api/recent-books/me 로 바뀌었다.
+ * 경로가 /api/members/me/* 에서 /api/catalog/wishlist/me · /api/catalog/recent-books/me 로 바뀌었다.
  *
  * 이유는 Ingress 경로 라우팅이다(§7.5). /api/members/** 는 member-service 로 가는데,
  * 찜 목록과 최근 본 상품은 catalog_db 소유 데이터라 catalog-service 가 응답해야 한다.
@@ -28,17 +28,16 @@ public class MemberBookQueryController {
 
     private final WishlistService wishlistService;
     private final RecentViewedBookService recentViewedBookService;
+    private final CatalogMemberIdentity memberIdentity;
 
-    @GetMapping("/api/wishlist/me")
-    public ApiResponse<List<BookSummaryResponse>> getMyWishlist(
-            @RequestHeader("X-Member-Id") Long memberId) {
-        return ApiResponse.success(wishlistService.getMyWishlist(memberId));
+    @GetMapping("/api/catalog/wishlist/me")
+    public ApiResponse<List<BookSummaryResponse>> getMyWishlist() {
+        return ApiResponse.success(wishlistService.getMyWishlist(memberIdentity.requiredMemberId()));
     }
 
-    @GetMapping("/api/recent-books/me")
+    @GetMapping("/api/catalog/recent-books/me")
     public ApiResponse<List<BookSummaryResponse>> getMyRecentBooks(
-            @RequestHeader("X-Member-Id") Long memberId,
             @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberId, limit));
+        return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberIdentity.requiredMemberId(), limit));
     }
 }

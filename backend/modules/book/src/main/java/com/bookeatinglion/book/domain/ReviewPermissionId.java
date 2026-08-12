@@ -14,13 +14,13 @@ import lombok.NoArgsConstructor;
 public class ReviewPermissionId implements Serializable {
 
     @Column(name = "member_id")
-    private Long memberId;
+    private String memberId;
 
     /** order_db.order_items 의 값. FK 가 아니라 출처 추적용이다. */
     @Column(name = "order_item_id")
     private Long orderItemId;
 
-    public ReviewPermissionId(Long memberId, Long orderItemId) {
+    public ReviewPermissionId(String memberId, Long orderItemId) {
         this.memberId = memberId;
         this.orderItemId = orderItemId;
     }
