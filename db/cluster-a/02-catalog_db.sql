@@ -1,7 +1,7 @@
 -- =============================================================================
 -- catalog_db — catalog-service 전용
 --   categories, books, book_webtoons, webtoon_cuts, recent_books, wishlists,
---   reviews, book_swipes, review_permissions
+--   reviews, book_swipes, review_permissions, product_inquiries, faqs
 --
 -- 이 스키마에서 사라진 것 2가지:
 --   ① books.stock       → order_db.inventory 로 이관 (Phase 0-1, 판단 ③)
@@ -163,6 +163,38 @@ CREATE TABLE book_swipes (
     CONSTRAINT chk_book_swipes_action CHECK (swipe_action IN ('LIKE', 'SKIP'))
 );
 
+CREATE TABLE product_inquiries (
+    inquiry_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    book_id      BIGINT NOT NULL,
+    member_id    VARCHAR(255) NOT NULL,  -- Cognito sub. FK 없음: member_db 경계 밖
+    title        VARCHAR(200) NOT NULL,
+    content      TEXT NOT NULL,
+    is_private   BOOLEAN NOT NULL DEFAULT FALSE,
+    status       VARCHAR(20) NOT NULL DEFAULT 'WAITING',
+    answer       TEXT NULL,
+    answered_by  VARCHAR(255) NULL,      -- 관리자 Cognito sub
+    answered_at  TIMESTAMP NULL,
+    is_deleted   BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at   TIMESTAMP NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_product_inquiries_book FOREIGN KEY (book_id)
+        REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT chk_product_inquiries_status CHECK (status IN ('WAITING', 'ANSWERED'))
+);
+
+CREATE TABLE faqs (
+    faq_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    category    VARCHAR(50) NOT NULL,
+    question    VARCHAR(500) NOT NULL,
+    answer      TEXT NOT NULL,
+    sort_order  INT NOT NULL DEFAULT 0,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_faqs_sort_order CHECK (sort_order >= 0)
+);
+
 CREATE INDEX idx_books_sales_count        ON books (sales_count DESC);
 CREATE INDEX idx_books_published_date     ON books (published_date DESC);
 CREATE INDEX idx_books_rating_avg         ON books (rating_avg DESC, review_count DESC);
@@ -170,3 +202,9 @@ CREATE INDEX idx_recent_books_member_viewed ON recent_books (member_id, viewed_a
 CREATE INDEX idx_reviews_book_created     ON reviews (book_id, created_at DESC);
 CREATE INDEX idx_book_swipes_member_created ON book_swipes (member_id, created_at DESC);
 CREATE INDEX idx_book_webtoons_book_active ON book_webtoons (book_id, is_active, generation_status);
+CREATE INDEX idx_product_inquiries_book_created
+    ON product_inquiries (book_id, is_deleted, created_at DESC);
+CREATE INDEX idx_product_inquiries_admin
+    ON product_inquiries (status, created_at DESC);
+CREATE INDEX idx_faqs_active_sort
+    ON faqs (is_active, category, sort_order, faq_id);

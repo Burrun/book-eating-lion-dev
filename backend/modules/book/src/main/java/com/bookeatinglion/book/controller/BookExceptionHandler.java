@@ -7,6 +7,9 @@ import com.bookeatinglion.book.exception.CategoryNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
+import com.bookeatinglion.book.exception.InquiryNotFoundException;
+import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
+import com.bookeatinglion.book.exception.FaqNotFoundException;
 import com.bookeatinglion.common.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -51,6 +54,24 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleReviewPermissionRequired(ReviewPermissionRequiredException e) {
         return ResponseEntity.status(e.getErrorCode().getStatus())
                 .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(InquiryNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInquiryNotFound(InquiryNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.INQUIRY_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.INQUIRY_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(InquiryAccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInquiryAccessDenied(InquiryAccessDeniedException e) {
+        return ResponseEntity.status(BookErrorCode.INQUIRY_ACCESS_DENIED.getStatus())
+                .body(ApiResponse.error(BookErrorCode.INQUIRY_ACCESS_DENIED.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(FaqNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFaqNotFound(FaqNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.FAQ_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.FAQ_NOT_FOUND.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
