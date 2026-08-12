@@ -21,8 +21,7 @@ public class AdminReviewController {
 
     @GetMapping("/{bookId}/reviews")
     public ApiResponse<Page<ReviewResponse>> getReviews(
-            @PathVariable Long bookId,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PathVariable Long bookId, @PageableDefault(size = 20) Pageable pageable) {
         return ApiResponse.success(reviewService.getAdminReviews(bookId, pageable));
     }
 }

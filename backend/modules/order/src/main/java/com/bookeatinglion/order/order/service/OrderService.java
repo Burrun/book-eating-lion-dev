@@ -69,8 +69,8 @@ public class OrderService {
     private final PaymentService paymentService;
 
     @Transactional
-    public OrderResponse createOrder(Long memberId, CreateOrderRequest request) {
-        if (request.paymentMethod() == PaymentMethod.CARD && request.cardId() == null) {
+    public OrderResponse createOrder(String memberId, CreateOrderRequest request) {
+        if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD && request.cardId() == null) {
             throw new InvalidOrderRequestException("paymentMethod=CARD 이면 cardId 가 필수입니다.");
         }
 
@@ -118,7 +118,7 @@ public class OrderService {
                     .toList();
             orderItemRepository.saveAll(items);
 
-            if (request.paymentMethod() == PaymentMethod.CARD) {
+            if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD) {
                 Payment payment = paymentService.approveCard(order, request.cardId(), totalAmount);
                 order.markPaid();
                 if (memberCoupon != null) {
@@ -144,7 +144,7 @@ public class OrderService {
      * 사용자 결제는 실제로 이뤄지지 않는다.
      */
     @Transactional
-    public OrderResponse approveKakaoPay(Long memberId, Long orderId, String pgToken) {
+    public OrderResponse approveKakaoPay(String memberId, Long orderId, String pgToken) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -194,7 +194,7 @@ public class OrderService {
         });
     }
 
-    public OrderResponse getOrder(Long memberId, Long orderId) {
+    public OrderResponse getOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -206,7 +206,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrder(Long memberId, Long orderId) {
+    public OrderResponse cancelOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -221,6 +221,55 @@ public class OrderService {
         // 실패하면 CardRestoreFailedException/KakaoPayApiException 이 여기까지의 변경을 포함해 전부 롤백시킨다.
         paymentService.cancel(payment);
 
+        List<OrderItem> items = restoreStockAndCoupon(orderId);
+
+        return OrderResponse.of(order, items, payment);
+    }
+
+    /**
+     * 배송 완료 후의 반품/교환 신청 접수다. cancel 과 달리 이 시점엔 재고/쿠폰/결제를 건드리지
+     * 않는다 — 실제 환불은 반품 상품 회수 확인 후 refundOrder 로 별도 처리한다.
+     */
+    @Transactional
+    public OrderResponse requestReturn(String memberId, Long orderId, String reason) {
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+        if (!order.isOwnedBy(memberId)) {
+            throw new UnauthorizedOrderAccessException(orderId);
+        }
+        // PAID 가 아니면 여기서 OrderCannotBeReturnedException 을 던진다.
+        order.requestReturn(reason);
+
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+        return OrderResponse.of(order, items, payment);
+    }
+
+    /**
+     * 반품 신청된 주문의 환불 완료 처리다 — 결제 수단별 환불(카드 한도 복구/카카오페이 취소),
+     * 재고 복구, 쿠폰 원복을 cancelOrder 와 동일한 방식으로 수행한다.
+     */
+    @Transactional
+    public OrderResponse refundOrder(String memberId, Long orderId) {
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+        if (!order.isOwnedBy(memberId)) {
+            throw new UnauthorizedOrderAccessException(orderId);
+        }
+        // RETURN_REQUESTED 가 아니면 여기서 OrderCannotBeRefundedException 을 던진다.
+        order.completeRefund();
+
+        Payment payment = paymentRepository
+                .findByOrderId(orderId)
+                .orElseThrow(() -> new IllegalStateException("반품 신청된 주문에 결제 정보가 없습니다: " + orderId));
+        // 실패하면 CardRestoreFailedException/KakaoPayApiException 이 여기까지의 변경을 포함해 전부 롤백시킨다.
+        paymentService.refund(payment);
+
+        List<OrderItem> items = restoreStockAndCoupon(orderId);
+
+        return OrderResponse.of(order, items, payment);
+    }
+
+    /** cancelOrder/refundOrder 가 공유하는 재고 복구 + 쿠폰 사용 원복. */
+    private List<OrderItem> restoreStockAndCoupon(Long orderId) {
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         List<Long> bookIds = items.stream().map(OrderItem::getBookId).distinct().toList();
 
@@ -234,7 +283,7 @@ public class OrderService {
 
         memberCouponRepository.findByUsedOrderId(orderId).ifPresent(MemberCoupon::cancelUse);
 
-        return OrderResponse.of(order, items, payment);
+        return items;
     }
 
     private Map<Long, Inventory> loadInventories(List<Long> bookIds) {
@@ -257,7 +306,7 @@ public class OrderService {
         }
     }
 
-    private MemberCoupon validateAndGetCoupon(Long memberId, Long memberCouponId, int subtotal) {
+    private MemberCoupon validateAndGetCoupon(String memberId, Long memberCouponId, int subtotal) {
         if (memberCouponId == null) {
             return null;
         }

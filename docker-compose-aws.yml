@@ -1,8 +1,8 @@
 # AWS 직접 연동 전용 (로컬 DB 컨테이너 없이 Aurora 에 직접 붙는다)
 #
 # 서비스가 4개로 나뉘면서 접속 정보도 나뉜다:
-#   catalog / order / member → 클러스터 A (스키마와 계정이 각각 다르다)
-#   ai                       → 클러스터 B (엔드포인트 자체가 다르다)
+#   catalog / order / member / ai → 같은 Aurora 클러스터, 스키마와 계정이 각각 다르다
+#   격리를 만드는 건 클러스터가 아니라 계정 권한이다 — ai_svc 는 order_db 를 못 읽는다
 #
 # 계정을 하나로 합치면 스키마 권한 경계가 무너져 MSA 전환의 핵심 장치가 사라진다.
 # 편의를 위해서라도 공용 계정을 쓰지 말 것.
@@ -90,9 +90,8 @@ services:
       - "8084:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      # 클러스터 B — 엔드포인트가 아예 다르다.
-      # auto-pause 중이면 첫 요청에 resume 지연이 있다. 시연 전 워밍업할 것.
-      AI_DB_HOST: ${AI_DB_HOST:-host.docker.internal}
+      # 다른 세 서비스와 같은 엔드포인트다. 계정만 다르다(ai_svc).
+      AI_DB_HOST: ${DB_HOST:-host.docker.internal}
       AI_DB_PORT: ${AI_DB_PORT:-5432}
       AI_DB_NAME: ${AI_DB_NAME}
       AI_DB_USERNAME: ${AI_DB_USERNAME}

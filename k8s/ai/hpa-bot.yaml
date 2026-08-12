@@ -1,0 +1,48 @@
+# ai-bot — 1 → 10
+#
+# 이 워크로드가 "CPU 기반 HPA 로는 뜨지 않는" 대표 사례다:
+#
+#   요청 100건 동시 유입
+#     → 스레드 100개가 전부 외부 LLM API 응답 대기로 블록
+#     → CPU 사용률 5%
+#     → CPU 70% HPA 는 영원히 트리거되지 않음
+#     → Pod 는 그대로, 요청만 큐에 쌓임 → 타임아웃
+#
+# 그래서 CPU 가 아니라 Pod 당 동시 요청 수로 확장한다.
+# Phase 4 의 대조 시연 항목이기도 하다 — "CPU 는 낮은데 Pod 가 확장됨".
+#
+# ⚠️ 아래 Pods 메트릭은 커스텀 메트릭이라 Prometheus Adapter(또는 KEDA)가
+#    설치돼 있어야 동작한다. 없으면 HPA 가 ScalingActive=False 로 뜬다.
+#    미설치 상태로 배포하려면 이 파일 대신 Bulkhead 격리에만 의존할 것.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-bot-hpa
+  namespace: lion-app
+  annotations:
+    lion.io/metric-rationale: >-
+      외부 LLM API 대기라 CPU 가 오르지 않는다. 동시 요청 수로 확장한다.
+      Prometheus Adapter 또는 KEDA 필요.
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-bot-deployment
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          # Actuator/Micrometer 가 노출하는 진행 중 요청 수.
+          name: http_server_requests_active
+        target:
+          type: AverageValue
+          averageValue: "10"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15

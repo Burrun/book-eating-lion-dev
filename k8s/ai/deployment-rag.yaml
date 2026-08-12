@@ -1,0 +1,86 @@
+# ai-rag — 라이언/RAG 워크로드
+#
+# deployment-bot.yaml 과 이미지가 완전히 같다. 다른 것은 자원 정책과 HPA 뿐이다.
+# 자원 격리는 YAML 1개로 얻을 수 있고, 서비스를 쪼개는 건 그보다 10배 비싸다(판단 ④).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-rag-deployment
+  namespace: lion-app
+  labels:
+    app: ai-rag
+    tier: backend
+spec:
+  selector:
+    matchLabels:
+      app: ai-rag
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ai-rag
+        tier: backend
+    spec:
+      containers:
+        - name: ai-service
+          # bot 과 동일한 이미지다. ECR 리포지터리도 하나다.
+          image: "${ECR_REGISTRY}/${ECR_AI_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ai-config
+            - secretRef:
+                name: ai-secret
+
+          # 이 워크로드가 어느 모델 키를 쓰는지만 선언한다. 값 자체는 ai-config 에 있다 —
+          # 모델 교체는 ConfigMap 에서 끝나야 하고, Deployment 는 설정이 아니라 워크로드 명세다.
+          # env 가 envFrom 보다 우선하므로 여기서 AI_LLM_MODEL 이 확정된다.
+          env:
+            - name: AI_LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-config
+                  key: AI_LLM_MODEL_RAG
+
+          # ---------------------------------------------------------------
+          # QoS: Burstable (requests ≪ limits) — order 와 정반대 정책이다.
+          #
+          # 프리미엄 사용자가 소수라 평소엔 노드 자원을 거의 점유하지 않다가
+          # 필요할 때만 burst 한다. 간헐적 고부하 패턴에 정확히 맞는다.
+          # 대가는 노드 경합 시 throttle / 메모리 압박 시 우선 evict 인데,
+          # 사용자가 적어 경합 확률이 낮으므로 수용한다.
+          # ---------------------------------------------------------------
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30

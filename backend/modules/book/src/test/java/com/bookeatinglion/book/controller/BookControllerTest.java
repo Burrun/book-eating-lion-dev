@@ -1,28 +1,5 @@
 package com.bookeatinglion.book.controller;
 
-import com.bookeatinglion.book.BookModuleTestApplication;
-import com.bookeatinglion.book.domain.SaleStatus;
-import com.bookeatinglion.book.dto.BookDetailResponse;
-import com.bookeatinglion.book.dto.BookSummaryResponse;
-import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
-import com.bookeatinglion.book.exception.BookNotFoundException;
-import com.bookeatinglion.book.service.BookService;
-import com.bookeatinglion.book.service.RecentViewedBookService;
-import com.bookeatinglion.book.security.CatalogMemberIdentity;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,6 +10,28 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.bookeatinglion.book.BookModuleTestApplication;
+import com.bookeatinglion.book.domain.SaleStatus;
+import com.bookeatinglion.book.dto.BookDetailResponse;
+import com.bookeatinglion.book.dto.BookSummaryResponse;
+import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
+import com.bookeatinglion.book.exception.BookNotFoundException;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
+import com.bookeatinglion.book.service.BookService;
+import com.bookeatinglion.book.service.RecentViewedBookService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = BookController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -97,9 +96,20 @@ class BookControllerTest {
     @Test
     void 상세_조회는_200과_데이터를_반환한다() throws Exception {
         BookDetailResponse detail = new BookDetailResponse(
-                1L, "상세책", "저자", "출판사", "9791100000001", "소설", 10000, 5,
-                "cover.jpg", "설명", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1),
-                LocalDateTime.now(), LocalDateTime.now());
+                1L,
+                "상세책",
+                "저자",
+                "출판사",
+                "9791100000001",
+                "소설",
+                10000,
+                5,
+                "cover.jpg",
+                "설명",
+                SaleStatus.ON_SALE,
+                LocalDate.of(2026, 1, 1),
+                LocalDateTime.now(),
+                LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
         mockMvc.perform(get("/api/catalog/books/1"))
@@ -118,8 +128,7 @@ class BookControllerTest {
 
     @Test
     void 상세줄거리_조회는_200과_데이터를_반환한다() throws Exception {
-        when(bookService.getSynopsisDetail(1L))
-                .thenReturn(new BookSynopsisDetailResponse(1L, "책제목", "상세 줄거리 본문"));
+        when(bookService.getSynopsisDetail(1L)).thenReturn(new BookSynopsisDetailResponse(1L, "책제목", "상세 줄거리 본문"));
 
         mockMvc.perform(get("/api/catalog/books/1/synopsis/detail"))
                 .andExpect(status().isOk())
@@ -130,21 +139,30 @@ class BookControllerTest {
     void 존재하지_않는_책의_상세줄거리_조회는_404를_반환한다() throws Exception {
         when(bookService.getSynopsisDetail(999L)).thenThrow(new BookNotFoundException(999L));
 
-        mockMvc.perform(get("/api/catalog/books/999/synopsis/detail"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/catalog/books/999/synopsis/detail")).andExpect(status().isNotFound());
     }
 
     @Test
     void 인증된_회원이면_최근_본_책을_기록한다() throws Exception {
         BookDetailResponse detail = new BookDetailResponse(
-                1L, "상세책", "저자", "출판사", "9791100000001", "소설", 10000, 5,
-                "cover.jpg", "설명", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1),
-                LocalDateTime.now(), LocalDateTime.now());
+                1L,
+                "상세책",
+                "저자",
+                "출판사",
+                "9791100000001",
+                "소설",
+                10000,
+                5,
+                "cover.jpg",
+                "설명",
+                SaleStatus.ON_SALE,
+                LocalDate.of(2026, 1, 1),
+                LocalDateTime.now(),
+                LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
         when(memberIdentity.optionalMemberId()).thenReturn("member-1");
-        mockMvc.perform(get("/api/catalog/books/1"))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/catalog/books/1")).andExpect(status().isOk());
 
         verify(recentViewedBookService, times(1)).recordView(1L, "member-1");
     }
@@ -152,13 +170,23 @@ class BookControllerTest {
     @Test
     void 비회원이면_최근_본_책을_기록하지_않는다() throws Exception {
         BookDetailResponse detail = new BookDetailResponse(
-                1L, "상세책", "저자", "출판사", "9791100000001", "소설", 10000, 5,
-                "cover.jpg", "설명", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1),
-                LocalDateTime.now(), LocalDateTime.now());
+                1L,
+                "상세책",
+                "저자",
+                "출판사",
+                "9791100000001",
+                "소설",
+                10000,
+                5,
+                "cover.jpg",
+                "설명",
+                SaleStatus.ON_SALE,
+                LocalDate.of(2026, 1, 1),
+                LocalDateTime.now(),
+                LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/catalog/books/1"))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/catalog/books/1")).andExpect(status().isOk());
 
         verify(recentViewedBookService, never()).recordView(any(), any());
     }

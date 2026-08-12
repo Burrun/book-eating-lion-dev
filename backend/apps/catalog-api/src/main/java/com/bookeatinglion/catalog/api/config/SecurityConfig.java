@@ -4,19 +4,19 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
@@ -28,17 +28,26 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         // 도서 조회는 비로그인도 가능하다.
-                        .requestMatchers(HttpMethod.GET, "/api/catalog/books/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/catalog/categories/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/catalog/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/catalog/reviews/**").authenticated()
-                        .requestMatchers(HttpMethod.PATCH, "/api/catalog/reviews/**").authenticated()
-                        .anyRequest().permitAll())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
-                        jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/books/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/categories/**")
+                        .permitAll()
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
+                        .requestMatchers("/api/catalog/admin/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/catalog/reviews/**")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/catalog/reviews/**")
+                        .authenticated()
+                        .anyRequest()
+                        .permitAll())
+                .oauth2ResourceServer(
+                        oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
     }

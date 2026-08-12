@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.bookeatinglion.book.domain.Book;
-import com.bookeatinglion.book.domain.Category;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.AdminBookCreateRequest;
 import com.bookeatinglion.book.dto.AdminBookResponse;
@@ -36,8 +35,17 @@ class AdminBookServiceTest {
     @Test
     void 활성_카테고리에_도서를_등록한다() {
         AdminBookCreateRequest request = new AdminBookCreateRequest(
-                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000,
-                "cover.jpg", "설명", "상세 줄거리", SaleStatus.ON_SALE, LocalDate.of(2026, 1, 1));
+                "스프링",
+                "저자",
+                "출판사",
+                "9791100000001",
+                "IT/컴퓨터",
+                20000,
+                "cover.jpg",
+                "설명",
+                "상세 줄거리",
+                SaleStatus.ON_SALE,
+                LocalDate.of(2026, 1, 1));
         when(categoryService.getActiveCategoryName("IT/컴퓨터")).thenReturn("IT/컴퓨터");
         when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -50,23 +58,27 @@ class AdminBookServiceTest {
     @Test
     void 중복_ISBN은_등록하지_않는다() {
         AdminBookCreateRequest request = new AdminBookCreateRequest(
-                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000,
-                null, null, null, null, null);
+                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000, null, null, null, null, null);
         when(bookRepository.existsByIsbn(request.isbn())).thenReturn(true);
 
-        assertThatThrownBy(() -> adminBookService.create(request))
-                .isInstanceOf(CatalogConflictException.class);
+        assertThatThrownBy(() -> adminBookService.create(request)).isInstanceOf(CatalogConflictException.class);
     }
 
     @Test
     void 전달된_필드만_수정한다() {
         Book book = Book.builder()
-                .title("기존 제목").author("저자").publisher("출판사").isbn("9791100000001")
-                .category("소설").price(10000).saleStatus(SaleStatus.ON_SALE).salesCount(0).build();
+                .title("기존 제목")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000001")
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .salesCount(0)
+                .build();
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
-        AdminBookUpdateRequest request = new AdminBookUpdateRequest(
-                "변경 제목", null, null, null, null, 15000,
-                null, null, null, null, null);
+        AdminBookUpdateRequest request =
+                new AdminBookUpdateRequest("변경 제목", null, null, null, null, 15000, null, null, null, null, null);
 
         AdminBookResponse result = adminBookService.update(1L, request);
 
@@ -78,8 +90,15 @@ class AdminBookServiceTest {
     @Test
     void 도서는_소프트_삭제한다() {
         Book book = Book.builder()
-                .title("책").author("저자").publisher("출판사").isbn("9791100000001")
-                .category("소설").price(10000).saleStatus(SaleStatus.ON_SALE).salesCount(0).build();
+                .title("책")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000001")
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .salesCount(0)
+                .build();
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
 
         adminBookService.delete(1L);

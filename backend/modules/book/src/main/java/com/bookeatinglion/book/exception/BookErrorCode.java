@@ -3,7 +3,6 @@ package com.bookeatinglion.book.exception;
 import org.springframework.http.HttpStatus;
 
 public enum BookErrorCode {
-
     BOOK_NOT_FOUND(HttpStatus.NOT_FOUND),
     CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND),
     CATALOG_CONFLICT(HttpStatus.CONFLICT),

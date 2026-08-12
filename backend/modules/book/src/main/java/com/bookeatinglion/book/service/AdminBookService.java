@@ -23,9 +23,8 @@ public class AdminBookService {
     private final CategoryService categoryService;
 
     public Page<AdminBookResponse> getBooks(boolean includeDeleted, Pageable pageable) {
-        Page<Book> books = includeDeleted
-                ? bookRepository.findAll(pageable)
-                : bookRepository.findByIsDeleted(false, pageable);
+        Page<Book> books =
+                includeDeleted ? bookRepository.findAll(pageable) : bookRepository.findByIsDeleted(false, pageable);
         return books.map(AdminBookResponse::from);
     }
 
@@ -90,7 +89,6 @@ public class AdminBookService {
     }
 
     private Book findBook(Long bookId) {
-        return bookRepository.findById(bookId)
-                .orElseThrow(() -> new BookNotFoundException(bookId));
+        return bookRepository.findById(bookId).orElseThrow(() -> new BookNotFoundException(bookId));
     }
 }

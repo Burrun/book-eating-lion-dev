@@ -1,0 +1,29 @@
+# catalog — 읽기 95%, 캐시 친화적. 2 → 20
+#
+# 서비스마다 상한이 다른 것이 핀포인트 확장 시연의 근거다(Phase 4).
+# 결제 부하를 걸면 order 만 30개로 늘고 나머지는 최소 replica 를 유지한다.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-hpa
+  namespace: lion-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-deployment
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

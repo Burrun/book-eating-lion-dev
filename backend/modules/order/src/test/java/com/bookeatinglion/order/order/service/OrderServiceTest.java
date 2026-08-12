@@ -32,6 +32,8 @@ import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
 import com.bookeatinglion.order.order.exception.InvalidOrderRequestException;
 import com.bookeatinglion.order.order.exception.OrderCannotBeCancelledException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeRefundedException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeReturnedException;
 import com.bookeatinglion.order.order.exception.OrderCouponNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderNotFoundException;
 import com.bookeatinglion.order.order.exception.OutOfStockException;
@@ -62,6 +64,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
+
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    private static final String OTHER_MEMBER_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
 
     @Mock
     private OrderRepository orderRepository;
@@ -128,7 +133,7 @@ class OrderServiceTest {
         return new Recipient("홍길동", "010-0000-0000", "06236", "서울시 강남구");
     }
 
-    private Order order(Long id, Long memberId, int totalAmount) {
+    private Order order(Long id, String memberId, int totalAmount) {
         Order order = new Order(memberId, "홍길동", "010-0000-0000", "06236", "서울시 강남구", totalAmount);
         ReflectionTestUtils.setField(order, "id", id);
         return order;
@@ -154,23 +159,23 @@ class OrderServiceTest {
         when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(true, null));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.CARD, 55L);
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        OrderResponse response = orderService.createOrder(1L, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(response.nextRedirectUrl()).isNull();
-        assertThat(response.payment().paymentMethod()).isEqualTo(PaymentMethod.CARD);
-        verify(cartItemRepository).deleteByMemberIdAndBookIdIn(1L, List.of(100L));
+        assertThat(response.payment().paymentMethod()).isEqualTo(PaymentMethod.VIRTUAL_CARD);
+        verify(cartItemRepository).deleteByMemberIdAndBookIdIn(MEMBER_ID, List.of(100L));
     }
 
     @Test
     void CARD_결제인데_cardId가_없으면_예외를_던진다() {
         setUp();
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.CARD, null);
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
                 .isInstanceOf(InvalidOrderRequestException.class);
     }
 
@@ -187,9 +192,10 @@ class OrderServiceTest {
         when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(false, "한도 초과"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.CARD, 55L);
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request)).isInstanceOf(PaymentDeclinedException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+                .isInstanceOf(PaymentDeclinedException.class);
 
         verify(paymentRepository, never()).save(any());
         verify(cartItemRepository, never()).deleteByMemberIdAndBookIdIn(any(), any());
@@ -201,16 +207,16 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
-        MemberCoupon memberCoupon = new MemberCoupon(1L, coupon);
+        MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
         stubOrderAndPaymentSave();
         when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(true, null));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.CARD, 55L);
+                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        OrderResponse response = orderService.createOrder(1L, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
 
         assertThat(response.totalAmount()).isEqualTo(7000);
         assertThat(memberCoupon.isUsed()).isTrue();
@@ -226,13 +232,13 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
         stubOrderAndPaymentSave();
-        when(kakaoPayClient.ready(anyLong(), eq(1L), anyString(), eq(20000)))
+        when(kakaoPayClient.ready(anyLong(), eq(MEMBER_ID), anyString(), eq(20000)))
                 .thenReturn(new KakaoReadyResult("T1", "https://mockup-pg-web.kakao.com/redirect"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        OrderResponse response = orderService.createOrder(1L, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.nextRedirectUrl()).isEqualTo("https://mockup-pg-web.kakao.com/redirect");
@@ -248,17 +254,17 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
-        MemberCoupon memberCoupon = new MemberCoupon(1L, coupon);
+        MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
         stubOrderAndPaymentSave();
-        when(kakaoPayClient.ready(anyLong(), anyLong(), anyString(), eq(7000)))
+        when(kakaoPayClient.ready(anyLong(), anyString(), anyString(), eq(7000)))
                 .thenReturn(new KakaoReadyResult("T1", "https://mockup-pg-web.kakao.com/redirect"));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        OrderResponse response = orderService.createOrder(1L, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
 
         assertThat(response.totalAmount()).isEqualTo(7000);
         assertThat(memberCoupon.isUsed()).isFalse();
@@ -273,10 +279,10 @@ class OrderServiceTest {
                 List.of(new OrderItemRequest(100L, 2), new OrderItemRequest(100L, 3)),
                 null,
                 recipient(),
-                PaymentMethod.KAKAOPAY,
+                PaymentMethod.KAKAO_PAY,
                 null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request)).isInstanceOf(OutOfStockException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request)).isInstanceOf(OutOfStockException.class);
     }
 
     @Test
@@ -285,9 +291,9 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 1)));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request)).isInstanceOf(OutOfStockException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request)).isInstanceOf(OutOfStockException.class);
     }
 
     @Test
@@ -298,9 +304,9 @@ class OrderServiceTest {
                 .thenReturn(new BookDetailEnvelope(false, new BookView(100L, "정보 조회 불가", 0, null)));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
                 .isInstanceOf(BookPriceUnavailableException.class);
     }
 
@@ -312,9 +318,9 @@ class OrderServiceTest {
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.empty());
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
                 .isInstanceOf(OrderCouponNotFoundException.class);
     }
 
@@ -324,14 +330,14 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
         Coupon coupon = new Coupon("C1", "쿠폰", 1000, 5000, LocalDateTime.now().plusDays(1));
-        MemberCoupon memberCoupon = new MemberCoupon(2L, coupon);
+        MemberCoupon memberCoupon = new MemberCoupon(OTHER_MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
                 .isInstanceOf(UnauthorizedCouponAccessException.class);
     }
 
@@ -341,20 +347,21 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 1000));
         Coupon coupon = new Coupon("C1", "쿠폰", 500, 50000, LocalDateTime.now().plusDays(1));
-        MemberCoupon memberCoupon = new MemberCoupon(1L, coupon);
+        MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
 
         CreateOrderRequest request = new CreateOrderRequest(
-                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAOPAY, null);
+                List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(1L, request)).isInstanceOf(InvalidCouponException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+                .isInstanceOf(InvalidCouponException.class);
     }
 
     // ---------------------------------------------------------------- approveKakaoPay
 
     private Order pendingKakaoOrder(int totalAmount, Long pendingMemberCouponId) {
-        Order order = order(1L, 1L, totalAmount);
+        Order order = order(1L, MEMBER_ID, totalAmount);
         if (pendingMemberCouponId != null) {
             order.reservePendingCoupon(pendingMemberCouponId);
         }
@@ -380,20 +387,20 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory));
 
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
-        MemberCoupon memberCoupon = new MemberCoupon(1L, coupon);
+        MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
         when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
 
-        when(kakaoPayClient.approve(1L, 1L, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
 
-        OrderResponse response = orderService.approveKakaoPay(1L, 1L, "pg-token");
+        OrderResponse response = orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(response.payment().paymentStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(response.payment().approvalNumber()).isEqualTo("A1");
         assertThat(inventory.getStock()).isEqualTo(9);
         assertThat(memberCoupon.isUsed()).isTrue();
-        verify(cartItemRepository).deleteByMemberIdAndBookIdIn(1L, List.of(100L));
+        verify(cartItemRepository).deleteByMemberIdAndBookIdIn(MEMBER_ID, List.of(100L));
     }
 
     @Test
@@ -407,7 +414,7 @@ class OrderServiceTest {
         when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 1)));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(1L, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
                 .isInstanceOf(OutOfStockException.class);
 
         verify(kakaoPayClient, never()).approve(any(), any(), any(), any());
@@ -417,11 +424,11 @@ class OrderServiceTest {
     @Test
     void PAID_주문에_다시_승인_요청하면_예외를_던진다() {
         setUp();
-        Order order = order(1L, 1L, 10000);
+        Order order = order(1L, MEMBER_ID, 10000);
         ReflectionTestUtils.setField(order, "orderStatus", OrderStatus.PAID);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(1L, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
                 .isInstanceOf(PaymentAlreadyProcessedException.class);
     }
 
@@ -432,17 +439,17 @@ class OrderServiceTest {
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(1L, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
                 .isInstanceOf(PaymentAlreadyProcessedException.class);
     }
 
     @Test
     void 타인의_주문에_승인_요청하면_예외를_던진다() {
         setUp();
-        Order order = order(1L, 2L, 10000);
+        Order order = order(1L, OTHER_MEMBER_ID, 10000);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(1L, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
                 .isInstanceOf(UnauthorizedOrderAccessException.class);
     }
 
@@ -451,7 +458,7 @@ class OrderServiceTest {
         setUp();
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(1L, 999L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 999L, "pg-token"))
                 .isInstanceOf(OrderNotFoundException.class);
     }
 
@@ -460,12 +467,12 @@ class OrderServiceTest {
     @Test
     void 본인_주문을_상세조회한다() {
         setUp();
-        Order order = order(1L, 1L, 10000);
+        Order order = order(1L, MEMBER_ID, 10000);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of());
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
 
-        OrderResponse response = orderService.getOrder(1L, 1L);
+        OrderResponse response = orderService.getOrder(MEMBER_ID, 1L);
 
         assertThat(response.orderId()).isEqualTo(1L);
         assertThat(response.payment()).isNull();
@@ -476,16 +483,17 @@ class OrderServiceTest {
         setUp();
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.getOrder(1L, 999L)).isInstanceOf(OrderNotFoundException.class);
+        assertThatThrownBy(() -> orderService.getOrder(MEMBER_ID, 999L)).isInstanceOf(OrderNotFoundException.class);
     }
 
     @Test
     void 타인의_주문_조회는_예외를_던진다() {
         setUp();
-        Order order = order(1L, 2L, 10000);
+        Order order = order(1L, OTHER_MEMBER_ID, 10000);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.getOrder(1L, 1L)).isInstanceOf(UnauthorizedOrderAccessException.class);
+        assertThatThrownBy(() -> orderService.getOrder(MEMBER_ID, 1L))
+                .isInstanceOf(UnauthorizedOrderAccessException.class);
     }
 
     // ---------------------------------------------------------------- cancelOrder
@@ -493,11 +501,11 @@ class OrderServiceTest {
     @Test
     void PAID_주문을_취소하면_재고와_결제가_복구된다() {
         setUp();
-        Order paidOrder = order(1L, 1L, 10000);
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
         ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
 
-        Payment payment = Payment.approved(paidOrder, null, PaymentMethod.KAKAOPAY, 10000, null, "KAKAO-1", "idem-1");
+        Payment payment = Payment.approved(paidOrder, null, PaymentMethod.KAKAO_PAY, 10000, null, "KAKAO-1", "idem-1");
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
 
         OrderItem item = new OrderItem(paidOrder, 100L, "책1", 2, 5000);
@@ -505,7 +513,7 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 3)));
         when(memberCouponRepository.findByUsedOrderId(1L)).thenReturn(Optional.empty());
 
-        OrderResponse response = orderService.cancelOrder(1L, 1L);
+        OrderResponse response = orderService.cancelOrder(MEMBER_ID, 1L);
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELLED);
@@ -514,35 +522,37 @@ class OrderServiceTest {
     @Test
     void PAID가_아닌_주문은_취소할_수_없다() {
         setUp();
-        Order pendingOrder = order(1L, 1L, 10000);
+        Order pendingOrder = order(1L, MEMBER_ID, 10000);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(pendingOrder));
 
-        assertThatThrownBy(() -> orderService.cancelOrder(1L, 1L)).isInstanceOf(OrderCannotBeCancelledException.class);
+        assertThatThrownBy(() -> orderService.cancelOrder(MEMBER_ID, 1L))
+                .isInstanceOf(OrderCannotBeCancelledException.class);
     }
 
     @Test
     void 카드_한도_복구가_실패하면_예외를_던진다() {
         setUp();
-        Order paidOrder = order(1L, 1L, 10000);
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
         ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
 
-        Payment payment = Payment.approved(paidOrder, 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(paidOrder, 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         when(cardClient.restore(anyLong(), any()))
                 .thenReturn(new CardClient.CardOperationResult(false, "member-service 응답 없음"));
 
-        assertThatThrownBy(() -> orderService.cancelOrder(1L, 1L)).isInstanceOf(CardRestoreFailedException.class);
+        assertThatThrownBy(() -> orderService.cancelOrder(MEMBER_ID, 1L))
+                .isInstanceOf(CardRestoreFailedException.class);
     }
 
     @Test
     void 카카오페이_취소는_KakaoPayClient_cancel을_호출한다() {
         setUp();
-        Order paidOrder = order(1L, 1L, 10000);
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
         ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
 
-        Payment payment = Payment.approved(paidOrder, null, PaymentMethod.KAKAOPAY, 10000, null, "T1", "idem-1");
+        Payment payment = Payment.approved(paidOrder, null, PaymentMethod.KAKAO_PAY, 10000, null, "T1", "idem-1");
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
 
         OrderItem item = new OrderItem(paidOrder, 100L, "책1", 1, 10000);
@@ -550,8 +560,96 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 3)));
         when(memberCouponRepository.findByUsedOrderId(1L)).thenReturn(Optional.empty());
 
-        orderService.cancelOrder(1L, 1L);
+        orderService.cancelOrder(MEMBER_ID, 1L);
 
         verify(kakaoPayClient).cancel("T1", 10000);
+    }
+
+    // ---------------------------------------------------------------- requestReturn / refundOrder
+
+    @Test
+    void PAID_주문에_반품을_신청하면_RETURN_REQUESTED가_되고_사유가_저장된다() {
+        setUp();
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
+        ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of());
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.requestReturn(MEMBER_ID, 1L, "단순 변심");
+
+        assertThat(response.orderStatus()).isEqualTo(OrderStatus.RETURN_REQUESTED);
+        assertThat(response.returnReason()).isEqualTo("단순 변심");
+    }
+
+    @Test
+    void PAID가_아닌_주문은_반품_신청할_수_없다() {
+        setUp();
+        Order pendingOrder = order(1L, MEMBER_ID, 10000);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(pendingOrder));
+
+        assertThatThrownBy(() -> orderService.requestReturn(MEMBER_ID, 1L, "단순 변심"))
+                .isInstanceOf(OrderCannotBeReturnedException.class);
+    }
+
+    @Test
+    void 타인의_주문은_반품_신청할_수_없다() {
+        setUp();
+        Order order = order(1L, OTHER_MEMBER_ID, 10000);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.requestReturn(MEMBER_ID, 1L, "단순 변심"))
+                .isInstanceOf(UnauthorizedOrderAccessException.class);
+    }
+
+    @Test
+    void RETURN_REQUESTED_주문을_환불하면_재고와_결제가_복구된다() {
+        setUp();
+        Order returnRequestedOrder = order(1L, MEMBER_ID, 10000);
+        ReflectionTestUtils.setField(returnRequestedOrder, "orderStatus", OrderStatus.RETURN_REQUESTED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(returnRequestedOrder));
+
+        Payment payment =
+                Payment.approved(returnRequestedOrder, null, PaymentMethod.KAKAO_PAY, 10000, null, "KAKAO-1", "idem-1");
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+
+        OrderItem item = new OrderItem(returnRequestedOrder, 100L, "책1", 2, 5000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 3)));
+        when(memberCouponRepository.findByUsedOrderId(1L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.refundOrder(MEMBER_ID, 1L);
+
+        assertThat(response.orderStatus()).isEqualTo(OrderStatus.REFUNDED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        verify(kakaoPayClient).cancel("KAKAO-1", 10000);
+    }
+
+    @Test
+    void RETURN_REQUESTED가_아닌_주문은_환불할_수_없다() {
+        setUp();
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
+        ReflectionTestUtils.setField(paidOrder, "orderStatus", OrderStatus.PAID);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(paidOrder));
+
+        assertThatThrownBy(() -> orderService.refundOrder(MEMBER_ID, 1L))
+                .isInstanceOf(OrderCannotBeRefundedException.class);
+    }
+
+    @Test
+    void 카드_환불시_한도_복구가_실패하면_예외를_던진다() {
+        setUp();
+        Order returnRequestedOrder = order(1L, MEMBER_ID, 10000);
+        ReflectionTestUtils.setField(returnRequestedOrder, "orderStatus", OrderStatus.RETURN_REQUESTED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(returnRequestedOrder));
+
+        Payment payment =
+                Payment.approved(returnRequestedOrder, 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        when(cardClient.restore(anyLong(), any()))
+                .thenReturn(new CardClient.CardOperationResult(false, "member-service 응답 없음"));
+
+        assertThatThrownBy(() -> orderService.refundOrder(MEMBER_ID, 1L))
+                .isInstanceOf(CardRestoreFailedException.class);
     }
 }

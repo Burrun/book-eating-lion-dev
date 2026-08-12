@@ -19,7 +19,7 @@ public class DeliveryController {
 
     @GetMapping
     public ApiResponse<DeliveryResponse> getDelivery(@PathVariable Long orderId) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(deliveryService.getDeliveryByOrder(memberId, orderId));
     }
 }

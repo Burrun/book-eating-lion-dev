@@ -1,16 +1,15 @@
 package com.bookeatinglion.book.controller;
 
 import com.bookeatinglion.book.dto.BookSummaryResponse;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
-import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.common.dto.ApiResponse;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * 경로가 /api/members/me/* 에서 /api/catalog/wishlist/me · /api/catalog/recent-books/me 로 바뀌었다.
@@ -36,8 +35,7 @@ public class MemberBookQueryController {
     }
 
     @GetMapping("/api/catalog/recent-books/me")
-    public ApiResponse<List<BookSummaryResponse>> getMyRecentBooks(
-            @RequestParam(defaultValue = "20") int limit) {
+    public ApiResponse<List<BookSummaryResponse>> getMyRecentBooks(@RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.success(recentViewedBookService.getMyRecentBooks(memberIdentity.requiredMemberId(), limit));
     }
 }

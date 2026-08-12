@@ -8,10 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 
-    List<CartItem> findByMemberId(Long memberId);
+    List<CartItem> findByMemberId(String memberId);
 
-    Optional<CartItem> findByMemberIdAndBookId(Long memberId, Long bookId);
+    Optional<CartItem> findByMemberIdAndBookId(String memberId, Long bookId);
 
     /** 주문 완료(승인) 후 방금 산 도서를 장바구니에서 지운다. */
-    void deleteByMemberIdAndBookIdIn(Long memberId, Collection<Long> bookIds);
+    void deleteByMemberIdAndBookIdIn(String memberId, Collection<Long> bookIds);
 }

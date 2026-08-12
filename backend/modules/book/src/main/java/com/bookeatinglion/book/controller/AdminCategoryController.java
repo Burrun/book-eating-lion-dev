@@ -44,8 +44,7 @@ public class AdminCategoryController {
 
     @PatchMapping("/{categoryId}")
     public ApiResponse<CategoryResponse> update(
-            @PathVariable Long categoryId,
-            @Valid @RequestBody CategoryUpdateRequest request) {
+            @PathVariable Long categoryId, @Valid @RequestBody CategoryUpdateRequest request) {
         return ApiResponse.success(categoryService.update(categoryId, request));
     }
 

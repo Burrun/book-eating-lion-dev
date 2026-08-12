@@ -100,7 +100,7 @@ public class Payment {
     /** 카카오페이 ready 단계. approvalNumber 는 approve 가 성공해야 채워진다. */
     public static Payment ready(Order order, int amount, String pgTid, String idempotencyKey) {
         return new Payment(
-                order, null, PaymentMethod.KAKAOPAY, amount, PaymentStatus.READY, null, pgTid, idempotencyKey);
+                order, null, PaymentMethod.KAKAO_PAY, amount, PaymentStatus.READY, null, pgTid, idempotencyKey);
     }
 
     /** 카카오페이 approve 성공. READY 상태에서만 호출할 수 있다. */
@@ -117,5 +117,13 @@ public class Payment {
             throw new IllegalStateException("APPROVED 상태에서만 CANCELLED 로 전환할 수 있습니다: " + id);
         }
         this.paymentStatus = PaymentStatus.CANCELLED;
+    }
+
+    /** 반품 승인 후 환불. cancel() 과 전이 조건은 같지만 종단 상태를 CANCELLED 와 구분한다. */
+    public void refund() {
+        if (this.paymentStatus != PaymentStatus.APPROVED) {
+            throw new IllegalStateException("APPROVED 상태에서만 REFUNDED 로 전환할 수 있습니다: " + id);
+        }
+        this.paymentStatus = PaymentStatus.REFUNDED;
     }
 }

@@ -32,6 +32,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
 
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
     @Mock
     private PaymentRepository paymentRepository;
 
@@ -45,7 +47,7 @@ class PaymentServiceTest {
     private PaymentService paymentService;
 
     private Order order() {
-        Order order = new Order(1L, "홍길동", "010-0000-0000", "06236", "서울", 10000);
+        Order order = new Order(MEMBER_ID, "홍길동", "010-0000-0000", "06236", "서울", 10000);
         ReflectionTestUtils.setField(order, "id", 1L);
         return order;
     }
@@ -74,11 +76,11 @@ class PaymentServiceTest {
 
     @Test
     void 카카오페이_ready는_READY_상태의_결제와_리다이렉트URL을_돌려준다() {
-        when(kakaoPayClient.ready(anyLong(), anyLong(), anyString(), anyInt()))
+        when(kakaoPayClient.ready(anyLong(), anyString(), anyString(), anyInt()))
                 .thenReturn(new KakaoReadyResult("T123", "https://mockup-pg-web.kakao.com/redirect"));
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PaymentService.KakaoReadyOutcome outcome = paymentService.readyKakao(order(), 1L, 10000);
+        PaymentService.KakaoReadyOutcome outcome = paymentService.readyKakao(order(), MEMBER_ID, 10000);
 
         assertThat(outcome.payment().getPaymentStatus()).isEqualTo(PaymentStatus.READY);
         assertThat(outcome.payment().getPgTid()).isEqualTo("T123");
@@ -89,9 +91,9 @@ class PaymentServiceTest {
     @Test
     void 카카오페이_approve는_결제를_APPROVED로_전환한다() {
         Payment payment = Payment.ready(order(), 10000, "T123", "idem-1");
-        when(kakaoPayClient.approve(1L, 1L, "T123", "pg-token")).thenReturn(new KakaoApproveResult("A987"));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T123", "pg-token")).thenReturn(new KakaoApproveResult("A987"));
 
-        paymentService.approveKakao(payment, 1L, 1L, "pg-token");
+        paymentService.approveKakao(payment, 1L, MEMBER_ID, "pg-token");
 
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(payment.getApprovalNumber()).isEqualTo("A987");
@@ -99,7 +101,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_취소는_한도를_복구하고_결제상태를_CANCELLED로_바꾼다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(true, null));
 
         paymentService.cancel(payment);
@@ -109,7 +111,7 @@ class PaymentServiceTest {
 
     @Test
     void CARD_한도복구가_실패하면_예외를_던지고_상태를_바꾸지_않는다() {
-        Payment payment = Payment.approved(order(), 55L, PaymentMethod.CARD, 10000, "AP-1", null, "idem-1");
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
         when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(false, "member-service 응답 없음"));
 
         assertThatThrownBy(() -> paymentService.cancel(payment)).isInstanceOf(CardRestoreFailedException.class);
@@ -119,11 +121,41 @@ class PaymentServiceTest {
 
     @Test
     void KAKAOPAY_취소는_KakaoPayClient_cancel을_호출한다() {
-        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAOPAY, 10000, null, "T123", "idem-1");
+        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAO_PAY, 10000, null, "T123", "idem-1");
 
         paymentService.cancel(payment);
 
         verify(kakaoPayClient).cancel("T123", 10000);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.CANCELLED);
+    }
+
+    @Test
+    void CARD_환불은_한도를_복구하고_결제상태를_REFUNDED로_바꾼다() {
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
+        when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(true, null));
+
+        paymentService.refund(payment);
+
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void CARD_환불시_한도복구가_실패하면_예외를_던지고_상태를_바꾸지_않는다() {
+        Payment payment = Payment.approved(order(), 55L, PaymentMethod.VIRTUAL_CARD, 10000, "AP-1", null, "idem-1");
+        when(cardClient.restore(anyLong(), any())).thenReturn(new CardOperationResult(false, "member-service 응답 없음"));
+
+        assertThatThrownBy(() -> paymentService.refund(payment)).isInstanceOf(CardRestoreFailedException.class);
+
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.APPROVED);
+    }
+
+    @Test
+    void KAKAOPAY_환불은_KakaoPayClient_cancel을_호출하고_REFUNDED로_바꾼다() {
+        Payment payment = Payment.approved(order(), null, PaymentMethod.KAKAO_PAY, 10000, null, "T123", "idem-1");
+
+        paymentService.refund(payment);
+
+        verify(kakaoPayClient).cancel("T123", 10000);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
     }
 }

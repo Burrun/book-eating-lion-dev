@@ -23,7 +23,8 @@ class OrderItemRepositoryTest {
 
     @Test
     void 주문ID로_주문상품_목록을_조회한다() {
-        Order order = orderRepository.save(new Order(1L, "홍길동", "010-0000-0000", "06236", "서울", 30000));
+        Order order = orderRepository.save(
+                new Order("a1b2c3d4-e5f6-7890-abcd-ef1234567890", "홍길동", "010-0000-0000", "06236", "서울", 30000));
         orderItemRepository.save(new OrderItem(order, 100L, "책1", 2, 10000));
         orderItemRepository.save(new OrderItem(order, 200L, "책2", 1, 10000));
 

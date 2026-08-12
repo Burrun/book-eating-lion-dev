@@ -1,11 +1,10 @@
 package com.bookeatinglion.book.repository;
 
 import com.bookeatinglion.book.domain.RecentViewedBook;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecentViewedBookRepository extends JpaRepository<RecentViewedBook, Long> {
 

@@ -7,9 +7,6 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
-    // pgvector 타입 매핑
-    implementation 'com.pgvector:pgvector:0.1.6'
-
     testImplementation 'com.h2database:h2'
     testImplementation 'org.springframework.security:spring-security-test'
 }

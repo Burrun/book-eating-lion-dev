@@ -30,14 +30,12 @@ class CatalogMemberIdentityTest {
                 Map.of("sub", "34589d0c-c0f1-702d-0477-6afacc060eda"));
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
 
-        assertThat(memberIdentity.requiredMemberId())
-                .isEqualTo("34589d0c-c0f1-702d-0477-6afacc060eda");
+        assertThat(memberIdentity.requiredMemberId()).isEqualTo("34589d0c-c0f1-702d-0477-6afacc060eda");
     }
 
     @Test
     void 비회원은_optional_회원_ID가_없다() {
         assertThat(memberIdentity.optionalMemberId()).isNull();
-        assertThatThrownBy(memberIdentity::requiredMemberId)
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(memberIdentity::requiredMemberId).isInstanceOf(IllegalStateException.class);
     }
 }

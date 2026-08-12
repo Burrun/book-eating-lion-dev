@@ -14,7 +14,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *
  * JPA Auditing 은 common 의 JpaConfig 가 켠다(여기서 또 켜면 빈 중복으로 기동 실패).
  */
-@SpringBootApplication(scanBasePackages = {"com.bookeatinglion.catalog", "com.bookeatinglion.book", "com.bookeatinglion.common"})
+@SpringBootApplication(
+        scanBasePackages = {"com.bookeatinglion.catalog", "com.bookeatinglion.book", "com.bookeatinglion.common"})
 @EntityScan(basePackages = "com.bookeatinglion.book")
 @EnableJpaRepositories(basePackages = "com.bookeatinglion.book")
 @EnableFeignClients(basePackages = "com.bookeatinglion.catalog.api.client")

@@ -14,7 +14,8 @@ import java.util.Map;
  * common 에 두는 이유: 발행측(order)과 소비측(catalog)이 같은 스키마를 봐야 하는데,
  * modules 끼리는 의존할 수 없기 때문이다(§7.2). 도메인 코드가 아니라 계약이다.
  */
-public record ReviewPermissionGranted(String memberId, Long orderItemId, Long bookId, String nickname, String grantedAt) {
+public record ReviewPermissionGranted(
+        String memberId, Long orderItemId, Long bookId, String nickname, String grantedAt) {
 
     public static final String STREAM_KEY = "events:review-permission-granted";
 

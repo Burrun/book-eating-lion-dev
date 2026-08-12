@@ -13,7 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 1:1 문의. 요구사항 v2 에서 중고거래 채팅을 대체한 기능이다.
+ * 1:1 문의.
  * WebSocket 이 아니라 일반 REST + LLM 응답 봇이므로 sticky session 이 필요 없다.
  */
 @Entity

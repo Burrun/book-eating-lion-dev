@@ -49,8 +49,7 @@ public class AdminBookController {
 
     @PatchMapping("/{bookId}")
     public ApiResponse<AdminBookResponse> update(
-            @PathVariable Long bookId,
-            @Valid @RequestBody AdminBookUpdateRequest request) {
+            @PathVariable Long bookId, @Valid @RequestBody AdminBookUpdateRequest request) {
         return ApiResponse.success(adminBookService.update(bookId, request));
     }
 
