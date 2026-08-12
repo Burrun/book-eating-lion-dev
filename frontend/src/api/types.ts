@@ -158,3 +158,40 @@ export interface ChangeCartItemQuantityRequest {
   quantity: number;
 }
 // DELETE /api/cart/{cartItemId} — 204 No Content (응답 바디 없음, 별도 타입 없음)
+
+// --- 주문 (Order) ---
+// 이번 스코프는 주문 생성 + 카드/무통장 결제만. KAKAOPAY도 같은 enum 값을 쓰지만
+// 결제 승인(POST /api/payments/kakao/approve)은 별도 작업으로 미룬다.
+export type PaymentMethod = "KAKAOPAY" | "VIRTUAL_CARD" | "BANK_TRANSFER";
+// 실제 enum 미확인 — 카드/무통장 결제 응답에서 관찰되는 값 기준으로 추정.
+export type OrderStatus = "PENDING" | "PAID" | "CANCELLED";
+
+export interface OrderItemRequest {
+  bookId: number;
+  quantity: number;
+}
+
+// 필드명 미확정 — member-service AddressCreateRequest 컨벤션(recipientName/phoneNumber/...)을 따라 추정.
+export interface OrderRecipient {
+  recipientName: string;
+  phoneNumber: string;
+  zipcode: string;
+  address: string;
+  detailAddress: string;
+  deliveryRequest?: string;
+}
+
+// POST /api/orders
+export interface CreateOrderRequest {
+  items: OrderItemRequest[];
+  memberCouponId: number | null;
+  recipient: OrderRecipient;
+  paymentMethod: PaymentMethod;
+  cardId: number | null;
+}
+
+// POST /api/orders 응답 — 상세 스펙 미확인, orderId/status만 실제로 쓰고 있음.
+export interface OrderResponse {
+  orderId: number;
+  status: OrderStatus;
+}

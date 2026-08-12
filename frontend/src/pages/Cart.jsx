@@ -194,7 +194,7 @@ export default function Cart() {
                 size="lg"
                 fullWidth
                 disabled={selectedItems.length === 0}
-                onClick={() => navigate("/checkout")}
+                onClick={() => navigate("/checkout", { state: { items: selectedItems } })}
                 className="mt-5"
               >
                 주문 / 결제하기

@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Search, Wallet, CreditCard, Landmark, PawPrint } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
-import { fetchCheckoutSummary } from "../api/checkout.js";
 import { getMyCards } from "../api/cards.ts";
+import { removeFromCart } from "../api/cart.js";
+import { createOrder } from "../api/orders.js";
+
+const FREE_SHIPPING_THRESHOLD = 30000;
 
 const REQUIRED_FIELDS = [
   { key: "receiver", label: "받는 분 이름" },
@@ -58,6 +62,8 @@ function loadDaumPostcodeScript() {
 
 export default function Checkout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const toast = useToast();
   const addressDetailRef = useRef(null);
   const [form, setForm] = useState({
@@ -71,20 +77,58 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [summary, setSummary] = useState(null);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [cards, setCards] = useState(null);
+
+  // Cart.jsx에서 "주문/결제하기" 클릭 시 선택된 상품 목록을 state로 넘겨준다.
+  // 새로고침 등으로 state 없이 직접 들어오면 아래 렌더링에서 안내 후 장바구니로 돌려보낸다.
+  const checkoutItems = location.state?.items ?? null;
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([fetchCheckoutSummary(), getMyCards()]).then(([summaryData, cardsData]) => {
+    getMyCards().then((cardsData) => {
       if (ignore) return;
-      setSummary(summaryData);
       setCards(cardsData);
     });
     return () => {
       ignore = true;
     };
   }, []);
+
+  // Cart.jsx를 거치지 않고 새로고침/직접 진입한 경우 — 뭘 결제할지 알 수 없으므로 장바구니로 안내한다.
+  if (!checkoutItems || checkoutItems.length === 0) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-4 py-24 text-center">
+        <p className="text-4xl">🛒</p>
+        <p className="text-sm text-[var(--color-ink)] opacity-60">
+          장바구니에서 결제할 상품을 선택해주세요.
+        </p>
+        <Link
+          to="/cart"
+          className="rounded-full bg-[var(--color-forest)] px-5 py-2 text-sm font-semibold text-[var(--color-paper)] transition hover:bg-[var(--color-forest-light)]"
+        >
+          장바구니로 이동
+        </Link>
+      </div>
+    );
+  }
+
+  if (cards === null) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
+        <CheckoutSkeleton />
+      </div>
+    );
+  }
+
+  const subtotal = checkoutItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // 배송비는 백엔드 응답에 없는 클라이언트 전용 값이라 Cart.jsx와 동일한 규칙으로 계산한다.
+  const shippingFee =
+    subtotal >= FREE_SHIPPING_THRESHOLD
+      ? 0
+      : Math.max(...checkoutItems.map((item) => item.shippingFee ?? 3000));
+  const finalTotal = subtotal + shippingFee;
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === paymentMethod);
 
@@ -112,7 +156,7 @@ export default function Checkout() {
       return;
     }
     if (paymentMethod === "KAKAOPAY") {
-      // TODO: 백엔드 결제 요청 API 붙으면 카카오페이 결제 URL로 리다이렉트 예정 (엔드포인트 확정 후 구현).
+      // TODO: 카카오페이 주문 생성 + 결제 승인(POST /api/payments/kakao/approve) 연동은 별도 작업.
       // 지금은 콜백 페이지 흐름만 미리 확인할 수 있도록 success 콜백으로 바로 이동한다(실제 결제 없음, 데모용).
       navigate("/payment/kakao/success?pg_token=demo-pg-token");
       return;
@@ -149,24 +193,41 @@ export default function Checkout() {
     }
   };
 
-  const handleConfirmPayment = () => {
-    setIsConfirmOpen(false);
-    toast.success("결제가 완료되었습니다.");
-    // 주문완료 전용 페이지가 아직 없어서 임시로 마이페이지 주문내역 탭으로 이동
-    setTimeout(() => navigate("/mypage?tab=orders"), 1500);
+  // 주문 생성(POST /api/orders) + 구매한 장바구니 항목 정리. 카카오페이는 validateAndOpenConfirm에서
+  // 이미 걸러지므로 여기 도달하는 건 VIRTUAL_CARD/BANK_TRANSFER뿐이다.
+  const handleConfirmPayment = async () => {
+    setIsPlacingOrder(true);
+    try {
+      await createOrder({
+        items: checkoutItems.map((item) => ({ bookId: item.bookId, quantity: item.quantity })),
+        // 이번 스코프는 쿠폰 선택 UI를 만들지 않아 항상 null로 보낸다.
+        memberCouponId: null,
+        recipient: {
+          recipientName: form.receiver,
+          phoneNumber: form.phone,
+          zipcode: form.zipcode,
+          address: form.address,
+          detailAddress: form.addressDetail,
+          deliveryRequest: form.request,
+        },
+        paymentMethod,
+        cardId: paymentMethod === "VIRTUAL_CARD" ? Number(selectedCardId) : null,
+      });
+
+      // 주문한 상품은 더 이상 장바구니에 남아있으면 안 되므로 정리하고 헤더 뱃지를 갱신한다.
+      await Promise.all(checkoutItems.map((item) => removeFromCart(item.id)));
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+
+      setIsConfirmOpen(false);
+      toast.success("결제가 완료되었습니다.");
+      // 주문완료 전용 페이지가 아직 없어서 임시로 마이페이지 주문내역 탭으로 이동
+      setTimeout(() => navigate("/mypage?tab=orders"), 1500);
+    } catch (err) {
+      toast.error("주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsPlacingOrder(false);
+    }
   };
-
-  if (!summary) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
-        <CheckoutSkeleton />
-      </div>
-    );
-  }
-
-  const subtotal = summary.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const finalTotal = subtotal + summary.shippingFee - summary.couponDiscount;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -368,7 +429,7 @@ export default function Checkout() {
             <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">최종 주문 내역</h2>
 
             <ul className="flex flex-col gap-2.5 border-b border-[var(--color-forest)]/10 pb-4">
-              {summary.items.map((item) => (
+              {checkoutItems.map((item) => (
                 <li key={item.id} className="flex items-center justify-between text-sm">
                   <span className="line-clamp-1 text-[var(--color-ink)] opacity-80">
                     {item.title} <span className="opacity-50">x{item.quantity}</span>
@@ -382,8 +443,10 @@ export default function Checkout() {
 
             <dl className="mt-4 space-y-2.5 text-sm">
               <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
-              <Row label="배송비" value={`+${summary.shippingFee.toLocaleString()}원`} />
-              <Row label="쿠폰 할인" value={`-${summary.couponDiscount.toLocaleString()}원`} tone="coral" />
+              <Row
+                label="배송비"
+                value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}
+              />
             </dl>
 
             <div className="mt-4 flex items-baseline justify-between border-t border-[var(--color-forest)]/10 pt-4">
@@ -416,14 +479,15 @@ export default function Checkout() {
       {/* 결제 최종 확인 모달 */}
       <Modal
         isOpen={isConfirmOpen}
-        onClose={() => setIsConfirmOpen(false)}
+        onClose={() => !isPlacingOrder && setIsConfirmOpen(false)}
+        closeOnOverlayClick={!isPlacingOrder}
         title="결제를 진행할까요?"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setIsConfirmOpen(false)}>
+            <Button variant="ghost" disabled={isPlacingOrder} onClick={() => setIsConfirmOpen(false)}>
               취소
             </Button>
-            <Button variant="primary" onClick={handleConfirmPayment}>
+            <Button variant="primary" loading={isPlacingOrder} onClick={handleConfirmPayment}>
               결제 확정
             </Button>
           </>
