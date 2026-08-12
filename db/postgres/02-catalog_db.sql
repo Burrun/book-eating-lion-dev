@@ -94,7 +94,7 @@ CREATE TABLE webtoon_cuts (
 
 CREATE TABLE recent_books (
     recent_book_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id      BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id      VARCHAR(255) NOT NULL,  -- Cognito sub. FK 없음: member_db 경계 밖
     book_id        BIGINT NOT NULL,
     view_count     INT NOT NULL DEFAULT 1,
     viewed_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -106,7 +106,7 @@ CREATE TABLE recent_books (
 
 CREATE TABLE wishlists (
     wishlist_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id   BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id   VARCHAR(255) NOT NULL,  -- Cognito sub. FK 없음: member_db 경계 밖
     book_id     BIGINT NOT NULL,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_wishlists_book FOREIGN KEY (book_id)
@@ -125,7 +125,7 @@ CREATE TABLE wishlists (
 -- 동기화가 불필요한 게 아니라, 동기화가 틀린 동작인 케이스다.
 -- ---------------------------------------------------------------------------
 CREATE TABLE review_permissions (
-    member_id     BIGINT NOT NULL,
+    member_id     VARCHAR(255) NOT NULL,
     order_item_id BIGINT NOT NULL,   -- FK 아님. order_db 출처 추적용 값
     book_id       BIGINT NOT NULL,
     nickname      VARCHAR(50) NULL,  -- 작성자 표시용 스냅샷
@@ -138,7 +138,7 @@ CREATE INDEX idx_review_permissions_member_book ON review_permissions (member_id
 
 CREATE TABLE reviews (
     review_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id     BIGINT NOT NULL,   -- FK 없음: member_db 경계 밖
+    member_id     VARCHAR(255) NOT NULL,   -- Cognito sub. FK 없음: member_db 경계 밖
     book_id       BIGINT NOT NULL,
     order_item_id BIGINT NOT NULL,   -- FK 없음: order_db 경계 밖. review_permissions 로 검증
     nickname      VARCHAR(50) NULL,  -- 작성 당시 닉네임 스냅샷 (변경돼도 과거 리뷰는 그대로)
@@ -154,7 +154,7 @@ CREATE TABLE reviews (
 
 CREATE TABLE book_swipes (
     book_swipe_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id     BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id     VARCHAR(255) NOT NULL,  -- Cognito sub. FK 없음: member_db 경계 밖
     book_id       BIGINT NOT NULL,
     swipe_action  VARCHAR(10) NOT NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

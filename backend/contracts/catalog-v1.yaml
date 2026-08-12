@@ -17,7 +17,7 @@ servers:
     description: 클러스터 내부
 
 paths:
-  /api/books:
+  /api/catalog/books:
     get:
       summary: 도서 목록
       operationId: getBooks
@@ -40,7 +40,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookSummaryPageEnvelope"
 
-  /api/categories:
+  /api/catalog/categories:
     get:
       summary: 사용자용 활성 카테고리 목록
       operationId: getCategories
@@ -53,7 +53,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CategoryListEnvelope"
 
-  /api/admin/books:
+  /api/catalog/admin/books:
     get:
       summary: 관리자용 도서 목록
       operationId: getAdminBooks
@@ -79,7 +79,7 @@ paths:
         "201": { description: 등록 완료 }
         "409": { description: ISBN 중복 }
 
-  /api/admin/books/{bookId}:
+  /api/catalog/admin/books/{bookId}:
     parameters:
       - name: bookId
         in: path
@@ -116,7 +116,7 @@ paths:
         "200": { description: 삭제 완료 }
         "404": { description: 도서 없음 }
 
-  /api/admin/categories:
+  /api/catalog/admin/categories:
     get:
       summary: 관리자용 전체 카테고리 목록
       operationId: getAdminCategories
@@ -138,7 +138,7 @@ paths:
         "201": { description: 등록 완료 }
         "409": { description: 카테고리명 중복 }
 
-  /api/admin/categories/{categoryId}:
+  /api/catalog/admin/categories/{categoryId}:
     parameters:
       - name: categoryId
         in: path
@@ -174,7 +174,7 @@ paths:
         "200": { description: 비활성화 완료 }
         "409": { description: 활성 도서가 연결되어 있어 비활성화 불가 }
 
-  /api/books/{bookId}:
+  /api/catalog/books/{bookId}:
     get:
       summary: 도서 상세
       description: |
@@ -198,7 +198,7 @@ paths:
         "404":
           description: 도서 없음
 
-  /api/books/{bookId}/reviews:
+  /api/catalog/books/{bookId}/reviews:
     get:
       summary: 리뷰 목록
       operationId: getReviews
@@ -232,10 +232,6 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
-        - name: X-Member-Id
-          in: header
-          required: true
-          schema: { type: integer, format: int64 }
       requestBody:
         required: true
         content:
@@ -252,18 +248,13 @@ paths:
         "403":
           description: 구매 확정 이력 없음 (REVIEW_PERMISSION_REQUIRED)
 
-  /api/wishlist/me:
+  /api/catalog/wishlist/me:
     get:
       summary: 내 찜 목록
       operationId: getMyWishlist
       tags: [wishlist]
       security:
         - bearerAuth: []
-      parameters:
-        - name: X-Member-Id
-          in: header
-          required: true
-          schema: { type: integer, format: int64 }
       responses:
         "200":
           description: 조회 성공
@@ -272,7 +263,111 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookSummaryListEnvelope"
 
-  /api/recent-books/me:
+  /api/catalog/reviews/{reviewId}:
+    patch:
+      summary: 내 리뷰 수정
+      operationId: updateReview
+      tags: [reviews]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewUpdateRequest"
+      responses:
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewEnvelope"
+        "403":
+          description: 작성자가 아님
+        "404":
+          description: 리뷰 또는 공개 도서 없음
+    delete:
+      summary: 내 리뷰 삭제
+      description: 삭제한 리뷰가 사용한 구매 권한을 복구하여 다시 리뷰를 작성할 수 있다.
+      operationId: deleteReview
+      tags: [reviews]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 삭제 완료
+        "403":
+          description: 작성자가 아님
+        "404":
+          description: 리뷰 없음
+
+  /api/catalog/wishlist/{bookId}:
+    post:
+      summary: 찜 추가
+      operationId: addWishlist
+      tags: [wishlist]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 찜 추가 완료
+        "404":
+          description: 공개 도서 없음
+    delete:
+      summary: 찜 삭제
+      operationId: removeWishlist
+      tags: [wishlist]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 찜 삭제 완료
+
+  /api/catalog/admin/books/{bookId}/reviews:
+    get:
+      summary: 관리자 도서 리뷰 목록
+      description: 삭제된 도서의 리뷰도 관리 목적으로 조회한다.
+      operationId: getAdminBookReviews
+      tags: [admin-reviews]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewPageEnvelope"
+        "404":
+          description: 도서 없음
+
+  /api/catalog/recent-books/me:
     get:
       summary: 최근 본 상품
       operationId: getMyRecentBooks
@@ -280,10 +375,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: X-Member-Id
-          in: header
-          required: true
-          schema: { type: integer, format: int64 }
         - name: limit
           in: query
           schema: { type: integer, default: 20 }
@@ -337,7 +428,9 @@ components:
       properties:
         id: { type: integer, format: int64 }
         bookId: { type: integer, format: int64 }
-        memberId: { type: integer, format: int64 }
+        memberId:
+          type: string
+          description: Cognito sub
         nickname:
           type: string
           description: 작성 당시 닉네임 스냅샷. members 를 조인하지 않는다.
@@ -347,6 +440,13 @@ components:
         createdAt: { type: string, format: date-time }
 
     ReviewRequest:
+      type: object
+      required: [rating, content]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        content: { type: string, maxLength: 1000 }
+
+    ReviewUpdateRequest:
       type: object
       required: [rating, content]
       properties:

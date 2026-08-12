@@ -135,4 +135,9 @@ public class Book extends BaseEntity {
         this.deletedAt = deletedAt;
         this.saleStatus = SaleStatus.STOPPED;
     }
+
+    public void updateReviewStatistics(BigDecimal averageRating, int reviewCount) {
+        this.averageRating = averageRating;
+        this.reviewCount = reviewCount;
+    }
 }

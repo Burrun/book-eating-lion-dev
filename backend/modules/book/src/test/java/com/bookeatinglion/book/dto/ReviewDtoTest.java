@@ -28,7 +28,7 @@ class ReviewDtoTest {
 
         Review review = Review.builder()
                 .book(book)
-                .memberId(1L)
+                .memberId("member-1")
                 .rating(4)
                 .content("괜찮아요")
                 .build();
@@ -38,7 +38,7 @@ class ReviewDtoTest {
 
         assertThat(response.id()).isEqualTo(100L);
         assertThat(response.bookId()).isEqualTo(10L);
-        assertThat(response.memberId()).isEqualTo(1L);
+        assertThat(response.memberId()).isEqualTo("member-1");
         assertThat(response.rating()).isEqualTo(4);
         assertThat(response.content()).isEqualTo("괜찮아요");
     }

@@ -46,7 +46,7 @@ class ReviewRepositoryTest {
     void 리뷰를_저장하고_조회한다() {
         Review review = reviewRepository.save(Review.builder()
                 .book(book)
-                .memberId(1L)
+                .memberId("member-1")
                 .rating(5)
                 .content("최고의 책입니다")
                 .build());
@@ -54,7 +54,7 @@ class ReviewRepositoryTest {
         Review found = reviewRepository.findById(review.getReviewId()).orElseThrow();
 
         assertThat(found.getBook().getBookId()).isEqualTo(book.getBookId());
-        assertThat(found.getMemberId()).isEqualTo(1L);
+        assertThat(found.getMemberId()).isEqualTo("member-1");
         assertThat(found.getRating()).isEqualTo(5);
         assertThat(found.getContent()).isEqualTo("최고의 책입니다");
     }
@@ -63,13 +63,13 @@ class ReviewRepositoryTest {
     void 책_id로_리뷰_목록을_페이징_조회한다() {
         reviewRepository.save(Review.builder()
                 .book(book)
-                .memberId(1L)
+                .memberId("member-1")
                 .rating(5)
                 .content("리뷰1")
                 .build());
         reviewRepository.save(Review.builder()
                 .book(book)
-                .memberId(2L)
+                .memberId("member-2")
                 .rating(3)
                 .content("리뷰2")
                 .build());
@@ -78,5 +78,27 @@ class ReviewRepositoryTest {
 
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent()).extracting(Review::getContent).containsExactlyInAnyOrder("리뷰1", "리뷰2");
+    }
+
+    @Test
+    void 책의_평균_평점과_리뷰_수를_집계한다() {
+        reviewRepository.save(Review.builder()
+                .book(book)
+                .memberId("member-1")
+                .rating(5)
+                .content("리뷰1")
+                .build());
+        reviewRepository.save(Review.builder()
+                .book(book)
+                .memberId("member-2")
+                .rating(3)
+                .content("리뷰2")
+                .build());
+
+        com.bookeatinglion.book.repository.ReviewStatistics statistics =
+                reviewRepository.findStatisticsByBookId(book.getBookId());
+
+        assertThat(statistics.getAverageRating()).isEqualTo(4.0);
+        assertThat(statistics.getReviewCount()).isEqualTo(2L);
     }
 }

@@ -155,8 +155,8 @@ copy/
 
 | 이전 | 이후 | 이유 |
 | --- | --- | --- |
-| `GET /api/members/me/wishlist` | `GET /api/wishlist/me` | `/api/members/**` 는 member-service 로 라우팅되는데, 찜 목록은 **catalog_db 소유 데이터**다 |
-| `GET /api/members/me/recent-books` | `GET /api/recent-books/me` | 동일 |
+| `GET /api/members/me/wishlist` | `GET /api/catalog/wishlist/me` | `/api/members/**` 는 member-service 로 라우팅되는데, 찜 목록은 **catalog_db 소유 데이터**다 |
+| `GET /api/members/me/recent-books` | `GET /api/catalog/recent-books/me` | 동일 |
 
 같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 되고, 규칙 하나만
 잘못 건드려도 요청이 엉뚱한 서비스로 간다. `frontend/src/api/wishlist.ts` 는 수정 완료했다.
@@ -216,7 +216,7 @@ type Citation  = components["schemas"]["Citation"];
 | 계약 YAML 파싱 + `$ref` 무결성 | `yaml.safe_load` 4종 | ✅ 통과 (`ai-v1.yaml` 파싱 오류 2건 수정 후) |
 | 자료 → JSONL 변환 | `python scripts/build-corpus-jsonl.py` | ✅ 5편 / 46페이지 / 46청크, 불변식 3종 통과 |
 | 4개 서비스 기동 | `/actuator/health` | ✅ 전부 UP |
-| 재고 API 조합 | `GET /api/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
+| 재고 API 조합 | `GET /api/catalog/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
 | **Fallback** (Phase 2-3) | order 강제 종료 후 도서 상세 조회 | ✅ **HTTP 200**, 도서 정보 정상, `stockQuantity=-1` 로 degrade |
 
 마지막 항목이 이 전환의 핵심 증거다 — **결제 서비스가 죽어도 서점은 계속 돈다.**
@@ -225,9 +225,9 @@ type Citation  = components["schemas"]["Citation"];
 
 ```bash
 docker compose stop order
-curl http://localhost:8081/api/books/1     # HTTP 200, stockQuantity: -1
+curl http://localhost:8081/api/catalog/books/1     # HTTP 200, stockQuantity: -1
 docker compose start order
-curl http://localhost:8081/api/books/1     # stockQuantity: 100
+curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 ```
 
 > `stockQuantity: -1` 은 "재고 조회 실패"를 뜻한다. 품절(`0`)과 구분해야 하므로

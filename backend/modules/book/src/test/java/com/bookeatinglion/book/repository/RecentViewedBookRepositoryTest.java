@@ -59,19 +59,19 @@ class RecentViewedBookRepositoryTest {
     @Test
     void 최근_본_기록을_저장하고_조회한다() {
         recentViewedBookRepository.save(RecentViewedBook.builder()
-                .memberId(1L)
+                .memberId("member-1")
                 .book(book1)
                 .viewedAt(LocalDateTime.now())
                 .build());
 
-        assertThat(recentViewedBookRepository.findByMemberIdAndBook_BookId(1L, book1.getBookId()))
+        assertThat(recentViewedBookRepository.findByMemberIdAndBook_BookId("member-1", book1.getBookId()))
                 .isPresent();
     }
 
     @Test
     void 같은_회원_같은_책은_중복_기록될_수_없다() {
         recentViewedBookRepository.save(RecentViewedBook.builder()
-                .memberId(1L)
+                .memberId("member-1")
                 .book(book1)
                 .viewedAt(LocalDateTime.now())
                 .build());
@@ -79,7 +79,7 @@ class RecentViewedBookRepositoryTest {
         assertThrows(
                 Exception.class,
                 () -> recentViewedBookRepository.save(RecentViewedBook.builder()
-                        .memberId(1L)
+                        .memberId("member-1")
                         .book(book1)
                         .viewedAt(LocalDateTime.now())
                         .build()));
@@ -88,18 +88,18 @@ class RecentViewedBookRepositoryTest {
     @Test
     void 최근_본_순으로_조회한다() {
         RecentViewedBook older = recentViewedBookRepository.save(RecentViewedBook.builder()
-                .memberId(1L)
+                .memberId("member-1")
                 .book(book1)
                 .viewedAt(LocalDateTime.now().minusDays(1))
                 .build());
         recentViewedBookRepository.save(RecentViewedBook.builder()
-                .memberId(1L)
+                .memberId("member-1")
                 .book(book2)
                 .viewedAt(LocalDateTime.now())
                 .build());
 
         List<RecentViewedBook> result =
-                recentViewedBookRepository.findByMemberIdOrderByViewedAtDesc(1L, PageRequest.of(0, 10));
+                recentViewedBookRepository.findByMemberIdOrderByViewedAtDesc("member-1", PageRequest.of(0, 10));
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getBook().getBookId()).isEqualTo(book2.getBookId());
@@ -109,7 +109,7 @@ class RecentViewedBookRepositoryTest {
     @Test
     void touch로_viewedAt을_갱신한다() {
         RecentViewedBook recentViewedBook = recentViewedBookRepository.save(RecentViewedBook.builder()
-                .memberId(1L)
+                .memberId("member-1")
                 .book(book1)
                 .viewedAt(LocalDateTime.now().minusDays(1))
                 .build());
