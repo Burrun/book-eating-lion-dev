@@ -17,25 +17,28 @@ import org.springframework.test.context.ContextConfiguration;
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
 class CartItemRepositoryTest {
 
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    private static final String OTHER_MEMBER_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+
     @Autowired
     private CartItemRepository cartItemRepository;
 
     @Test
     void 회원_ID로_장바구니_목록을_조회한다() {
-        cartItemRepository.save(new CartItem(1L, 100L, 2));
-        cartItemRepository.save(new CartItem(1L, 200L, 1));
-        cartItemRepository.save(new CartItem(2L, 100L, 3));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 100L, 2));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 200L, 1));
+        cartItemRepository.save(new CartItem(OTHER_MEMBER_ID, 100L, 3));
 
-        List<CartItem> items = cartItemRepository.findByMemberId(1L);
+        List<CartItem> items = cartItemRepository.findByMemberId(MEMBER_ID);
 
         assertThat(items).hasSize(2).extracting(CartItem::getBookId).containsExactlyInAnyOrder(100L, 200L);
     }
 
     @Test
     void 회원ID와_도서ID로_장바구니_항목을_조회한다() {
-        cartItemRepository.save(new CartItem(1L, 100L, 2));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 100L, 2));
 
-        Optional<CartItem> result = cartItemRepository.findByMemberIdAndBookId(1L, 100L);
+        Optional<CartItem> result = cartItemRepository.findByMemberIdAndBookId(MEMBER_ID, 100L);
 
         assertThat(result).isPresent();
         assertThat(result.get().getQuantity()).isEqualTo(2);
@@ -43,16 +46,16 @@ class CartItemRepositoryTest {
 
     @Test
     void 존재하지_않는_조합은_빈값을_반환한다() {
-        Optional<CartItem> result = cartItemRepository.findByMemberIdAndBookId(1L, 999L);
+        Optional<CartItem> result = cartItemRepository.findByMemberIdAndBookId(MEMBER_ID, 999L);
 
         assertThat(result).isEmpty();
     }
 
     @Test
     void 같은_회원이_같은_도서를_두번_담으면_유니크_제약에_걸린다() {
-        cartItemRepository.save(new CartItem(1L, 100L, 1));
+        cartItemRepository.save(new CartItem(MEMBER_ID, 100L, 1));
 
-        assertThatThrownBy(() -> cartItemRepository.saveAndFlush(new CartItem(1L, 100L, 1)))
+        assertThatThrownBy(() -> cartItemRepository.saveAndFlush(new CartItem(MEMBER_ID, 100L, 1)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

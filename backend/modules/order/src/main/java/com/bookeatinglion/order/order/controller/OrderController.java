@@ -24,32 +24,32 @@ public class OrderController {
 
     @PostMapping
     public ApiResponse<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.createOrder(memberId, request));
     }
 
     @GetMapping("/{orderId}")
     public ApiResponse<OrderResponse> getOrder(@PathVariable Long orderId) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.getOrder(memberId, orderId));
     }
 
     @PostMapping("/{orderId}/cancel")
     public ApiResponse<OrderResponse> cancelOrder(@PathVariable Long orderId) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.cancelOrder(memberId, orderId));
     }
 
     @PostMapping("/{orderId}/return")
     public ApiResponse<OrderResponse> requestReturn(
             @PathVariable Long orderId, @Valid @RequestBody RequestReturnRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.requestReturn(memberId, orderId, request.reason()));
     }
 
     @PostMapping("/{orderId}/refund")
     public ApiResponse<OrderResponse> refundOrder(@PathVariable Long orderId) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.refundOrder(memberId, orderId));
     }
 }

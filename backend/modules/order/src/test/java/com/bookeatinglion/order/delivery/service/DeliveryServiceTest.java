@@ -28,6 +28,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class DeliveryServiceTest {
 
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    private static final String OTHER_MEMBER_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+
     @Mock
     private DeliveryRepository deliveryRepository;
 
@@ -48,7 +51,7 @@ class DeliveryServiceTest {
         return delivery;
     }
 
-    private Order orderOwnedBy(Long memberId) {
+    private Order orderOwnedBy(String memberId) {
         Order order = mock(Order.class);
         when(order.getMemberId()).thenReturn(memberId);
         return order;
@@ -58,11 +61,11 @@ class DeliveryServiceTest {
     void 본인_주문의_배송_상태를_조회한다() {
         // orderOwnedBy() 안에서 스터빙하므로 when(...) 인자로 인라인하면 안 된다
         // (Mockito 가 스터빙 중첩으로 보고 UnfinishedStubbingException 을 던진다).
-        Order order = orderOwnedBy(1L);
+        Order order = orderOwnedBy(MEMBER_ID);
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
         when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.of(delivery(100L)));
 
-        DeliveryResponse response = deliveryService.getDeliveryByOrder(1L, 100L);
+        DeliveryResponse response = deliveryService.getDeliveryByOrder(MEMBER_ID, 100L);
 
         assertThat(response.orderId()).isEqualTo(100L);
         assertThat(response.deliveryStatus()).isEqualTo(DeliveryStatus.IN_TRANSIT);
@@ -72,26 +75,26 @@ class DeliveryServiceTest {
     void 존재하지_않는_주문이면_예외를_던진다() {
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(1L, 999L))
+        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(MEMBER_ID, 999L))
                 .isInstanceOf(DeliveryNotFoundException.class);
     }
 
     @Test
     void 타인의_주문을_조회하면_권한_예외를_던진다() {
-        Order order = orderOwnedBy(1L);
+        Order order = orderOwnedBy(MEMBER_ID);
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(2L, 100L))
+        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(OTHER_MEMBER_ID, 100L))
                 .isInstanceOf(UnauthorizedDeliveryAccessException.class);
     }
 
     @Test
     void 주문은_존재하지만_배송정보가_없으면_예외를_던진다() {
-        Order order = orderOwnedBy(1L);
+        Order order = orderOwnedBy(MEMBER_ID);
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
         when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(1L, 100L))
+        assertThatThrownBy(() -> deliveryService.getDeliveryByOrder(MEMBER_ID, 100L))
                 .isInstanceOf(DeliveryNotFoundException.class);
     }
 }

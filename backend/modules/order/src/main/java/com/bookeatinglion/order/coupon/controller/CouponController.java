@@ -23,13 +23,13 @@ public class CouponController {
 
     @GetMapping("/me")
     public ApiResponse<List<MemberCouponView>> getMyCoupons() {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(couponService.getAvailableCoupons(memberId));
     }
 
     @PostMapping("/register")
     public ApiResponse<MemberCouponView> registerCoupon(@Valid @RequestBody RegisterCouponRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(couponService.registerCoupon(memberId, request.code()));
     }
 }

@@ -23,14 +23,14 @@ public class CouponService {
     private final CouponRepository couponRepository;
     private final MemberCouponRepository memberCouponRepository;
 
-    public List<MemberCouponView> getAvailableCoupons(Long memberId) {
+    public List<MemberCouponView> getAvailableCoupons(String memberId) {
         return memberCouponRepository.findAvailableByMemberId(memberId, LocalDateTime.now()).stream()
                 .map(MemberCouponView::from)
                 .toList();
     }
 
     @Transactional
-    public MemberCouponView registerCoupon(Long memberId, String couponCode) {
+    public MemberCouponView registerCoupon(String memberId, String couponCode) {
         Coupon coupon = couponRepository
                 .findByCouponCode(couponCode)
                 .orElseThrow(() -> new CouponNotFoundException(couponCode));

@@ -56,6 +56,27 @@ spec:
                 name: order-service
                 port:
                   number: 8080
+          - path: /api/cart
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+          - path: /api/coupons
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+          - path: /api/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
 
           # --- member-service ---
           - path: /api/members
@@ -66,6 +87,13 @@ spec:
                 port:
                   number: 8080
           - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+          - path: /api/cards
             pathType: Prefix
             backend:
               service:

@@ -30,7 +30,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final CatalogClient catalogClient;
 
-    public CartResponse getCart(Long memberId) {
+    public CartResponse getCart(String memberId) {
         var items = cartItemRepository.findByMemberId(memberId).stream()
                 .map(this::toView)
                 .toList();
@@ -38,7 +38,7 @@ public class CartService {
     }
 
     @Transactional
-    public CartItemView addItem(Long memberId, Long bookId, int quantity) {
+    public CartItemView addItem(String memberId, Long bookId, int quantity) {
         CartItem cartItem = cartItemRepository
                 .findByMemberIdAndBookId(memberId, bookId)
                 .map(existing -> {
@@ -51,19 +51,19 @@ public class CartService {
     }
 
     @Transactional
-    public CartItemView changeQuantity(Long memberId, Long cartItemId, int quantity) {
+    public CartItemView changeQuantity(String memberId, Long cartItemId, int quantity) {
         CartItem cartItem = getOwnedCartItem(memberId, cartItemId);
         cartItem.changeQuantity(quantity);
         return toView(cartItem);
     }
 
     @Transactional
-    public void removeItem(Long memberId, Long cartItemId) {
+    public void removeItem(String memberId, Long cartItemId) {
         CartItem cartItem = getOwnedCartItem(memberId, cartItemId);
         cartItemRepository.delete(cartItem);
     }
 
-    private CartItem getOwnedCartItem(Long memberId, Long cartItemId) {
+    private CartItem getOwnedCartItem(String memberId, Long cartItemId) {
         CartItem cartItem =
                 cartItemRepository.findById(cartItemId).orElseThrow(() -> new CartItemNotFoundException(cartItemId));
 

@@ -25,7 +25,8 @@ class PaymentRepositoryTest {
 
     @Test
     void 주문ID로_결제정보를_조회한다() {
-        Order order = orderRepository.save(new Order(1L, "홍길동", "010-0000-0000", "06236", "서울", 30000));
+        Order order = orderRepository.save(
+                new Order("a1b2c3d4-e5f6-7890-abcd-ef1234567890", "홍길동", "010-0000-0000", "06236", "서울", 30000));
         paymentRepository.save(Payment.approved(order, 10L, PaymentMethod.VIRTUAL_CARD, 30000, "AP-1", null, "idem-1"));
 
         Optional<Payment> result = paymentRepository.findByOrderId(order.getId());

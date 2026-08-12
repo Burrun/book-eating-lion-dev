@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
 class DeliveryControllerTest {
 
-    private static final long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,12 +38,12 @@ class DeliveryControllerTest {
     }
 
     /**
-     * 소유권 검증에 필요한 값이 sub 가 아니라 member_id 클레임으로 바뀌었다.
-     * 이 클레임이 없으면 order-service 는 회원을 식별하려고 member-service 를
+     * 소유권 검증에 필요한 값은 Cognito 표준 클레임인 sub(subject) 다.
+     * 이 값이 없으면 order-service 는 회원을 식별하려고 member-service 를
      * 동기 호출해야 하고, 그 순간 인증이 결제의 임계경로가 된다.
      */
     private static org.springframework.test.web.servlet.request.RequestPostProcessor authenticated() {
-        return jwt().jwt(jwt -> jwt.subject("member-sub-1").claim("member_id", MEMBER_ID));
+        return jwt().jwt(jwt -> jwt.subject(MEMBER_ID));
     }
 
     @Test

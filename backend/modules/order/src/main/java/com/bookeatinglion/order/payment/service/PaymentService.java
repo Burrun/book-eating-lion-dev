@@ -47,7 +47,7 @@ public class PaymentService {
 
     /** 카카오페이 1단계. 아직 결제는 확정되지 않는다 — Payment 는 READY 로 저장된다. */
     @Transactional
-    public KakaoReadyOutcome readyKakao(Order order, Long memberId, int amount) {
+    public KakaoReadyOutcome readyKakao(Order order, String memberId, int amount) {
         String itemName = "도서 주문 #" + order.getId();
         KakaoReadyResult result = kakaoPayClient.ready(order.getId(), memberId, itemName, amount);
 
@@ -60,7 +60,7 @@ public class PaymentService {
      * 재고가 없으면 이 메서드 자체를 호출하지 않아 카카오에 승인 요청을 보내지 않는다.
      */
     @Transactional
-    public void approveKakao(Payment payment, Long orderId, Long memberId, String pgToken) {
+    public void approveKakao(Payment payment, Long orderId, String memberId, String pgToken) {
         KakaoApproveResult result = kakaoPayClient.approve(orderId, memberId, payment.getPgTid(), pgToken);
         payment.approveKakao(result.approvalNumber());
     }

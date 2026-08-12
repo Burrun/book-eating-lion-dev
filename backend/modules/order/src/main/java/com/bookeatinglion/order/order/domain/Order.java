@@ -36,8 +36,8 @@ public class Order {
     @Column(name = "order_id")
     private Long id;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @Column(name = "member_id", nullable = false, length = 255)
+    private String memberId;
 
     @Column(name = "recipient_name", nullable = false)
     private String recipientName;
@@ -65,7 +65,7 @@ public class Order {
     private String returnReason;
 
     public Order(
-            Long memberId,
+            String memberId,
             String recipientName,
             String recipientPhone,
             String postalCode,
@@ -121,7 +121,7 @@ public class Order {
         this.pendingMemberCouponId = null;
     }
 
-    public boolean isOwnedBy(Long memberId) {
+    public boolean isOwnedBy(String memberId) {
         return this.memberId.equals(memberId);
     }
 }

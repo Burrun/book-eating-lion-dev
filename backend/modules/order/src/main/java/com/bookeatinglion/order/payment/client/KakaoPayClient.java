@@ -11,9 +11,9 @@ package com.bookeatinglion.order.payment.client;
  */
 public interface KakaoPayClient {
 
-    KakaoReadyResult ready(Long orderId, Long memberId, String itemName, int amount);
+    KakaoReadyResult ready(Long orderId, String memberId, String itemName, int amount);
 
-    KakaoApproveResult approve(Long orderId, Long memberId, String tid, String pgToken);
+    KakaoApproveResult approve(Long orderId, String memberId, String tid, String pgToken);
 
     void cancel(String tid, int amount);
 

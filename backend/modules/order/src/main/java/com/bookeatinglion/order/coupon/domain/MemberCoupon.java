@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * order_db.member_coupons. Coupon 은 단방향 @ManyToOne — Coupon 은 MemberCoupon 을 모른다.
- * member_id 는 순수 Long 이다(경계 밖, member-service 참조 없음).
+ * member_id 는 Cognito sub(UUID 문자열)를 그대로 쓴다(경계 밖, member-service 참조 없음).
  *
  * usedOrderId 는 Coupon 기능 단계에는 없던 컬럼이다 — 주문 취소 시 "이 쿠폰이 어느 주문에
  * 쓰였는지"를 역추적할 방법이 스키마에 없어서 추가했다(취소하려면 원복할 대상을 알아야 한다).
@@ -35,8 +35,8 @@ public class MemberCoupon {
     @Column(name = "member_coupon_id")
     private Long id;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @Column(name = "member_id", nullable = false, length = 255)
+    private String memberId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coupon_id", nullable = false)
@@ -51,7 +51,7 @@ public class MemberCoupon {
     @Column(name = "used_order_id")
     private Long usedOrderId;
 
-    public MemberCoupon(Long memberId, Coupon coupon) {
+    public MemberCoupon(String memberId, Coupon coupon) {
         this.memberId = memberId;
         this.coupon = coupon;
         this.used = false;
@@ -73,7 +73,7 @@ public class MemberCoupon {
         this.usedOrderId = null;
     }
 
-    public boolean isOwnedBy(Long memberId) {
+    public boolean isOwnedBy(String memberId) {
         return this.memberId.equals(memberId);
     }
 }

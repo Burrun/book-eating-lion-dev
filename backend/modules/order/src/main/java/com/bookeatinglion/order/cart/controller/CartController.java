@@ -28,13 +28,13 @@ public class CartController {
 
     @GetMapping
     public ApiResponse<CartResponse> getCart() {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(cartService.getCart(memberId));
     }
 
     @PostMapping
     public ApiResponse<CartItemView> addItem(@Valid @RequestBody AddCartItemRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         int quantity = request.quantity() != null ? request.quantity() : 1;
         return ApiResponse.success(cartService.addItem(memberId, request.bookId(), quantity));
     }
@@ -42,13 +42,13 @@ public class CartController {
     @PatchMapping("/{cartItemId}")
     public ApiResponse<CartItemView> changeQuantity(
             @PathVariable Long cartItemId, @Valid @RequestBody ChangeCartItemQuantityRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(cartService.changeQuantity(memberId, cartItemId, request.quantity()));
     }
 
     @DeleteMapping("/{cartItemId}")
     public ResponseEntity<Void> removeItem(@PathVariable Long cartItemId) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         cartService.removeItem(memberId, cartItemId);
         return ResponseEntity.noContent().build();
     }

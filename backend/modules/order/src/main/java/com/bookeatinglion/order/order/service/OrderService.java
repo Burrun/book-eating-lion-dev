@@ -69,7 +69,7 @@ public class OrderService {
     private final PaymentService paymentService;
 
     @Transactional
-    public OrderResponse createOrder(Long memberId, CreateOrderRequest request) {
+    public OrderResponse createOrder(String memberId, CreateOrderRequest request) {
         if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD && request.cardId() == null) {
             throw new InvalidOrderRequestException("paymentMethod=CARD 이면 cardId 가 필수입니다.");
         }
@@ -144,7 +144,7 @@ public class OrderService {
      * 사용자 결제는 실제로 이뤄지지 않는다.
      */
     @Transactional
-    public OrderResponse approveKakaoPay(Long memberId, Long orderId, String pgToken) {
+    public OrderResponse approveKakaoPay(String memberId, Long orderId, String pgToken) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -194,7 +194,7 @@ public class OrderService {
         });
     }
 
-    public OrderResponse getOrder(Long memberId, Long orderId) {
+    public OrderResponse getOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -206,7 +206,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrder(Long memberId, Long orderId) {
+    public OrderResponse cancelOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -231,7 +231,7 @@ public class OrderService {
      * 않는다 — 실제 환불은 반품 상품 회수 확인 후 refundOrder 로 별도 처리한다.
      */
     @Transactional
-    public OrderResponse requestReturn(Long memberId, Long orderId, String reason) {
+    public OrderResponse requestReturn(String memberId, Long orderId, String reason) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -249,7 +249,7 @@ public class OrderService {
      * 재고 복구, 쿠폰 원복을 cancelOrder 와 동일한 방식으로 수행한다.
      */
     @Transactional
-    public OrderResponse refundOrder(Long memberId, Long orderId) {
+    public OrderResponse refundOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -306,7 +306,7 @@ public class OrderService {
         }
     }
 
-    private MemberCoupon validateAndGetCoupon(Long memberId, Long memberCouponId, int subtotal) {
+    private MemberCoupon validateAndGetCoupon(String memberId, Long memberCouponId, int subtotal) {
         if (memberCouponId == null) {
             return null;
         }

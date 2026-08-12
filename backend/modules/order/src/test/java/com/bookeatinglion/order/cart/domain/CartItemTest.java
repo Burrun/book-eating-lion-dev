@@ -15,19 +15,20 @@ class CartItemTest {
 
     @Test
     void 생성시_수량이_1_미만이면_CartDomainException_계열을_던진다() {
-        assertThatThrownBy(() -> new CartItem(1L, 100L, 0)).isInstanceOf(InvalidCartQuantityException.class);
+        assertThatThrownBy(() -> new CartItem("a1b2c3d4-e5f6-7890-abcd-ef1234567890", 100L, 0))
+                .isInstanceOf(InvalidCartQuantityException.class);
     }
 
     @Test
     void 수량_증가시_delta가_1_미만이면_CartDomainException_계열을_던진다() {
-        CartItem cartItem = new CartItem(1L, 100L, 1);
+        CartItem cartItem = new CartItem("a1b2c3d4-e5f6-7890-abcd-ef1234567890", 100L, 1);
 
         assertThatThrownBy(() -> cartItem.increaseQuantity(0)).isInstanceOf(InvalidCartQuantityException.class);
     }
 
     @Test
     void 수량_변경시_1_미만이면_CartDomainException_계열을_던진다() {
-        CartItem cartItem = new CartItem(1L, 100L, 1);
+        CartItem cartItem = new CartItem("a1b2c3d4-e5f6-7890-abcd-ef1234567890", 100L, 1);
 
         assertThatThrownBy(() -> cartItem.changeQuantity(-1)).isInstanceOf(InvalidCartQuantityException.class);
     }

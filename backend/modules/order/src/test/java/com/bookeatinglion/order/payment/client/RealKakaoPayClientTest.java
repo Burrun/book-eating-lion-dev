@@ -27,6 +27,8 @@ import org.springframework.web.client.RestTemplate;
 @ExtendWith(MockitoExtension.class)
 class RealKakaoPayClientTest {
 
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
     @Mock
     private RestTemplate restTemplate;
 
@@ -55,7 +57,7 @@ class RealKakaoPayClientTest {
         response.put("next_redirect_pc_url", "https://mockup-pg-web.kakao.com/pc");
         stubPost("https://open-api.kakaopay.com/online/v1/payment/ready", response);
 
-        KakaoReadyResult result = client.ready(1L, 100L, "도서 주문 #1", 10000);
+        KakaoReadyResult result = client.ready(1L, MEMBER_ID, "도서 주문 #1", 10000);
 
         assertThat(result.tid()).isEqualTo("T123456789");
         assertThat(result.nextRedirectPcUrl()).isEqualTo("https://mockup-pg-web.kakao.com/pc");
@@ -72,7 +74,7 @@ class RealKakaoPayClientTest {
         Map<String, Object> body = entity.getBody();
         assertThat(body.get("cid")).isEqualTo("TC0ONETIME");
         assertThat(body.get("partner_order_id")).isEqualTo("1");
-        assertThat(body.get("partner_user_id")).isEqualTo("100");
+        assertThat(body.get("partner_user_id")).isEqualTo(MEMBER_ID);
         assertThat(body.get("total_amount")).isEqualTo(10000);
         assertThat(body.get("approval_url")).isEqualTo("http://localhost:5173/payments/kakao/callback?orderId=1");
     }
@@ -88,7 +90,7 @@ class RealKakaoPayClientTest {
         response.put("card_info", cardInfo);
         stubPost("https://open-api.kakaopay.com/online/v1/payment/approve", response);
 
-        KakaoApproveResult result = client.approve(1L, 100L, "T123456789", "pg-token-value");
+        KakaoApproveResult result = client.approve(1L, MEMBER_ID, "T123456789", "pg-token-value");
 
         assertThat(result.approvalNumber()).isEqualTo("CARD_APPROVAL_123");
     }
@@ -101,7 +103,7 @@ class RealKakaoPayClientTest {
         response.put("aid", "A987654321");
         stubPost("https://open-api.kakaopay.com/online/v1/payment/approve", response);
 
-        KakaoApproveResult result = client.approve(1L, 100L, "T123456789", "pg-token-value");
+        KakaoApproveResult result = client.approve(1L, MEMBER_ID, "T123456789", "pg-token-value");
 
         assertThat(result.approvalNumber()).isEqualTo("A987654321");
     }
@@ -131,6 +133,7 @@ class RealKakaoPayClientTest {
         when(restTemplate.postForEntity(any(String.class), any(HttpEntity.class), eq(Map.class)))
                 .thenThrow(new ResourceAccessException("연결 실패"));
 
-        assertThatThrownBy(() -> client.ready(1L, 100L, "도서 주문 #1", 10000)).isInstanceOf(KakaoPayApiException.class);
+        assertThatThrownBy(() -> client.ready(1L, MEMBER_ID, "도서 주문 #1", 10000))
+                .isInstanceOf(KakaoPayApiException.class);
     }
 }

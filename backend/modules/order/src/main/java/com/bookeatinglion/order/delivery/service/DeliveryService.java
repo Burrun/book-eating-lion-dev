@@ -27,7 +27,7 @@ public class DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final OrderRepository orderRepository;
 
-    public DeliveryResponse getDeliveryByOrder(Long memberId, Long orderId) {
+    public DeliveryResponse getDeliveryByOrder(String memberId, Long orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new DeliveryNotFoundException(orderId));
 
         if (!order.getMemberId().equals(memberId)) {
