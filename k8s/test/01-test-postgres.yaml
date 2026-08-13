@@ -9,8 +9,10 @@
 # 여기서 다시 apply 하면 base 가 붙여둔 access-to-db 라벨이 지워질 수 있다.
 #
 # POSTGRES_USER/PASSWORD 는 03-test-secret.yaml(postgres-test-secret, 같은
-# lion-db 네임스페이스)에서 주입받는다 — 평문 하드코딩을 피하고, 애플리케이션
-# 쪽 test-db-secret 과 값이 어긋날 여지를 없앤다.
+# lion-db 네임스페이스)에서 주입받는다 — 평문 하드코딩을 피한다. 이 계정은
+# initdb 를 실행하는 슈퍼유저(test_user)일 뿐, 애플리케이션이 실제로 붙는
+# 계정은 04-test-db-init.yaml 이 만드는 order_svc 다(03-test-secret.yaml 의
+# test-db-secret 참고).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,15 +58,24 @@ spec:
           volumeMounts:
             - name: postgres-test-storage
               mountPath: /var/lib/postgresql/data
+            # docker-entrypoint.sh 는 PGDATA 가 빈 상태로 최초 기동될 때만
+            # 이 디렉터리의 *.sql 을 실행한다(리뷰 문서 §3.2).
+            - name: postgres-test-init
+              mountPath: /docker-entrypoint-initdb.d/00-init.sql
+              subPath: 00-init.sql
+              readOnly: true
           readinessProbe:
+            # $POSTGRES_USER/$POSTGRES_DB 는 위 env 로 주입된 컨테이너 환경변수를
+            # sh -c 셸이 그대로 이어받아 참조한다 — 리터럴 하드코딩(리뷰 문서 §3.3)
+            # 대신 Secret 값이 바뀌어도 프로브가 항상 같은 계정을 보게 한다.
             exec:
-              command: ["pg_isready", "-U", "test_user", "-d", "lion_test_db"]
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "test_user", "-d", "lion_test_db"]
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
             initialDelaySeconds: 15
             periodSeconds: 10
           resources:
@@ -78,6 +89,9 @@ spec:
         # 테스트용 휘발성 스토리지. Pod 재생성 시 데이터는 사라진다(의도된 동작).
         - name: postgres-test-storage
           emptyDir: {}
+        - name: postgres-test-init
+          configMap:
+            name: postgres-test-init
 ---
 apiVersion: v1
 kind: Service
