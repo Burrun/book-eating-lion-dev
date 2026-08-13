@@ -36,3 +36,7 @@ node_modules/
 frontend/node_modules/
 dist/
 frontend/dist/
+
+### k6 부하 테스트 결과 (실행 시 로컬에 쌓임 — 엑셀 비교표만 별도 보관) ###
+k6/results/*.json
+k6/results/comparison.csv
