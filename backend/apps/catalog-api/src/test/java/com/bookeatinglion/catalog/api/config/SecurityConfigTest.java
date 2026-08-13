@@ -1,5 +1,9 @@
 package com.bookeatinglion.catalog.api.config;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.bookeatinglion.book.controller.BookExceptionHandler;
 import com.bookeatinglion.book.controller.ReadingProgressController;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
@@ -13,10 +17,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * SecurityConfig의 실제 authorizeHttpRequests 규칙(순서 포함)을 검증한다.
@@ -44,8 +44,7 @@ class SecurityConfigTest {
 
     @Test
     void 인증_없이_이어읽기_위치_조회는_401을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/catalog/books/1/reading-progress"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/catalog/books/1/reading-progress")).andExpect(status().isUnauthorized());
     }
 
     @Test

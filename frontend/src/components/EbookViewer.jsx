@@ -58,7 +58,9 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
       const start = performance.now();
       await book.locations.generate();
       const elapsedMs = Math.round(performance.now() - start);
-      console.log(`[EbookViewer] locations.generate() took ${elapsedMs}ms (bookId=${bookId ?? "?"})`);
+      console.log(
+        `[EbookViewer] locations.generate() took ${elapsedMs}ms (bookId=${bookId ?? "?"})`,
+      );
       setIsIndexing(false);
 
       if (cacheKey) safeSetItem(cacheKey, book.locations.save());

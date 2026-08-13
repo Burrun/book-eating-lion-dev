@@ -6,22 +6,18 @@ const BADGE_STYLES = {
   best: "bg-[var(--color-coral)] text-white",
 };
 
-export default function BookCard({
-  book,
-  wishlisted = false,
-  onToggleWishlist,
-  onAddToCart,
-}) {
+export default function BookCard({ book, wishlisted = false, onToggleWishlist, onAddToCart }) {
   const { id, title, author, coverUrl, price, originalPrice, badge } = book;
   const discountRate =
-    originalPrice && originalPrice > price
-      ? Math.round((1 - price / originalPrice) * 100)
-      : null;
+    originalPrice && originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : null;
 
   return (
     <div className="group relative flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_1px_3px_rgba(27,59,54,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_12px_24px_rgba(27,59,54,0.12)]">
       {/* 표지 */}
-      <Link to={`/books/${id}`} className="relative block aspect-[3/4] overflow-hidden bg-[var(--color-forest)]/5">
+      <Link
+        to={`/books/${id}`}
+        className="relative block aspect-[3/4] overflow-hidden bg-[var(--color-forest)]/5"
+      >
         {coverUrl ? (
           <img
             src={coverUrl}
@@ -69,16 +65,17 @@ export default function BookCard({
 
       {/* 정보 */}
       <div className="flex flex-1 flex-col gap-1 p-3.5">
-        <Link to={`/books/${id}`} className="line-clamp-2 text-sm font-medium leading-snug text-[var(--color-ink)] hover:text-[var(--color-coral)]">
+        <Link
+          to={`/books/${id}`}
+          className="line-clamp-2 text-sm font-medium leading-snug text-[var(--color-ink)] hover:text-[var(--color-coral)]"
+        >
           {title}
         </Link>
         <p className="text-sm text-[var(--color-ink)] opacity-70">{author}</p>
 
         <div className="mt-1.5 flex items-baseline gap-1.5">
           {discountRate && (
-            <span className="font-display text-sm text-[var(--color-coral)]">
-              {discountRate}%
-            </span>
+            <span className="font-display text-sm text-[var(--color-coral)]">{discountRate}%</span>
           )}
           <span className="font-display text-lg text-[var(--color-ink)]">
             {price.toLocaleString()}원

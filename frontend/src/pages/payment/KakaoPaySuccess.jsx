@@ -28,7 +28,9 @@ export default function KakaoPaySuccess() {
         transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
         className="mb-6 h-10 w-10 rounded-full border-4 border-[var(--color-honey)]/30 border-t-[var(--color-honey)]"
       />
-      <h1 className="font-display mb-2 text-xl text-[var(--color-forest)]">결제 처리 중입니다...</h1>
+      <h1 className="font-display mb-2 text-xl text-[var(--color-forest)]">
+        결제 처리 중입니다...
+      </h1>
       <p className="text-sm text-[var(--color-ink)] opacity-60">
         카카오페이 결제를 확인하고 있어요. 잠시만 기다려주세요.
       </p>

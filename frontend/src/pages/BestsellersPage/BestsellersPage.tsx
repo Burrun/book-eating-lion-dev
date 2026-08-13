@@ -1,12 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
-import BookCard from '../../components/BookCard/BookCard.tsx'
-import { getBestsellers } from '../../api/books.ts'
+import { useQuery } from "@tanstack/react-query";
+import BookCard from "../../components/BookCard/BookCard.tsx";
+import { getBestsellers } from "../../api/books.ts";
 
 export default function BestsellersPage() {
-  const { data: books, isPending, isError } = useQuery({
-    queryKey: ['bestsellers'],
+  const {
+    data: books,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["bestsellers"],
     queryFn: () => getBestsellers(),
-  })
+  });
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
@@ -31,5 +35,5 @@ export default function BestsellersPage() {
         )}
       </section>
     </main>
-  )
+  );
 }

@@ -9,7 +9,9 @@ export default function KakaoPayCancel() {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center sm:px-6">
       <CircleSlash size={40} className="mb-4 text-[var(--color-ink)] opacity-50" />
-      <h1 className="font-display mb-2 text-xl text-[var(--color-forest)]">결제를 취소하셨습니다</h1>
+      <h1 className="font-display mb-2 text-xl text-[var(--color-forest)]">
+        결제를 취소하셨습니다
+      </h1>
       <p className="mb-6 text-sm text-[var(--color-ink)] opacity-60">
         결제가 완료되지 않았어요. 원하실 때 다시 진행해주세요.
       </p>

@@ -4,9 +4,33 @@ import { motion } from "framer-motion";
 // 레벨 구간별 성장 단계 + 확정된 디자인 시안의 지오메트리(반경/갈기 개수/왕관 유무).
 // 얼굴/꼬리/귀 등 부속 파츠는 머리 반경(headR) 대비 아기 사자(headR=30) 비율로 스케일된다.
 const TIER_GEOMETRY = {
-  baby: { key: "baby", label: "아기 사자", bodyRx: 34, bodyRy: 30, headR: 30, maneCount: 0, hasCrown: false },
-  cub: { key: "cub", label: "새끼 사자", bodyRx: 40, bodyRy: 35, headR: 34, maneCount: 7, hasCrown: false },
-  adult: { key: "adult", label: "대양 사자", bodyRx: 46, bodyRy: 40, headR: 40, maneCount: 12, hasCrown: true },
+  baby: {
+    key: "baby",
+    label: "아기 사자",
+    bodyRx: 34,
+    bodyRy: 30,
+    headR: 30,
+    maneCount: 0,
+    hasCrown: false,
+  },
+  cub: {
+    key: "cub",
+    label: "새끼 사자",
+    bodyRx: 40,
+    bodyRy: 35,
+    headR: 34,
+    maneCount: 7,
+    hasCrown: false,
+  },
+  adult: {
+    key: "adult",
+    label: "대양 사자",
+    bodyRx: 46,
+    bodyRy: 40,
+    headR: 40,
+    maneCount: 12,
+    hasCrown: true,
+  },
 };
 const BASE_HEAD_R = TIER_GEOMETRY.baby.headR;
 
@@ -114,7 +138,10 @@ export default function LionCharacter({
       : { y: 0, scale: 1, rotate: 0 };
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: size, height: size * (VIEWBOX_H / VIEWBOX_W) }}>
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size * (VIEWBOX_H / VIEWBOX_W) }}
+    >
       <motion.div
         animate={wrapperAnimate}
         transition={{ duration: isLevelingUp ? 0.6 : 0.5, repeat: isLevelingUp ? Infinity : 0 }}
@@ -122,7 +149,14 @@ export default function LionCharacter({
       >
         <svg viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`} width="100%" height="100%">
           {/* 그림자 */}
-          <ellipse cx={cx} cy={groundY} rx={tier.bodyRx * 1.05} ry={tier.bodyRy * 0.28} fill="var(--color-forest)" opacity="0.08" />
+          <ellipse
+            cx={cx}
+            cy={groundY}
+            rx={tier.bodyRx * 1.05}
+            ry={tier.bodyRy * 0.28}
+            fill="var(--color-forest)"
+            opacity="0.08"
+          />
 
           {/* 꼬리 (곡선 + 끝 폼폼) */}
           <motion.g
@@ -156,7 +190,10 @@ export default function LionCharacter({
           {Array.from({ length: tier.maneCount }).map((_, i) => {
             const spread = tier.key === "cub" ? Math.PI * 0.95 : Math.PI * 2;
             const startAngle = tier.key === "cub" ? -Math.PI * 0.97 : -Math.PI / 2;
-            const angle = tier.maneCount === 1 ? startAngle : startAngle + (i / (tier.maneCount - 1 || 1)) * spread;
+            const angle =
+              tier.maneCount === 1
+                ? startAngle
+                : startAngle + (i / (tier.maneCount - 1 || 1)) * spread;
             const mcx = cx + Math.cos(angle) * maneRadius;
             const mcy = headCenterY + Math.sin(angle) * maneRadius;
             return <circle key={i} cx={mcx} cy={mcy} r={maneCircleR} fill="#D9781F" />;
@@ -167,7 +204,9 @@ export default function LionCharacter({
             <motion.g
               initial={crownEntrance ? { y: -40, opacity: 0 } : false}
               animate={{ y: 0, opacity: 1 }}
-              transition={crownEntrance ? { type: "spring", stiffness: 300, damping: 12 } : { duration: 0 }}
+              transition={
+                crownEntrance ? { type: "spring", stiffness: 300, damping: 12 } : { duration: 0 }
+              }
             >
               <path
                 d={crownPath(cx, headTop - tier.headR * 0.62, tier.headR * 1.05, tier.headR * 0.5)}
@@ -176,9 +215,19 @@ export default function LionCharacter({
                 strokeWidth="2"
                 strokeLinejoin="round"
               />
-              <circle cx={cx - tier.headR * 0.4} cy={headTop - tier.headR * 0.42} r={4 * scale} fill="#E8563F" />
+              <circle
+                cx={cx - tier.headR * 0.4}
+                cy={headTop - tier.headR * 0.42}
+                r={4 * scale}
+                fill="#E8563F"
+              />
               <circle cx={cx} cy={headTop - tier.headR * 0.6} r={4.5 * scale} fill="#E8563F" />
-              <circle cx={cx + tier.headR * 0.4} cy={headTop - tier.headR * 0.42} r={4 * scale} fill="#E8563F" />
+              <circle
+                cx={cx + tier.headR * 0.4}
+                cy={headTop - tier.headR * 0.42}
+                r={4 * scale}
+                fill="#E8563F"
+              />
             </motion.g>
           )}
 
@@ -188,24 +237,56 @@ export default function LionCharacter({
             transition={{ duration: 0.4 }}
             style={{ transformOrigin: `${cx - earOffsetX}px ${headCenterY - earOffsetY}px` }}
           >
-            <circle cx={cx - earOffsetX} cy={headCenterY - earOffsetY} r={earOuterR} fill="#F2A93B" />
-            <circle cx={cx - earOffsetX} cy={headCenterY - earOffsetY} r={earInnerR} fill="#FBE0B8" />
+            <circle
+              cx={cx - earOffsetX}
+              cy={headCenterY - earOffsetY}
+              r={earOuterR}
+              fill="#F2A93B"
+            />
+            <circle
+              cx={cx - earOffsetX}
+              cy={headCenterY - earOffsetY}
+              r={earInnerR}
+              fill="#FBE0B8"
+            />
           </motion.g>
           <motion.g
             animate={{ rotate: earTwitch ? [0, 14, 0] : 0 }}
             transition={{ duration: 0.4 }}
             style={{ transformOrigin: `${cx + earOffsetX}px ${headCenterY - earOffsetY}px` }}
           >
-            <circle cx={cx + earOffsetX} cy={headCenterY - earOffsetY} r={earOuterR} fill="#F2A93B" />
-            <circle cx={cx + earOffsetX} cy={headCenterY - earOffsetY} r={earInnerR} fill="#FBE0B8" />
+            <circle
+              cx={cx + earOffsetX}
+              cy={headCenterY - earOffsetY}
+              r={earOuterR}
+              fill="#F2A93B"
+            />
+            <circle
+              cx={cx + earOffsetX}
+              cy={headCenterY - earOffsetY}
+              r={earInnerR}
+              fill="#FBE0B8"
+            />
           </motion.g>
 
           {/* 머리 */}
           <circle cx={cx} cy={headCenterY} r={tier.headR} fill="#F2A93B" />
 
           {/* 볼터치 */}
-          <circle cx={cx - blushOffsetX} cy={faceCenterY + faceRy * 0.25} r={blushR} fill="#E8563F" opacity="0.35" />
-          <circle cx={cx + blushOffsetX} cy={faceCenterY + faceRy * 0.25} r={blushR} fill="#E8563F" opacity="0.35" />
+          <circle
+            cx={cx - blushOffsetX}
+            cy={faceCenterY + faceRy * 0.25}
+            r={blushR}
+            fill="#E8563F"
+            opacity="0.35"
+          />
+          <circle
+            cx={cx + blushOffsetX}
+            cy={faceCenterY + faceRy * 0.25}
+            r={blushR}
+            fill="#E8563F"
+            opacity="0.35"
+          />
 
           {/* 얼굴 patch */}
           <ellipse cx={cx} cy={faceCenterY} rx={faceRx} ry={faceRy} fill="#FBE0B8" />

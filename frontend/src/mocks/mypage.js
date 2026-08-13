@@ -26,7 +26,11 @@ export const MOCK_FED_BOOKS = [
 
 export const MOCK_READING_NOTES = [
   { id: 1, book: "클린 코드", quote: "“단순함은 모든 것의 시작이다.”" },
-  { id: 2, book: "자바 ORM 표준 JPA 프로그래밍", quote: "“영속성 컨텍스트는 1차 캐시를 제공한다.”" },
+  {
+    id: 2,
+    book: "자바 ORM 표준 JPA 프로그래밍",
+    quote: "“영속성 컨텍스트는 1차 캐시를 제공한다.”",
+  },
 ];
 
 export const MOCK_RAG_ANSWER = {
@@ -70,7 +74,13 @@ export const MOCK_COUPON_STATE = {
 };
 
 export const MOCK_RETURN_REQUESTS = [
-  { id: 1, orderNo: "ORD-20260710-03", title: "이펙티브 자바", reason: "단순 변심", status: "processing" },
+  {
+    id: 1,
+    orderNo: "ORD-20260710-03",
+    title: "이펙티브 자바",
+    reason: "단순 변심",
+    status: "processing",
+  },
 ];
 
 export const MOCK_RESTOCK_REQUESTS = [

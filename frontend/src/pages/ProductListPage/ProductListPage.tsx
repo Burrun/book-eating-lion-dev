@@ -1,56 +1,56 @@
-import { useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import BookCard from '../../components/BookCard/BookCard.tsx'
-import SwipeDeck from '../../components/SwipeDeck/SwipeDeck.tsx'
-import { getBooks, searchBooks } from '../../api/books.ts'
+import { useSearchParams } from "react-router-dom";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import BookCard from "../../components/BookCard/BookCard.tsx";
+import SwipeDeck from "../../components/SwipeDeck/SwipeDeck.tsx";
+import { getBooks, searchBooks } from "../../api/books.ts";
 // 카테고리 목록과 추천 덱은 대응하는 백엔드 API가 없어 목업을 그대로 쓴다.
-import { CATEGORIES, swipeDeck } from '../../mocks/books.ts'
+import { CATEGORIES, swipeDeck } from "../../mocks/books.ts";
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 8;
 
 export default function ProductListPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const query = searchParams.get('q')?.trim() ?? ''
-  const category = searchParams.get('category') ?? ''
-  const rawPage = Number(searchParams.get('page') ?? '0')
-  const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() ?? "";
+  const category = searchParams.get("category") ?? "";
+  const rawPage = Number(searchParams.get("page") ?? "0");
+  const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
 
   // 검색어가 있으면 검색 API, 없으면 목록 API를 쓴다.
   const { data, isPending, isError } = useQuery({
-    queryKey: ['books', { query, category, page }],
+    queryKey: ["books", { query, category, page }],
     queryFn: () =>
       query
         ? searchBooks({ q: query, page, size: PAGE_SIZE })
         : // 빈 문자열을 보내면 백엔드가 카테고리 필터로 인식하므로 undefined로 넘긴다.
           getBooks({ category: category || undefined, page, size: PAGE_SIZE }),
     placeholderData: keepPreviousData,
-  })
+  });
 
-  const books = data?.items ?? []
-  const totalPages = data?.totalPages ?? 1
-  const currentPage = data?.page ?? page
+  const books = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const currentPage = data?.page ?? page;
 
   function handleCategorySelect(value: string) {
-    const next = new URLSearchParams(searchParams)
-    if (value) next.set('category', value)
-    else next.delete('category')
-    next.delete('q')
-    next.delete('page')
-    setSearchParams(next)
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("category", value);
+    else next.delete("category");
+    next.delete("q");
+    next.delete("page");
+    setSearchParams(next);
   }
 
   function clearSearch() {
-    const next = new URLSearchParams(searchParams)
-    next.delete('q')
-    next.delete('page')
-    setSearchParams(next)
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    next.delete("page");
+    setSearchParams(next);
   }
 
   function goToPage(nextPage: number) {
-    const next = new URLSearchParams(searchParams)
-    if (nextPage > 0) next.set('page', String(nextPage))
-    else next.delete('page')
-    setSearchParams(next)
+    const next = new URLSearchParams(searchParams);
+    if (nextPage > 0) next.set("page", String(nextPage));
+    else next.delete("page");
+    setSearchParams(next);
   }
 
   return (
@@ -69,7 +69,10 @@ export default function ProductListPage() {
           </button>
         </section>
 
-        <section id="categories" className="flex scroll-mt-28 flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6">
+        <section
+          id="categories"
+          className="flex scroll-mt-28 flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6"
+        >
           {query ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-semibold text-forest">
@@ -85,22 +88,22 @@ export default function ProductListPage() {
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {['전체', ...CATEGORIES].map((c) => {
-                const value = c === '전체' ? '' : c
-                const active = category === value
+              {["전체", ...CATEGORIES].map((c) => {
+                const value = c === "전체" ? "" : c;
+                const active = category === value;
                 return (
                   <button
                     key={c}
                     onClick={() => handleCategorySelect(value)}
                     className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
                       active
-                        ? 'border-coral bg-coral text-white'
-                        : 'border-forest/15 bg-paper text-forest hover:bg-forest/5'
+                        ? "border-coral bg-coral text-white"
+                        : "border-forest/15 bg-paper text-forest hover:bg-forest/5"
                     }`}
                   >
                     {c}
                   </button>
-                )
+                );
               })}
             </div>
           )}
@@ -117,7 +120,7 @@ export default function ProductListPage() {
             </p>
           ) : books.length === 0 ? (
             <p className="text-sm text-forest/60">
-              {query ? '검색 결과가 없습니다' : '해당 카테고리에 도서가 없습니다'}
+              {query ? "검색 결과가 없습니다" : "해당 카테고리에 도서가 없습니다"}
             </p>
           ) : (
             <>
@@ -153,5 +156,5 @@ export default function ProductListPage() {
         </section>
       </main>
     </>
-  )
+  );
 }

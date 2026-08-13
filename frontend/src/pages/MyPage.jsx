@@ -37,14 +37,29 @@ const ORDER_TABS = [
 
 const ORDER_STATUS_META = {
   shipping: { label: "배송중", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  delivered: { label: "배송완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
-  canceled: { label: "주문취소", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  delivered: {
+    label: "배송완료",
+    className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
+  },
+  canceled: {
+    label: "주문취소",
+    className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
+  },
 };
 
 const RETURN_STATUS_META = {
-  requested: { label: "접수완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
-  processing: { label: "처리중", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  completed: { label: "환불완료", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  requested: {
+    label: "접수완료",
+    className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
+  },
+  processing: {
+    label: "처리중",
+    className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]",
+  },
+  completed: {
+    label: "환불완료",
+    className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
+  },
 };
 
 export default function MyPage() {
@@ -121,7 +136,13 @@ function ProfileCard({ profile, level }) {
         <div className="mt-4 flex flex-wrap gap-2">
           {profile.badges.map((badge) => {
             if (badge.type === "streak") {
-              return <StreakBadge key={badge.label} label={badge.label} streakCount={profile.streakCount ?? 0} />;
+              return (
+                <StreakBadge
+                  key={badge.label}
+                  label={badge.label}
+                  streakCount={profile.streakCount ?? 0}
+                />
+              );
             }
             const Icon = BADGE_ICONS[badge.type] ?? Award;
             return (
@@ -148,7 +169,9 @@ function StreakBadge({ label, streakCount }) {
   return (
     <span
       className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
-        isBlazing ? "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" : "bg-[var(--color-forest)]/5 text-[var(--color-forest)]"
+        isBlazing
+          ? "bg-[var(--color-coral)]/10 text-[var(--color-coral)]"
+          : "bg-[var(--color-forest)]/5 text-[var(--color-forest)]"
       }`}
     >
       {isHot ? (
@@ -490,7 +513,9 @@ function LionRagCard() {
     <section className="rounded-2xl border-2 border-[var(--color-forest)]/15 bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
       <h2 className="font-display mb-4 flex items-center gap-2 text-lg text-[var(--color-forest)]">
         🦁 사자에게 물어보기{" "}
-        <span className="text-sm font-normal text-[var(--color-ink)] opacity-40">(Spring AI RAG)</span>
+        <span className="text-sm font-normal text-[var(--color-ink)] opacity-40">
+          (Spring AI RAG)
+        </span>
       </h2>
 
       <div className="mb-4">
@@ -511,7 +536,8 @@ function LionRagCard() {
               >
                 <Quote size={13} className="mt-0.5 shrink-0 text-[var(--color-forest)]/40" />
                 <span className="text-[var(--color-ink)]">
-                  <span className="font-medium text-[var(--color-forest)]">[{note.book}]</span> {note.quote}
+                  <span className="font-medium text-[var(--color-forest)]">[{note.book}]</span>{" "}
+                  {note.quote}
                 </span>
               </li>
             ))}
@@ -533,7 +559,13 @@ function LionRagCard() {
           placeholder="내가 작성한 메모 중 객체지향 관련 있어?"
           className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
         />
-        <Button type="submit" variant="primary" shimmer={false} disabled={isBusy} className="shrink-0 px-4">
+        <Button
+          type="submit"
+          variant="primary"
+          shimmer={false}
+          disabled={isBusy}
+          className="shrink-0 px-4"
+        >
           <Send size={15} />
         </Button>
       </form>
@@ -683,7 +715,12 @@ function OrdersTab() {
                   <Button variant="secondary" size="sm" shimmer={false}>
                     배송조회
                   </Button>
-                  <Button variant="ghost" size="sm" shimmer={false} className="text-[var(--color-coral)]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    shimmer={false}
+                    className="text-[var(--color-coral)]"
+                  >
                     취소/반품
                   </Button>
                 </>
@@ -735,7 +772,9 @@ function CouponsTab() {
           <li
             key={coupon.id}
             className={`flex items-center justify-between rounded-xl border border-dashed px-4 py-3 ${
-              coupon.status === "expired" ? "border-[var(--color-ink)]/15 opacity-40" : "border-[var(--color-honey)]/50"
+              coupon.status === "expired"
+                ? "border-[var(--color-ink)]/15 opacity-40"
+                : "border-[var(--color-honey)]/50"
             }`}
           >
             <div>
@@ -744,7 +783,9 @@ function CouponsTab() {
             </div>
             <span
               className={`text-xs font-medium ${
-                coupon.status === "expired" ? "text-[var(--color-ink)] opacity-40" : "text-[var(--color-coral)]"
+                coupon.status === "expired"
+                  ? "text-[var(--color-ink)] opacity-40"
+                  : "text-[var(--color-coral)]"
               }`}
             >
               {coupon.status === "expired" ? "기간 만료" : "사용 가능"}
@@ -890,8 +931,10 @@ function ReviewsSection() {
     }
     setReviews((prev) =>
       prev.map((r) =>
-        r.id === editingReview.id ? { ...r, rating: editForm.rating, content: editForm.content.trim() } : r
-      )
+        r.id === editingReview.id
+          ? { ...r, rating: editForm.rating, content: editForm.content.trim() }
+          : r,
+      ),
     );
     setEditingReview(null);
     toast.success("리뷰가 수정되었습니다.");
@@ -931,10 +974,20 @@ function ReviewsSection() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
-                    <Button variant="secondary" size="sm" shimmer={false} onClick={() => openEdit(review)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shimmer={false}
+                      onClick={() => openEdit(review)}
+                    >
                       수정
                     </Button>
-                    <Button variant="coral" size="sm" shimmer={false} onClick={() => setPendingDelete(review)}>
+                    <Button
+                      variant="coral"
+                      size="sm"
+                      shimmer={false}
+                      onClick={() => setPendingDelete(review)}
+                    >
                       삭제
                     </Button>
                   </div>
@@ -983,7 +1036,9 @@ function ReviewsSection() {
       >
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-1.5 text-sm font-medium text-[var(--color-ink)] opacity-80">{editingReview?.book}</p>
+            <p className="mb-1.5 text-sm font-medium text-[var(--color-ink)] opacity-80">
+              {editingReview?.book}
+            </p>
             <StarPicker
               rating={editForm.rating}
               onChange={(rating) => setEditForm((prev) => ({ ...prev, rating }))}

@@ -12,5 +12,4 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @Import로 직접 가져온다.
  */
 @SpringBootApplication
-public class CatalogApiModuleTestApplication {
-}
+public class CatalogApiModuleTestApplication {}

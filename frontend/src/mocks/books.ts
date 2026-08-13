@@ -332,11 +332,23 @@ const BESTSELLER_IDS = [1, 2, 3, 6];
 const NEW_RELEASE_IDS = [18, 16, 4, 5];
 
 export const swipeDeck: SwipeDeckItem[] = [
-  { id: "3", title: "해리 포터와 마법사의 돌", reason: "AI 추천사유: 판타지 분야 선호도 98% 분석 결과" },
-  { id: "2", title: "클린 코드 (Clean Code)", reason: "AI 추천사유: 최근 열람한 IT/개발서와 82% 유사" },
+  {
+    id: "3",
+    title: "해리 포터와 마법사의 돌",
+    reason: "AI 추천사유: 판타지 분야 선호도 98% 분석 결과",
+  },
+  {
+    id: "2",
+    title: "클린 코드 (Clean Code)",
+    reason: "AI 추천사유: 최근 열람한 IT/개발서와 82% 유사",
+  },
   { id: "15", title: "돈의 속성", reason: "AI 추천사유: 경제/재테크 관심 카테고리 1위" },
   { id: "11", title: "사피엔스", reason: "AI 추천사유: 인문/역사 도서 완독률 상위 5%" },
-  { id: "6", title: "스프링 부트 실전 활용", reason: "AI 추천사유: 최근 완독한 JPA 도서와 연관 구매율 78%" },
+  {
+    id: "6",
+    title: "스프링 부트 실전 활용",
+    reason: "AI 추천사유: 최근 완독한 JPA 도서와 연관 구매율 78%",
+  },
 ];
 
 function toSummary(seed: BookSeed): BookSummaryResponse {

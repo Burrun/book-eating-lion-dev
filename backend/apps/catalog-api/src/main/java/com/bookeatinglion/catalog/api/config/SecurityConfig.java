@@ -30,7 +30,8 @@ public class SecurityConfig {
                         // reading-progress는 /api/catalog/books/** 아래라 아래의 GET permitAll보다
                         // 먼저 매칭돼야 한다 — 순서가 바뀌면 GET이 인증 없이 뚫린다.
                         // (SecurityConfigTest.인증_없이_이어읽기_위치_조회는_401을_반환한다 가 이 순서를 지킨다)
-                        .requestMatchers("/api/catalog/books/*/reading-progress").authenticated()
+                        .requestMatchers("/api/catalog/books/*/reading-progress")
+                        .authenticated()
                         // 도서 조회는 비로그인도 가능하다.
                         .requestMatchers(HttpMethod.GET, "/api/catalog/books/**")
                         .permitAll()

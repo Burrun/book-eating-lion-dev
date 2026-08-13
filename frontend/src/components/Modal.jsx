@@ -67,9 +67,7 @@ export default function Modal({
               </button>
             </div>
 
-            <div className="overflow-y-auto px-6 py-5 text-[var(--color-ink)]">
-              {children}
-            </div>
+            <div className="overflow-y-auto px-6 py-5 text-[var(--color-ink)]">{children}</div>
 
             {footer && (
               <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--color-forest)]/10 px-6 py-4">
@@ -80,6 +78,6 @@ export default function Modal({
         </div>
       )}
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }

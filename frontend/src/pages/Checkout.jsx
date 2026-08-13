@@ -140,8 +140,8 @@ export default function Checkout() {
       digits.length < 4
         ? digits
         : digits.length < 8
-        ? `${digits.slice(0, 3)}-${digits.slice(3)}`
-        : `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+          ? `${digits.slice(0, 3)}-${digits.slice(3)}`
+          : `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
     setForm((prev) => ({ ...prev, phone: formatted }));
   };
 
@@ -222,7 +222,7 @@ export default function Checkout() {
       toast.success("결제가 완료되었습니다.");
       // 주문완료 전용 페이지가 아직 없어서 임시로 마이페이지 주문내역 탭으로 이동
       setTimeout(() => navigate("/mypage?tab=orders"), 1500);
-    } catch (err) {
+    } catch {
       toast.error("주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setIsPlacingOrder(false);
@@ -271,7 +271,13 @@ export default function Checkout() {
                     placeholder="우편번호 검색을 눌러주세요"
                     className="w-full rounded-xl border border-[var(--color-forest)]/20 bg-[var(--color-forest)]/5 px-3.5 py-2.5 text-sm text-[var(--color-ink)]/70 focus:outline-none"
                   />
-                  <Button type="button" variant="secondary" shimmer={false} onClick={handleSearchAddress} className="shrink-0">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    shimmer={false}
+                    onClick={handleSearchAddress}
+                    className="shrink-0"
+                  >
                     <Search size={15} className="mr-1" />
                     검색
                   </Button>
@@ -352,8 +358,12 @@ export default function Checkout() {
                     >
                       <Icon size={17} />
                     </span>
-                    <span className="text-sm font-medium text-[var(--color-ink)]">{method.label}</span>
-                    <span className="text-sm text-[var(--color-ink)] opacity-60">{method.description}</span>
+                    <span className="text-sm font-medium text-[var(--color-ink)]">
+                      {method.label}
+                    </span>
+                    <span className="text-sm text-[var(--color-ink)] opacity-60">
+                      {method.description}
+                    </span>
                   </motion.label>
                 );
               })}
@@ -396,8 +406,8 @@ export default function Checkout() {
                             !isSelectable
                               ? "cursor-not-allowed border-[var(--color-forest)]/10 bg-[var(--color-forest)]/5 opacity-40"
                               : isChosen
-                              ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
-                              : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                                ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                                : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
                           }`}
                         >
                           <span className="flex items-center justify-between gap-2">
@@ -484,7 +494,11 @@ export default function Checkout() {
         title="결제를 진행할까요?"
         footer={
           <>
-            <Button variant="ghost" disabled={isPlacingOrder} onClick={() => setIsConfirmOpen(false)}>
+            <Button
+              variant="ghost"
+              disabled={isPlacingOrder}
+              onClick={() => setIsConfirmOpen(false)}
+            >
               취소
             </Button>
             <Button variant="primary" loading={isPlacingOrder} onClick={handleConfirmPayment}>
@@ -523,7 +537,9 @@ function Row({ label, value, tone }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-[var(--color-ink)]/70">{label}</dt>
-      <dd className={tone === "coral" ? "text-[var(--color-coral)]" : "text-[var(--color-ink)]"}>{value}</dd>
+      <dd className={tone === "coral" ? "text-[var(--color-coral)]" : "text-[var(--color-ink)]"}>
+        {value}
+      </dd>
     </div>
   );
 }

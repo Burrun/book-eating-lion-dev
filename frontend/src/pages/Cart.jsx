@@ -68,7 +68,9 @@ export default function Cart() {
       prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)),
     );
     // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다.
-    updateQuantity(id, newQuantity).then(invalidateHeaderCart).catch(() => {});
+    updateQuantity(id, newQuantity)
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   const removeItem = (id) => {
@@ -78,14 +80,18 @@ export default function Cart() {
       next.delete(id);
       return next;
     });
-    removeFromCart(id).then(invalidateHeaderCart).catch(() => {});
+    removeFromCart(id)
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   const removeSelected = () => {
     const idsToRemove = [...selectedIds];
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
-    Promise.all(idsToRemove.map((id) => removeFromCart(id))).then(invalidateHeaderCart).catch(() => {});
+    Promise.all(idsToRemove.map((id) => removeFromCart(id)))
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   return (
