@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * catalog-service — 도서/리뷰/찜/스와이프/추천 추론.
@@ -19,6 +20,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EntityScan(basePackages = "com.bookeatinglion.book")
 @EnableJpaRepositories(basePackages = "com.bookeatinglion.book")
 @EnableFeignClients(basePackages = "com.bookeatinglion.catalog.api.client")
+@EnableScheduling
 public class CatalogApiApplication {
 
     public static void main(String[] args) {

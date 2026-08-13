@@ -77,6 +77,13 @@ services:
       AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID:-local_dummy_pool}
       # 재고 조회 대상. order 가 죽어 있어도 catalog 는 뜬다(fallback).
       SERVICES_ORDER_URL: http://order:8080
+      SERVICES_MEMBER_URL: http://member:8080
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      SES_FROM_ADDRESS: ${SES_FROM_ADDRESS:-no-reply@example.com}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
 
   order:
     build:
