@@ -19,23 +19,25 @@ public class FaqService {
     private final FaqRepository faqRepository;
 
     public List<FaqResponse> getActiveFaqs(String category) {
-        List<Faq> faqs = category == null || category.isBlank()
+        String normalizedCategory = normalizeCategory(category);
+        List<Faq> faqs = normalizedCategory == null
                 ? faqRepository.findByActiveTrueOrderBySortOrderAscFaqIdAsc()
-                : faqRepository.findByActiveTrueAndCategoryOrderBySortOrderAscFaqIdAsc(category);
+                : faqRepository.findByActiveTrueAndCategoryOrderBySortOrderAscFaqIdAsc(normalizedCategory);
         return faqs.stream().map(FaqResponse::from).toList();
     }
 
     public List<FaqResponse> getAdminFaqs(String category) {
-        List<Faq> faqs = category == null || category.isBlank()
+        String normalizedCategory = normalizeCategory(category);
+        List<Faq> faqs = normalizedCategory == null
                 ? faqRepository.findAllByOrderBySortOrderAscFaqIdAsc()
-                : faqRepository.findByCategoryOrderBySortOrderAscFaqIdAsc(category);
+                : faqRepository.findByCategoryOrderBySortOrderAscFaqIdAsc(normalizedCategory);
         return faqs.stream().map(FaqResponse::from).toList();
     }
 
     @Transactional
     public FaqResponse create(FaqCreateRequest request) {
         Faq faq = Faq.builder()
-                .category(request.category())
+                .category(request.category().trim())
                 .question(request.question())
                 .answer(request.answer())
                 .sortOrder(request.sortOrder())
@@ -47,7 +49,8 @@ public class FaqService {
     @Transactional
     public FaqResponse update(Long faqId, FaqUpdateRequest request) {
         Faq faq = getFaq(faqId);
-        faq.update(request.category(), request.question(), request.answer(), request.sortOrder(), request.active());
+        faq.update(
+                request.category().trim(), request.question(), request.answer(), request.sortOrder(), request.active());
         return FaqResponse.from(faq);
     }
 
@@ -58,5 +61,10 @@ public class FaqService {
 
     private Faq getFaq(Long faqId) {
         return faqRepository.findById(faqId).orElseThrow(() -> new FaqNotFoundException(faqId));
+    }
+
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) return null;
+        return category.trim();
     }
 }

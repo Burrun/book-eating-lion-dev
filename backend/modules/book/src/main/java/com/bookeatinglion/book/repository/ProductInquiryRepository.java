@@ -16,6 +16,7 @@ public interface ProductInquiryRepository extends JpaRepository<ProductInquiry, 
             where i.book.bookId = :bookId
               and i.deleted = false
               and (i.privateInquiry = false or i.memberId = :memberId)
+            order by i.createdAt desc, i.inquiryId desc
             """)
     Page<ProductInquiry> findVisibleByBookId(
             @Param("bookId") Long bookId, @Param("memberId") String memberId, Pageable pageable);
@@ -25,6 +26,7 @@ public interface ProductInquiryRepository extends JpaRepository<ProductInquiry, 
             select i from ProductInquiry i
             where (:bookId is null or i.book.bookId = :bookId)
               and (:status is null or i.status = :status)
+            order by i.createdAt desc, i.inquiryId desc
             """)
     Page<ProductInquiry> findForAdmin(
             @Param("bookId") Long bookId, @Param("status") InquiryStatus status, Pageable pageable);

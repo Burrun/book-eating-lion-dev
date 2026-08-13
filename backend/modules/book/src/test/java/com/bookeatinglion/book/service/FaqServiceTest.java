@@ -39,10 +39,20 @@ class FaqServiceTest {
     }
 
     @Test
+    void FAQ_카테고리_조회값의_앞뒤_공백을_제거한다() {
+        when(faqRepository.findByActiveTrueAndCategoryOrderBySortOrderAscFaqIdAsc("ORDER"))
+                .thenReturn(List.of());
+
+        faqService.getActiveFaqs("  ORDER  ");
+
+        verify(faqRepository).findByActiveTrueAndCategoryOrderBySortOrderAscFaqIdAsc("ORDER");
+    }
+
+    @Test
     void 관리자가_FAQ를_등록한다() {
         when(faqRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var result = faqService.create(new FaqCreateRequest("ORDER", "배송은?", "이틀입니다.", 1, true));
+        var result = faqService.create(new FaqCreateRequest("  ORDER  ", "배송은?", "이틀입니다.", 1, true));
 
         assertThat(result.category()).isEqualTo("ORDER");
         assertThat(result.active()).isTrue();
