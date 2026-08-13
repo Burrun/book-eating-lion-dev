@@ -4,6 +4,9 @@ import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.exception.CategoryNotFoundException;
+import com.bookeatinglion.book.exception.FaqNotFoundException;
+import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
+import com.bookeatinglion.book.exception.InquiryNotFoundException;
 import com.bookeatinglion.book.exception.RestockAlertConflictException;
 import com.bookeatinglion.book.exception.RestockAlertNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
@@ -65,6 +68,24 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleRestockAlertConflict(RestockAlertConflictException e) {
         return ResponseEntity.status(BookErrorCode.RESTOCK_ALERT_CONFLICT.getStatus())
                 .body(ApiResponse.error(BookErrorCode.RESTOCK_ALERT_CONFLICT.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(InquiryNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInquiryNotFound(InquiryNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.INQUIRY_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.INQUIRY_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(InquiryAccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInquiryAccessDenied(InquiryAccessDeniedException e) {
+        return ResponseEntity.status(BookErrorCode.INQUIRY_ACCESS_DENIED.getStatus())
+                .body(ApiResponse.error(BookErrorCode.INQUIRY_ACCESS_DENIED.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(FaqNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFaqNotFound(FaqNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.FAQ_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.FAQ_NOT_FOUND.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
