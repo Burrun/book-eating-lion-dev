@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,12 @@ public class RestockAlertService {
     private final BookRepository bookRepository;
     private final MemberNotificationProfilePort memberProfilePort;
     private final RestockEmailSender emailSender;
+    private RestockAlertStateService alertStateService;
+
+    @Autowired
+    void setAlertStateService(RestockAlertStateService alertStateService) {
+        this.alertStateService = alertStateService;
+    }
 
     @Value("${notifications.restock.max-retries:3}")
     private int maxRetries;
@@ -82,42 +89,78 @@ public class RestockAlertService {
         alert.cancel(LocalDateTime.now());
     }
 
-    @Transactional
     public void handleRestocked(InventoryRestockedEvent event) {
         if (processedEventRepository.existsById(event.eventId())) return;
         if (event.previousStock() == 0 && event.currentStock() > 0) {
             alertRepository
                     .findByBookBookIdAndStatus(event.bookId(), RestockAlertStatus.WAITING)
-                    .forEach(this::deliver);
+                    .forEach(alert -> deliver(alert, RestockAlertStatus.WAITING));
         }
         processedEventRepository.save(new ProcessedRestockEvent(event.eventId(), event.bookId(), LocalDateTime.now()));
     }
 
-    @Transactional
     public int retryFailed() {
         List<RestockAlert> alerts =
                 alertRepository.findTop100ByStatusAndNextRetryAtLessThanEqualAndRetryCountLessThanOrderByNextRetryAtAsc(
                         RestockAlertStatus.FAILED, LocalDateTime.now(), maxRetries);
-        alerts.forEach(this::deliver);
+        alerts.forEach(alert -> deliver(alert, RestockAlertStatus.FAILED));
         return alerts.size();
     }
 
-    private void deliver(RestockAlert alert) {
-        alert.processing(LocalDateTime.now());
+    private void deliver(RestockAlert alert, RestockAlertStatus expectedStatus) {
+        RestockAlertStateService.DeliveryTarget target = claim(alert, expectedStatus);
+        if (target == null) return;
+
         try {
-            var profile = memberProfilePort.findByMemberId(alert.getMemberId());
-            Book book = alert.getBook();
+            var profile = memberProfilePort.findByMemberId(target.memberId());
             emailSender.send(new RestockEmailSender.RestockEmail(
                     profile.email(),
                     profile.name(),
-                    book.getTitle(),
-                    book.getAuthor(),
-                    book.getCoverImageUrl(),
-                    frontendUrl + "/books/" + book.getBookId()));
-            alert.sent(LocalDateTime.now());
+                    target.bookTitle(),
+                    target.author(),
+                    target.coverImageUrl(),
+                    frontendUrl + "/books/" + target.bookId()));
+            markSent(alert, target.alertId());
         } catch (Exception e) {
-            alert.failed(e.getMessage(), LocalDateTime.now().plus(retryDelay));
-            log.warn("재입고 이메일 발송 실패: alertId={}, retryCount={}", alert.getRestockAlertId(), alert.getRetryCount(), e);
+            markFailed(alert, target.alertId(), e);
+            log.warn("재입고 이메일 발송 실패: alertId={}", target.alertId(), e);
         }
+    }
+
+    private RestockAlertStateService.DeliveryTarget claim(RestockAlert alert, RestockAlertStatus expectedStatus) {
+        if (alertStateService != null) {
+            return expectedStatus == RestockAlertStatus.WAITING
+                    ? alertStateService.claimWaiting(alert.getRestockAlertId())
+                    : alertStateService.claimFailed(alert.getRestockAlertId());
+        }
+
+        // 단위 테스트처럼 Spring 트랜잭션 프록시가 없는 경우에도 기존 동작을 유지한다.
+        if (alert.getStatus() != expectedStatus) return null;
+        alert.processing(LocalDateTime.now());
+        Book book = alert.getBook();
+        return new RestockAlertStateService.DeliveryTarget(
+                alert.getRestockAlertId(),
+                alert.getMemberId(),
+                book.getBookId(),
+                book.getTitle(),
+                book.getAuthor(),
+                book.getCoverImageUrl());
+    }
+
+    private void markSent(RestockAlert alert, Long alertId) {
+        if (alertStateService == null) {
+            alert.sent(LocalDateTime.now());
+            return;
+        }
+        alertStateService.markSent(alertId);
+    }
+
+    private void markFailed(RestockAlert alert, Long alertId, Exception exception) {
+        LocalDateTime nextRetryAt = LocalDateTime.now().plus(retryDelay);
+        if (alertStateService == null) {
+            alert.failed(exception.getMessage(), nextRetryAt);
+            return;
+        }
+        alertStateService.markFailed(alertId, exception.getMessage(), nextRetryAt);
     }
 }
