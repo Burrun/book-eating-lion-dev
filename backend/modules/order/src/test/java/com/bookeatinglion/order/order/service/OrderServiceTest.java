@@ -79,6 +79,7 @@ class OrderServiceTest {
 
     private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
     private static final String OTHER_MEMBER_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+    private static final String NICKNAME = "홍길동";
 
     @Mock
     private OrderRepository orderRepository;
@@ -185,7 +186,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(response.nextRedirectUrl()).isNull();
@@ -199,7 +200,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(InvalidOrderRequestException.class);
     }
 
@@ -218,7 +219,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(PaymentDeclinedException.class);
 
         verify(paymentRepository, never()).save(any());
@@ -240,7 +241,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         assertThat(response.totalAmount()).isEqualTo(7000);
         assertThat(memberCoupon.isUsed()).isTrue();
@@ -258,7 +259,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        orderService.createOrder(MEMBER_ID, request);
+        orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
         verify(deliveryRepository).save(captor.capture());
@@ -277,12 +278,13 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
 
-        orderService.createOrder(MEMBER_ID, request);
+        orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         ArgumentCaptor<ReviewPermissionGranted> captor = ArgumentCaptor.forClass(ReviewPermissionGranted.class);
         verify(reviewPermissionPublisher).publish(captor.capture());
         assertThat(captor.getValue().memberId()).isEqualTo(MEMBER_ID);
         assertThat(captor.getValue().bookId()).isEqualTo(100L);
+        assertThat(captor.getValue().nickname()).isEqualTo(NICKNAME);
         verify(bookPurchasePublisher).publish(MEMBER_ID, 100L);
     }
 
@@ -301,7 +303,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.nextRedirectUrl()).isEqualTo("https://mockup-pg-web.kakao.com/redirect");
@@ -328,7 +330,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        OrderResponse response = orderService.createOrder(MEMBER_ID, request);
+        OrderResponse response = orderService.createOrder(MEMBER_ID, NICKNAME, request);
 
         assertThat(response.totalAmount()).isEqualTo(7000);
         assertThat(memberCoupon.isUsed()).isFalse();
@@ -346,7 +348,8 @@ class OrderServiceTest {
                 PaymentMethod.KAKAO_PAY,
                 null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request)).isInstanceOf(OutOfStockException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
+                .isInstanceOf(OutOfStockException.class);
     }
 
     @Test
@@ -357,7 +360,8 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 2)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request)).isInstanceOf(OutOfStockException.class);
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
+                .isInstanceOf(OutOfStockException.class);
     }
 
     @Test
@@ -370,7 +374,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(BookPriceUnavailableException.class);
     }
 
@@ -384,7 +388,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(OrderCouponNotFoundException.class);
     }
 
@@ -401,7 +405,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(UnauthorizedCouponAccessException.class);
     }
 
@@ -418,7 +422,7 @@ class OrderServiceTest {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
 
-        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, request))
+        assertThatThrownBy(() -> orderService.createOrder(MEMBER_ID, NICKNAME, request))
                 .isInstanceOf(InvalidCouponException.class);
     }
 
@@ -457,7 +461,7 @@ class OrderServiceTest {
 
         when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
 
-        OrderResponse response = orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+        OrderResponse response = orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token");
 
         assertThat(response.orderStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(response.payment().paymentStatus()).isEqualTo(PaymentStatus.APPROVED);
@@ -479,12 +483,13 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
 
-        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+        orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token");
 
         ArgumentCaptor<ReviewPermissionGranted> captor = ArgumentCaptor.forClass(ReviewPermissionGranted.class);
         verify(reviewPermissionPublisher).publish(captor.capture());
         assertThat(captor.getValue().memberId()).isEqualTo(MEMBER_ID);
         assertThat(captor.getValue().bookId()).isEqualTo(100L);
+        assertThat(captor.getValue().nickname()).isEqualTo(NICKNAME);
         verify(bookPurchasePublisher).publish(MEMBER_ID, 100L);
     }
 
@@ -499,7 +504,7 @@ class OrderServiceTest {
         when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 1)));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(OutOfStockException.class);
 
         verify(kakaoPayClient, never()).approve(any(), any(), any(), any());
@@ -513,7 +518,7 @@ class OrderServiceTest {
         ReflectionTestUtils.setField(order, "orderStatus", OrderStatus.PAID);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(PaymentAlreadyProcessedException.class);
     }
 
@@ -524,7 +529,7 @@ class OrderServiceTest {
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(PaymentAlreadyProcessedException.class);
     }
 
@@ -534,7 +539,7 @@ class OrderServiceTest {
         Order order = order(1L, OTHER_MEMBER_ID, 10000);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(UnauthorizedOrderAccessException.class);
     }
 
@@ -543,7 +548,7 @@ class OrderServiceTest {
         setUp();
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, 999L, "pg-token"))
+        assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 999L, "pg-token"))
                 .isInstanceOf(OrderNotFoundException.class);
     }
 
@@ -559,7 +564,7 @@ class OrderServiceTest {
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
 
-        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+        orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token");
 
         ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
         verify(deliveryRepository).save(captor.capture());
@@ -581,7 +586,7 @@ class OrderServiceTest {
         when(deliveryRepository.findByOrderId(1L))
                 .thenReturn(Optional.of(Delivery.builder().orderId(1L).build()));
 
-        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+        orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token");
 
         verify(deliveryRepository, never()).save(any());
     }

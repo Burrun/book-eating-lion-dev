@@ -57,7 +57,8 @@ class PaymentControllerTest {
 
     @Test
     void 카카오페이_승인은_200과_PAID_주문을_반환한다() throws Exception {
-        when(orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token-value")).thenReturn(paidResponse());
+        when(orderService.approveKakaoPay(MEMBER_ID, null, 1L, "pg-token-value"))
+                .thenReturn(paidResponse());
 
         mockMvc.perform(post("/api/payments/kakao/approve")
                         .with(authenticated())
@@ -82,7 +83,8 @@ class PaymentControllerTest {
 
     @Test
     void 존재하지_않는_주문이면_404를_반환한다() throws Exception {
-        when(orderService.approveKakaoPay(MEMBER_ID, 999L, "pg-token")).thenThrow(new OrderNotFoundException(999L));
+        when(orderService.approveKakaoPay(MEMBER_ID, null, 999L, "pg-token"))
+                .thenThrow(new OrderNotFoundException(999L));
 
         mockMvc.perform(post("/api/payments/kakao/approve")
                         .with(authenticated())
@@ -95,7 +97,7 @@ class PaymentControllerTest {
 
     @Test
     void 타인의_주문이면_403을_반환한다() throws Exception {
-        when(orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        when(orderService.approveKakaoPay(MEMBER_ID, null, 1L, "pg-token"))
                 .thenThrow(new UnauthorizedOrderAccessException(1L));
 
         mockMvc.perform(post("/api/payments/kakao/approve")
@@ -109,7 +111,7 @@ class PaymentControllerTest {
 
     @Test
     void 이미_처리된_주문이면_409를_반환한다() throws Exception {
-        when(orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token"))
+        when(orderService.approveKakaoPay(MEMBER_ID, null, 1L, "pg-token"))
                 .thenThrow(new PaymentAlreadyProcessedException(1L));
 
         mockMvc.perform(post("/api/payments/kakao/approve")
@@ -123,7 +125,7 @@ class PaymentControllerTest {
 
     @Test
     void 재고부족이면_승인을_시도하지_않고_400을_반환한다() throws Exception {
-        when(orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token")).thenThrow(new OutOfStockException(100L));
+        when(orderService.approveKakaoPay(MEMBER_ID, null, 1L, "pg-token")).thenThrow(new OutOfStockException(100L));
 
         mockMvc.perform(post("/api/payments/kakao/approve")
                         .with(authenticated())

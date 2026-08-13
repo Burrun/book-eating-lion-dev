@@ -82,7 +82,7 @@ public class OrderService {
     private final BookPurchasePublisher bookPurchasePublisher;
 
     @Transactional
-    public OrderResponse createOrder(String memberId, CreateOrderRequest request) {
+    public OrderResponse createOrder(String memberId, String nickname, CreateOrderRequest request) {
         if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD && request.cardId() == null) {
             throw new InvalidOrderRequestException("paymentMethod=CARD 이면 cardId 가 필수입니다.");
         }
@@ -134,7 +134,7 @@ public class OrderService {
             if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD) {
                 Payment payment = paymentService.approveCard(order, request.cardId(), totalAmount);
                 order.markPaid();
-                publishPurchaseConfirmed(memberId, items);
+                publishPurchaseConfirmed(memberId, nickname, items);
                 if (memberCoupon != null) {
                     memberCoupon.use(LocalDateTime.now(), order.getId());
                 }
@@ -159,7 +159,7 @@ public class OrderService {
      * 사용자 결제는 실제로 이뤄지지 않는다.
      */
     @Transactional
-    public OrderResponse approveKakaoPay(String memberId, Long orderId, String pgToken) {
+    public OrderResponse approveKakaoPay(String memberId, String nickname, Long orderId, String pgToken) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -196,7 +196,7 @@ public class OrderService {
 
             paymentService.approveKakao(payment, orderId, memberId, pgToken);
             order.markPaid();
-            publishPurchaseConfirmed(memberId, items);
+            publishPurchaseConfirmed(memberId, nickname, items);
 
             if (memberCoupon != null) {
                 memberCoupon.use(LocalDateTime.now(), orderId);
@@ -230,11 +230,11 @@ public class OrderService {
      * 구매 확정 SQS 이벤트는 afterCommit 훅으로 미룬다 — 커밋 전에 나가면, 이후 재고 차감/카드
      * 승인 등에서 롤백이 나도 ai-service 는 이미 검색 권한으로 적재해버려 되돌릴 수 없다.
      */
-    private void publishPurchaseConfirmed(String memberId, List<OrderItem> items) {
+    private void publishPurchaseConfirmed(String memberId, String nickname, List<OrderItem> items) {
         String grantedAt = LocalDateTime.now().toString();
         for (OrderItem item : items) {
             reviewPermissionPublisher.publish(
-                    new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), null, grantedAt));
+                    new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
         }
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

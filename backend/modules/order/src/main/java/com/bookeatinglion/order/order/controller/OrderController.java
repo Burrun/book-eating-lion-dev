@@ -30,7 +30,8 @@ public class OrderController {
     @PostMapping
     public ApiResponse<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
         String memberId = SecurityUtils.currentMemberSub();
-        return ApiResponse.success(orderService.createOrder(memberId, request));
+        String nickname = SecurityUtils.currentNickname();
+        return ApiResponse.success(orderService.createOrder(memberId, nickname, request));
     }
 
     @GetMapping
