@@ -30,6 +30,14 @@ kakaopay:
   # 결제 완료 후 카카오가 사용자를 돌려보낼 프론트엔드 콜백 페이지.
   frontend-callback-url: ${KAKAOPAY_FRONTEND_CALLBACK_URL:http://localhost:5173/payments/kakao/callback}
 
+# 구매 확정 이벤트 발행 큐. ai-service 가 검색 권한(RAG 대상) 적재에 쓴다.
+# 로컬에 큐 URL 이 없으면 SqsBookPurchasePublisher 가 발행 실패를 로그로만 남긴다
+# (afterCommit 이후라 주문 자체는 이미 커밋돼 있다).
+sqs:
+  region: ${AWS_REGION:ap-northeast-2}
+  purchase:
+    queue-url: ${SQS_PURCHASE_QUEUE_URL:}
+
 resilience4j:
   circuitbreaker:
     instances:

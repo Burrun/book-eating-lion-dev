@@ -16,6 +16,10 @@ data:
   # 리뷰 권한 이벤트 발행 채널
   REDIS_HOST: "${REDIS_HOST}"
 
+  # 구매 확정 이벤트 발행 큐(SQS). ai-service 의 SqsPurchaseListener 가 book-purchase-queue
+  # 로 수신해 검색 권한(RAG 대상)을 적재한다.
+  SQS_PURCHASE_QUEUE_URL: "${SQS_PURCHASE_QUEUE_URL}"
+
   AWS_REGION: "${AWS_REGION}"
   AWS_COGNITO_REGION: "${AWS_REGION}"
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"

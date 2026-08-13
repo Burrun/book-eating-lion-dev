@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bookeatinglion.common.event.ReviewPermissionGranted;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
 import com.bookeatinglion.order.client.CardClient;
 import com.bookeatinglion.order.client.CatalogClient;
@@ -21,6 +22,8 @@ import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
 import com.bookeatinglion.order.delivery.domain.Delivery;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
+import com.bookeatinglion.order.event.BookPurchasePublisher;
+import com.bookeatinglion.order.event.ReviewPermissionPublisher;
 import com.bookeatinglion.order.inventory.domain.Inventory;
 import com.bookeatinglion.order.inventory.repository.InventoryRepository;
 import com.bookeatinglion.order.lock.InventoryLockExecutor;
@@ -107,6 +110,12 @@ class OrderServiceTest {
     @Mock
     private DeliveryRepository deliveryRepository;
 
+    @Mock
+    private ReviewPermissionPublisher reviewPermissionPublisher;
+
+    @Mock
+    private BookPurchasePublisher bookPurchasePublisher;
+
     private InventoryLockExecutor passThroughLockExecutor;
 
     private PaymentService paymentService;
@@ -131,7 +140,9 @@ class OrderServiceTest {
                 catalogClient,
                 passThroughLockExecutor,
                 paymentService,
-                deliveryRepository);
+                deliveryRepository,
+                reviewPermissionPublisher,
+                bookPurchasePublisher);
     }
 
     private Inventory inventory(Long bookId, int stock) {
@@ -253,6 +264,26 @@ class OrderServiceTest {
         verify(deliveryRepository).save(captor.capture());
         assertThat(captor.getValue().getOrderId()).isEqualTo(1L);
         assertThat(captor.getValue().getDeliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
+    }
+
+    @Test
+    void 카드_결제_완료시_리뷰권한과_구매확정_이벤트가_발행된다() {
+        setUp();
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
+        stubOrderAndPaymentSave();
+        when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(true, null));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                List.of(new OrderItemRequest(100L, 1)), null, recipient(), PaymentMethod.VIRTUAL_CARD, 55L);
+
+        orderService.createOrder(MEMBER_ID, request);
+
+        ArgumentCaptor<ReviewPermissionGranted> captor = ArgumentCaptor.forClass(ReviewPermissionGranted.class);
+        verify(reviewPermissionPublisher).publish(captor.capture());
+        assertThat(captor.getValue().memberId()).isEqualTo(MEMBER_ID);
+        assertThat(captor.getValue().bookId()).isEqualTo(100L);
+        verify(bookPurchasePublisher).publish(MEMBER_ID, 100L);
     }
 
     // ---------------------------------------------------------------- createOrder / KAKAOPAY (ready)
@@ -434,6 +465,27 @@ class OrderServiceTest {
         assertThat(inventory.getStock()).isEqualTo(9);
         assertThat(memberCoupon.isUsed()).isTrue();
         verify(cartItemRepository).deleteByMemberIdAndBookIdIn(MEMBER_ID, List.of(100L));
+    }
+
+    @Test
+    void 카카오페이_승인_완료시_리뷰권한과_구매확정_이벤트가_발행된다() {
+        setUp();
+        Order order = pendingKakaoOrder(7000, null);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        Payment payment = readyPayment(order, 7000);
+        when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(item));
+        when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
+        when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
+
+        orderService.approveKakaoPay(MEMBER_ID, 1L, "pg-token");
+
+        ArgumentCaptor<ReviewPermissionGranted> captor = ArgumentCaptor.forClass(ReviewPermissionGranted.class);
+        verify(reviewPermissionPublisher).publish(captor.capture());
+        assertThat(captor.getValue().memberId()).isEqualTo(MEMBER_ID);
+        assertThat(captor.getValue().bookId()).isEqualTo(100L);
+        verify(bookPurchasePublisher).publish(MEMBER_ID, 100L);
     }
 
     @Test
