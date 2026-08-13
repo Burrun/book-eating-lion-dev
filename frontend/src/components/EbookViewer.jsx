@@ -35,6 +35,15 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
   const [location, setLocation] = useState(initialCfi);
   const [isIndexing, setIsIndexing] = useState(false);
   const epubBookRef = useRef(null);
+  const syncedBookIdRef = useRef(null);
+
+  // 마운트 시점엔 로컬 값(또는 null)으로 이미 시작했는데, 다른 기기에서만 읽은 책이라
+  // 서버 조회가 뒤늦게 도착하는 경우가 있다. 그 값이 도착하는 즉시(책당 한 번) 반영한다.
+  useEffect(() => {
+    if (syncedBookIdRef.current === bookId || !initialCfi) return;
+    syncedBookIdRef.current = bookId;
+    setLocation(initialCfi);
+  }, [bookId, initialCfi]);
 
   // react-reader/epub.js locations(=페이지 인덱스)를 진행률 계산에 쓴다. 책마다 한 번만
   // generate()하면 되므로 localStorage에 캐싱해서 재방문 시 load()로 복원한다.

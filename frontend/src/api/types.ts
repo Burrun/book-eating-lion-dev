@@ -75,6 +75,19 @@ export interface ReviewRequest {
   content: string;
 }
 
+// PUT/GET /api/catalog/books/{bookId}/reading-progress — 기록 없으면 data: null
+export interface ReadingProgressResponse {
+  bookId: number;
+  cfi: string;
+  percentage: number | null;
+  updatedAt: string;
+}
+
+export interface ReadingProgressRequest {
+  cfi: string;
+  percentage?: number;
+}
+
 // --- 회원 (Member) ---
 export type Role = "USER" | "ADMIN";
 export type Gender = "MALE" | "FEMALE";
