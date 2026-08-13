@@ -1,9 +1,8 @@
 package com.bookeatinglion.member.repository;
 
 import com.bookeatinglion.member.domain.Member;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MemberRepository extends JpaRepository<Member, String> {
 
