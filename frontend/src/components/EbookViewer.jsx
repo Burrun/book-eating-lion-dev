@@ -1,7 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ReactReader } from "react-reader";
 import { X } from "lucide-react";
+import { useReadingProgress } from "../hooks/useReadingProgress.js";
+
+const LOCATIONS_KEY_PREFIX = "locations:";
+
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // 용량 초과 등은 조용히 무시한다. 캐시가 없으면 다음 방문 때 다시 generate()할 뿐이다.
+  }
+}
 
 /**
  * 전자책(EPUB) 전체화면 뷰어.
@@ -10,13 +29,44 @@ import { X } from "lucide-react";
  * 실 API(GET /api/catalog/books/{bookId}/ebook) 연동 시에도 이 컴포넌트는 그대로 두고
  * 호출부(ProductDetailPage)에서 응답으로 받은 URL을 넘기기만 하면 된다.
  */
-export default function EbookViewer({ isOpen, onClose, url, title }) {
-  const [location, setLocation] = useState(null);
+export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
+  const { initialCfi, saveLocation } = useReadingProgress(bookId);
+  // 저장된 이어읽기 위치(없으면 처음부터)로 시작한다. 이후로는 locationChanged가 갱신한다.
+  const [location, setLocation] = useState(initialCfi);
+  const [isIndexing, setIsIndexing] = useState(false);
+  const epubBookRef = useRef(null);
+
+  // react-reader/epub.js locations(=페이지 인덱스)를 진행률 계산에 쓴다. 책마다 한 번만
+  // generate()하면 되므로 localStorage에 캐싱해서 재방문 시 load()로 복원한다.
+  const handleGetRendition = (rendition) => {
+    const book = rendition.book;
+    epubBookRef.current = book;
+    const cacheKey = bookId ? `${LOCATIONS_KEY_PREFIX}${bookId}` : null;
+
+    book.ready.then(async () => {
+      const cached = cacheKey ? safeGetItem(cacheKey) : null;
+      if (cached) {
+        try {
+          book.locations.load(cached);
+          return;
+        } catch {
+          // 캐시가 손상된 경우 재생성한다.
+        }
+      }
+
+      setIsIndexing(true);
+      const start = performance.now();
+      await book.locations.generate();
+      const elapsedMs = Math.round(performance.now() - start);
+      console.log(`[EbookViewer] locations.generate() took ${elapsedMs}ms (bookId=${bookId ?? "?"})`);
+      setIsIndexing(false);
+
+      if (cacheKey) safeSetItem(cacheKey, book.locations.save());
+    });
+  };
 
   useEffect(() => {
     if (!isOpen) return;
-    // 뷰어를 새로 열 때마다 처음 위치로 초기화한다. (이어읽기 저장은 스코프 밖)
-    setLocation(null);
 
     const handleKeyDown = (e) => e.key === "Escape" && onClose?.();
     document.addEventListener("keydown", handleKeyDown);
@@ -38,9 +88,14 @@ export default function EbookViewer({ isOpen, onClose, url, title }) {
       className="fixed inset-0 z-[100] flex flex-col bg-[var(--color-paper)]"
     >
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-forest)]/10 bg-white px-4 py-3 sm:px-6">
-        <h2 className="line-clamp-1 font-display text-base text-[var(--color-forest)] sm:text-lg">
-          {title ?? "전자책 뷰어"}
-        </h2>
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h2 className="line-clamp-1 font-display text-base text-[var(--color-forest)] sm:text-lg">
+            {title ?? "전자책 뷰어"}
+          </h2>
+          {isIndexing && (
+            <span className="shrink-0 text-xs text-[var(--color-forest)]/50">진행률 계산 중…</span>
+          )}
+        </div>
         <button
           type="button"
           aria-label="닫기"
@@ -58,7 +113,13 @@ export default function EbookViewer({ isOpen, onClose, url, title }) {
           url={url}
           title={title}
           location={location}
-          locationChanged={(cfi) => setLocation(cfi)}
+          locationChanged={(cfi) => {
+            setLocation(cfi);
+            const raw = epubBookRef.current?.locations?.percentageFromCfi(cfi);
+            const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;
+            saveLocation(cfi, percentage);
+          }}
+          getRendition={handleGetRendition}
           showToc
         />
       </div>

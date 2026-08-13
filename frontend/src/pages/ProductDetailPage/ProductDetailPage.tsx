@@ -7,11 +7,13 @@ import { getMySubscription } from '../../api/member.ts'
 import { addToCart } from '../../api/cart.js'
 import { useToast } from '../../components/Toast.jsx'
 import EbookViewer from '../../components/EbookViewer.jsx'
+import { useReadingProgress } from '../../hooks/useReadingProgress.js'
 import type { Review } from '../../types/book.ts'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const queryClient = useQueryClient()
+  const { initialPercentage: readingPercentage } = useReadingProgress(id) as { initialPercentage: number | null }
   // Toast.jsx는 checkJs:false라 createContext(null)+throw 패턴이 TS 쪽에서 반환 타입을
   // never로 좁힌다(CardsPage.tsx와 동일한 이슈). 여기서만 실제 형태로 타입을 명시한다.
   const toast = useToast() as { success: (message: string) => void; error: (message: string) => void }
@@ -125,7 +127,7 @@ export default function ProductDetailPage() {
           <p className="text-sm text-forest/60">
             ⭐ {book.rating}점 (리뷰 {reviewCount}개) | {book.shippingNote}
           </p>
-          <div className="mt-3 flex flex-wrap gap-3">
+          <div className="mt-3 flex flex-wrap items-start gap-3">
             <button
               onClick={() => addToCartMutation.mutate()}
               disabled={addToCartMutation.isPending}
@@ -137,12 +139,25 @@ export default function ProductDetailPage() {
               ❤️ 찜하기
             </button>
             {book.ebookAvailable ? (
-              <button
-                onClick={() => setIsEbookOpen(true)}
-                className="rounded-full border-2 border-forest px-6 py-2.5 font-semibold text-forest transition hover:bg-forest hover:text-paper"
-              >
-                📱 ebook 보기
-              </button>
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => setIsEbookOpen(true)}
+                  className="rounded-full border-2 border-forest px-6 py-2.5 font-semibold text-forest transition hover:bg-forest hover:text-paper"
+                >
+                  📱 ebook 보기
+                </button>
+                {readingPercentage != null && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-forest/60">📖 {readingPercentage}% 읽음</span>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-forest/10">
+                      <div
+                        className="h-full rounded-full bg-honey transition-[width] duration-500 ease-out"
+                        style={{ width: `${readingPercentage}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <button
                 disabled
@@ -234,6 +249,7 @@ export default function ProductDetailPage() {
         onClose={() => setIsEbookOpen(false)}
         url={book.ebookUrl}
         title={book.title}
+        bookId={id}
       />
     </main>
   )
