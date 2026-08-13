@@ -81,7 +81,7 @@ export type Gender = "MALE" | "FEMALE";
 
 // GET /api/members/me
 export interface MemberResponse {
-  id: number;
+  id: string;
   email: string;
   name: string;
   phoneNumber: string;

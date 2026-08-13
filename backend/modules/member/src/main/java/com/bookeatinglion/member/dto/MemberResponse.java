@@ -6,7 +6,7 @@ import com.bookeatinglion.member.domain.Role;
 import java.time.LocalDate;
 
 public record MemberResponse(
-        Long id, String email, String name, String phoneNumber, Gender gender, LocalDate birthDate, Role role) {
+        String id, String email, String name, String phoneNumber, Gender gender, LocalDate birthDate, Role role) {
     public static MemberResponse from(Member member) {
         return new MemberResponse(
                 member.getId(),

@@ -43,7 +43,7 @@ class MemberControllerTest {
 
     private MemberResponse memberResponse() {
         return new MemberResponse(
-                1L, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
+                SUB, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
     }
 
     @Test

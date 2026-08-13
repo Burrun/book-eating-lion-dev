@@ -72,7 +72,7 @@ export function toWebtoonCuts(dto: BookSynopsisDetailResponse): WebtoonCut[] {
 
 export function toMember(dto: MemberResponse): Member {
   return {
-    id: String(dto.id),
+    id: dto.id,
     name: dto.name,
     email: dto.email,
   };

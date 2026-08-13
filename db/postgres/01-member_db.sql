@@ -11,9 +11,10 @@
 -- =============================================================================
 SET search_path = member_db;
 
+-- member_id 는 auto-increment 가 아니라 Cognito sub 값을 그대로 저장한다(팀 컨벤션 확정).
+-- 별도 cognito_sub 컬럼을 두지 않고 PK 자체를 sub 로 쓴다.
 CREATE TABLE members (
-    member_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    cognito_sub   VARCHAR(255) NOT NULL,
+    member_id     VARCHAR(255) PRIMARY KEY,
     name          VARCHAR(100) NOT NULL,
     nickname      VARCHAR(50)  NOT NULL,
     email         VARCHAR(255) NOT NULL,
@@ -25,7 +26,6 @@ CREATE TABLE members (
     deleted_at    TIMESTAMP NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_members_cognito_sub UNIQUE (cognito_sub),
     CONSTRAINT uk_members_nickname UNIQUE (nickname),
     CONSTRAINT uk_members_email    UNIQUE (email),
     CONSTRAINT chk_members_gender CHECK (gender IN ('MALE', 'FEMALE')),
@@ -45,14 +45,14 @@ CREATE TABLE addresses (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_addresses_member FOREIGN KEY (member_sub)
-        REFERENCES members (cognito_sub) ON DELETE CASCADE
+        REFERENCES members (member_id) ON DELETE CASCADE
 );
 
 -- MySQL 원본은 생성칼럼(is_default=1 이면 1, 아니면 NULL)에 UNIQUE 를 걸어
 -- "회원당 기본배송지 1건"을 강제했다. PostgreSQL 은 부분 인덱스로 직접 표현한다.
 CREATE UNIQUE INDEX uk_addresses_default ON addresses (member_sub) WHERE is_default;
 
--- member_id(BIGINT, members.member_id FK) 대신 member_sub(members.cognito_sub FK)로 소유권을 식별한다.
+-- member_sub 는 members.member_id(=Cognito sub)를 그대로 참조한다.
 -- addresses 테이블과 동일한 패턴 — Cognito PreTokenGeneration 의 member_id 커스텀 클레임 의존을 없애는 방향.
 CREATE TABLE cards (
     card_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -73,7 +73,7 @@ CREATE TABLE cards (
     updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_cards_token UNIQUE (card_token),
     CONSTRAINT fk_cards_member FOREIGN KEY (member_sub)
-        REFERENCES members (cognito_sub) ON DELETE CASCADE,
+        REFERENCES members (member_id) ON DELETE CASCADE,
     CONSTRAINT chk_cards_status  CHECK (card_status IN ('ACTIVE', 'SUSPENDED', 'TERMINATED')),
     CONSTRAINT chk_cards_balance CHECK (virtual_balance >= 0),
     CONSTRAINT chk_cards_expiry  CHECK (expiry_date > issued_date)
@@ -83,7 +83,7 @@ CREATE UNIQUE INDEX uk_cards_default ON cards (member_sub) WHERE is_default;
 
 CREATE TABLE premium_memberships (
     membership_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id       BIGINT NOT NULL,
+    member_id       VARCHAR(255) NOT NULL,
     card_id         BIGINT NULL,
     plan_type       VARCHAR(10) NOT NULL,
     payment_amount  BIGINT NOT NULL,
@@ -113,7 +113,7 @@ CREATE TABLE premium_memberships (
 
 CREATE TABLE point_histories (
     point_history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id        BIGINT NOT NULL,
+    member_id        VARCHAR(255) NOT NULL,
     amount           BIGINT NOT NULL,
     ref_type         VARCHAR(20) NULL,
     -- 경계 밖(order_db.orders 등)을 가리킬 수 있으므로 FK 를 걸지 않는다. 값만 유지.
@@ -128,7 +128,7 @@ CREATE TABLE point_histories (
 
 CREATE TABLE audit_logs (
     audit_log_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    admin_id     BIGINT NOT NULL,
+    admin_id     VARCHAR(255) NOT NULL,
     action       VARCHAR(255) NOT NULL,
     target_type  VARCHAR(50) NULL,
     target_id    BIGINT NULL,

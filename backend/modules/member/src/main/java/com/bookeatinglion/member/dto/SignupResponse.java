@@ -3,7 +3,7 @@ package com.bookeatinglion.member.dto;
 import com.bookeatinglion.member.domain.Member;
 
 public record SignupResponse(
-        Long memberId,
+        String memberId,
         String email,
         String name
 ) {

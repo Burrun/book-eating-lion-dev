@@ -25,16 +25,16 @@ class MemberRepositoryTest {
     }
 
     @Test
-    void cognitoSub로_회원을_조회한다() {
-        Optional<Member> result = memberRepository.findByCognitoSub("sub-1");
+    void id로_회원을_조회한다() {
+        Optional<Member> result = memberRepository.findById("sub-1");
 
         assertThat(result).isPresent();
         assertThat(result.get().getEmail()).isEqualTo("lion@bookeating.com");
     }
 
     @Test
-    void 존재하지_않는_cognitoSub는_빈_값을_반환한다() {
-        Optional<Member> result = memberRepository.findByCognitoSub("sub-unknown");
+    void 존재하지_않는_id는_빈_값을_반환한다() {
+        Optional<Member> result = memberRepository.findById("sub-unknown");
 
         assertThat(result).isEmpty();
     }
@@ -44,7 +44,7 @@ class MemberRepositoryTest {
         Optional<Member> result = memberRepository.findByEmail("lion@bookeating.com");
 
         assertThat(result).isPresent();
-        assertThat(result.get().getCognitoSub()).isEqualTo("sub-1");
+        assertThat(result.get().getId()).isEqualTo("sub-1");
     }
 
     @Test
