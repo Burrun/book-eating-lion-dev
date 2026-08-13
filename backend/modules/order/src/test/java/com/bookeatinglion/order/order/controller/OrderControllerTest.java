@@ -13,8 +13,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.order.domain.OrderStatus;
 import com.bookeatinglion.order.order.dto.OrderResponse;
+import com.bookeatinglion.order.order.dto.OrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.Recipient;
 import com.bookeatinglion.order.order.exception.OrderCannotBeCancelledException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeRefundedException;
+import com.bookeatinglion.order.order.exception.OrderCannotBeReturnedException;
 import com.bookeatinglion.order.order.exception.OrderNotFoundException;
 import com.bookeatinglion.order.order.exception.OutOfStockException;
 import com.bookeatinglion.order.order.exception.UnauthorizedOrderAccessException;
@@ -25,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,7 +39,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
 class OrderControllerTest {
 
-    private static final long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
     @Autowired
     private MockMvc mockMvc;
@@ -43,12 +48,12 @@ class OrderControllerTest {
     private OrderService orderService;
 
     private static RequestPostProcessor authenticated() {
-        return jwt().jwt(jwt -> jwt.subject("member-sub-1").claim("member_id", MEMBER_ID));
+        return jwt().jwt(jwt -> jwt.subject(MEMBER_ID));
     }
 
     private OrderResponse orderResponse(OrderStatus status) {
         return new OrderResponse(
-                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null, null);
+                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null, null, null);
     }
 
     private OrderResponse pendingKakaoResponse() {
@@ -59,13 +64,14 @@ class OrderControllerTest {
                 20000,
                 List.of(),
                 null,
-                "https://mockup-pg-web.kakao.com/redirect");
+                "https://mockup-pg-web.kakao.com/redirect",
+                null);
     }
 
     private static final String CREATE_ORDER_BODY = "{"
             + "\"items\":[{\"bookId\":100,\"quantity\":2}],"
             + "\"recipient\":{\"name\":\"홍길동\",\"phone\":\"010-0000-0000\",\"postalCode\":\"06236\",\"address\":\"서울\"},"
-            + "\"paymentMethod\":\"KAKAOPAY\""
+            + "\"paymentMethod\":\"KAKAO_PAY\""
             + "}";
 
     @Test
@@ -130,9 +136,23 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[],"
                                 + "\"recipient\":{\"name\":\"홍길동\",\"phone\":\"010-0000-0000\",\"postalCode\":\"06236\",\"address\":\"서울\"},"
-                                + "\"paymentMethod\":\"KAKAOPAY\"}"))
+                                + "\"paymentMethod\":\"KAKAO_PAY\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 주문_목록_조회는_200과_페이징된_데이터를_반환한다() throws Exception {
+        OrderSummaryResponse summary = new OrderSummaryResponse(1L, OrderStatus.PAID, 20000);
+        when(orderService.getOrders(eq(MEMBER_ID), any()))
+                .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/orders").with(authenticated()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderStatus").value("PAID"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test
@@ -176,6 +196,62 @@ class OrderControllerTest {
         when(orderService.cancelOrder(MEMBER_ID, 1L)).thenThrow(new OrderCannotBeCancelledException(1L));
 
         mockMvc.perform(post("/api/orders/1/cancel").with(authenticated()).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 반품_신청은_200과_RETURN_REQUESTED_데이터를_반환한다() throws Exception {
+        when(orderService.requestReturn(MEMBER_ID, 1L, "단순 변심"))
+                .thenReturn(orderResponse(OrderStatus.RETURN_REQUESTED));
+
+        mockMvc.perform(post("/api/orders/1/return")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"단순 변심\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("RETURN_REQUESTED"));
+    }
+
+    @Test
+    void reason이_비어있으면_반품_신청은_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/api/orders/1/return")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void PAID가_아닌_주문_반품_신청은_409를_반환한다() throws Exception {
+        when(orderService.requestReturn(MEMBER_ID, 1L, "단순 변심")).thenThrow(new OrderCannotBeReturnedException(1L));
+
+        mockMvc.perform(post("/api/orders/1/return")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"단순 변심\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 환불_처리는_200과_REFUNDED_데이터를_반환한다() throws Exception {
+        when(orderService.refundOrder(MEMBER_ID, 1L)).thenReturn(orderResponse(OrderStatus.REFUNDED));
+
+        mockMvc.perform(post("/api/orders/1/refund").with(authenticated()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("REFUNDED"));
+    }
+
+    @Test
+    void RETURN_REQUESTED가_아닌_주문_환불은_409를_반환한다() throws Exception {
+        when(orderService.refundOrder(MEMBER_ID, 1L)).thenThrow(new OrderCannotBeRefundedException(1L));
+
+        mockMvc.perform(post("/api/orders/1/refund").with(authenticated()).with(csrf()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false));
     }

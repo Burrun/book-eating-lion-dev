@@ -74,10 +74,14 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean }
+                  message: { type: string }
                   data:
                     type: array
                     items:
                       $ref: "#/components/schemas/Address"
+                  error:
+                    $ref: "#/components/schemas/ErrorDetail"
+                    nullable: true
     post:
       summary: 배송지 등록
       operationId: createAddress
@@ -232,6 +236,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/CardOperationResult"
 
+  /internal/members/{memberId}/notification-profile:
+    get:
+      summary: 내부 알림 수신 프로필 조회
+      description: 클러스터 내부 전용이며 Ingress에 노출하지 않는다.
+      tags: [internal-members]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, description: Cognito sub }
+      responses:
+        "200": { description: 이메일과 이름 조회 성공 }
+        "404": { description: 회원 없음 }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -261,23 +279,39 @@ components:
           type: string
           description: 리뷰·문의 작성자 표시용 스냅샷 원본.
 
+    ErrorDetail:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
     TokenEnvelope:
       type: object
       properties:
         success: { type: boolean }
+        message: { type: string }
         data:
           type: object
           properties:
             accessToken: { type: string }
             refreshToken: { type: string }
             expiresIn: { type: integer, example: 3600 }
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     MemberEnvelope:
       type: object
       properties:
         success: { type: boolean }
+        message: { type: string }
         data:
           $ref: "#/components/schemas/Member"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     Member:
       type: object
@@ -374,15 +408,25 @@ components:
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           $ref: "#/components/schemas/Card"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CardListEnvelope:
       type: object
       properties:
         success:
           type: boolean
+        message:
+          type: string
         data:
           type: array
           items:
             $ref: "#/components/schemas/Card"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true

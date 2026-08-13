@@ -1,0 +1,26 @@
+# member — 경량·임계경로. 2 → 6 (가장 좁은 범위)
+#
+# 상한이 낮은 게 의도다. 인증은 트래픽에 비례해 무거워지는 작업이 아니고,
+# replica 가 늘면 Aurora 커넥션만 배증한다.
+#
+# 그리고 이 숫자가 판단 ①의 증거다 — RAG 가 이 서비스에 있었다면 RAG 부하로
+# auth Pod 까지 확장되면서 커넥션이 replica 수만큼 늘었을 것이다.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: member-hpa
+  namespace: lion-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: member-deployment
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

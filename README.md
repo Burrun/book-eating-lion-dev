@@ -17,7 +17,7 @@ K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
 | `catalog-service` | book, review, wishlist, recent-books | 8081 | `catalog_db` | 2 → 20 |
 | `order-service` | order, payment, delivery, **inventory** | 8082 | `order_db` | 2 → 30 |
 | `member-service` | member, auth, address | 8083 | `member_db` | 2 → 6 |
-| `ai-service` | lion/RAG, 문의봇, faq | 8084 | `ai_db` (별도 클러스터) | rag 1→6 / bot 1→10 |
+| `ai-service` | 먹인 책 RAG, 라이언, 고객상담(문의봇·faq) | 8084 | `ai_db` + S3 Vectors | rag 1→6 / bot 1→10 |
 
 **서비스 4개 / Deployment 5개**다. `ai-service` 는 이미지 1개에 Deployment 2개(`ai-rag`,
 `ai-bot`)로 뜬다 — 두 워크로드의 HPA 메트릭과 타임아웃 정책이 다르기 때문이다.
@@ -32,12 +32,13 @@ K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
 | --- | --- | --- |
 | 배포 단위 | `apps/api` 1개 | `apps/{catalog,order,member,ai}-api` 4개 |
 | 도메인 모듈 | common, member, book, order, usedbook, delivery | common, member, book, order, **ai** (usedbook 삭제, delivery 분해) |
-| DB 엔진 | MySQL 8.0 | **PostgreSQL 16** (ai 는 pgvector) |
+| DB 엔진 | MySQL 8.0 | **PostgreSQL 16** (클러스터 1개, 스키마 4개) |
+| 벡터 저장소 | `lion_memories.embedding` (JSON 칼럼) | **S3 Vectors** (`wiki-v1` 인덱스) |
 | DB 경계 | 단일 스키마·단일 계정 | **스키마 4분할 + 서비스별 계정 권한** |
 | 재고 소유권 | `books.stock` (catalog) | **`order_db.inventory` (order)** |
 | k8s | Deployment 1 / Service 1 / HPA 1 | **Deployment 5 / Service 5 / HPA 5** |
 | CD | 전체 재배포 | **변경된 서비스만** (paths filter + matrix) |
-| 계약 | 산문 `.md` | **OpenAPI YAML 4종 + Prism mock** |
+| 계약 | 산문 `.md` | **OpenAPI YAML 4종** |
 
 ---
 
@@ -71,12 +72,17 @@ K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
 리뷰 작성은 정상 동작한다.** 동기 호출로 바꾸면 "장애가 결제로 전이되지 않는다"는
 프로젝트 명분과 정확히 반대가 된다.
 
-### ③ 엔진은 PostgreSQL 하나, 클러스터는 2개
+### ③ 격리는 클러스터가 아니라 계정 권한이 만든다
 
-엔진 통일과 클러스터 분리는 **다른 레버**다.
+PostgreSQL **클러스터 1개 / 스키마 4개 / 계정 4개**다.
 
-- **엔진 통일** → Flyway 문법·JPA dialect·백업·학습 비용이 전부 1종
-- **클러스터 분리** → `ai_db` 만 pgvector 와 Serverless v2 auto-pause 를 독립적으로 얻음
+원래는 `ai_db` 만 별도 클러스터(Serverless v2)로 뺐었다. 근거가 둘이었는데 둘 다 없어졌다 —
+**① pgvector 가 필요하다** → 벡터를 전부 S3 Vectors 로 옮겨서 불필요.
+**② auto-pause 로 과금 독립** → ①이 사라지자 클러스터를 하나 더 띄울 값을 못 한다.
+
+경계를 만드는 건 계정이다. `catalog_svc` 로 `order_db` 를 조회하면 여전히
+`permission denied for schema order_db` 다. 클러스터를 가르는 건 그 위에 얹는
+비용 문제였을 뿐이고, 그 비용을 낼 이유가 사라졌다.
 
 포팅 비용은 실측상 거의 전부 기계적 치환이었다(`nativeQuery` 0건, `@Query` 는 JPQL 2건,
 `updated_at` 은 `@LastModifiedDate` 가 이미 관리 → **트리거 0개 필요**).
@@ -107,8 +113,7 @@ copy/
 │   │   ├── catalog-v1.yaml
 │   │   ├── order-v1.yaml
 │   │   ├── member-v1.yaml
-│   │   ├── ai-v1.yaml
-│   │   └── docker-compose.mock.yml # Prism 이 위 YAML 을 그대로 mock 으로 기동
+│   │   └── ai-v1.yaml
 │   │
 │   ├── apps/                       # 배포 단위 = bootJar = 컨테이너 이미지
 │   │   ├── catalog-api/            # 🆕 Feign 클라이언트 + Fallback + 이벤트 소비 배선
@@ -121,7 +126,7 @@ copy/
 │       ├── book/                   # + port/InventoryPort, ReviewPermission
 │       ├── order/                  # + inventory/, delivery/ (병합)
 │       ├── member/                 # + address/ (delivery 에서 이동)
-│       └── ai/                     # 🆕 lion/RAG, 문의봇
+│       └── ai/                     # 🆕 wiki/(먹인 책 RAG), lion/, bot/(고객상담)
 │                                   # ❌ usedbook 삭제
 │
 ├── k8s/
@@ -131,16 +136,14 @@ copy/
 │   ├── member/
 │   └── ai/                         # deployment-rag + deployment-bot (이미지 1개)
 │
-├── db/
-│   ├── cluster-a/                  # 🆕 catalog_db / order_db / member_db
-│   │   ├── 00-init.sql             #    스키마 + 서비스 계정 + 권한
-│   │   ├── 01~03-*.sql             #    목표 스키마 (PostgreSQL 포팅본)
-│   │   └── 90-demo-data.sql        #    로컬 데모 데이터
-│   └── cluster-b/                  # 🆕 ai_db + pgvector
+├── db/postgres/                    # 🔄 클러스터 1개 (구 cluster-a + cluster-b)
+│   ├── 00-init.sql                 #    스키마 4개 + 서비스 계정 4개 + 권한
+│   ├── 01~04-*.sql                 #    목표 스키마 (04 = ai_db)
+│   └── 90-demo-data.sql            #    로컬 데모 데이터
 │
 ├── frontend/                       # 🔄 찜/최근본상품 API 경로 변경 반영
 ├── k6/  ·  docs/  ·  nginx/
-├── docker-compose.yml              # 🔄 postgres 2대 + 서비스 4개
+├── docker-compose.yml              # 🔄 postgres 1대 + redis + 서비스 4개
 └── docker-compose-aws.yml          # 🔄 서비스별 계정/엔드포인트 분리
 ```
 
@@ -152,8 +155,8 @@ copy/
 
 | 이전 | 이후 | 이유 |
 | --- | --- | --- |
-| `GET /api/members/me/wishlist` | `GET /api/wishlist/me` | `/api/members/**` 는 member-service 로 라우팅되는데, 찜 목록은 **catalog_db 소유 데이터**다 |
-| `GET /api/members/me/recent-books` | `GET /api/recent-books/me` | 동일 |
+| `GET /api/members/me/wishlist` | `GET /api/catalog/wishlist/me` | `/api/members/**` 는 member-service 로 라우팅되는데, 찜 목록은 **catalog_db 소유 데이터**다 |
+| `GET /api/members/me/recent-books` | `GET /api/catalog/recent-books/me` | 동일 |
 
 같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 되고, 규칙 하나만
 잘못 건드려도 요청이 엉뚱한 서비스로 간다. `frontend/src/api/wishlist.ts` 는 수정 완료했다.
@@ -163,7 +166,7 @@ copy/
 ## 🐳 로컬 실행
 
 ```bash
-# 전체 기동 (postgres 2대 + redis + 서비스 4개 + nginx)
+# 전체 기동 (postgres 1대 + redis + 서비스 4개 + nginx)
 docker compose up --build -d
 
 # 초기화 재기동 (스키마/데모데이터를 다시 넣으려면 -v 필수)
@@ -179,15 +182,23 @@ curl http://localhost:8083/actuator/health   # member
 curl http://localhost:8084/actuator/health   # ai
 ```
 
-### mock 서버만 띄우기 (의존 서비스 없이 개발)
+### ⚡ 계약 YAML → 프론트엔드 타입 생성
+
+`frontend/` 에서 실행한다:
 
 ```bash
-docker compose -f backend/contracts/docker-compose.mock.yml up
-# catalog 4401 / order 4402 / member 4403 / ai 4404
-
-# 예: order-service 없이 catalog 개발
-SERVICES_ORDER_URL=http://localhost:4402 ./gradlew :apps:catalog-api:bootRun
+pnpm dlx openapi-typescript "../backend/contracts/*.yaml" -o src/api/types.ts
 ```
+
+```ts
+import type { components } from "./types";
+
+type AskResult = components["schemas"]["AskResult"];
+type Citation  = components["schemas"]["Citation"];
+```
+
+**실서버가 아니라 `backend/contracts/*.yaml` 에서 뽑는다.** 백엔드를 안 띄워도 되고,
+계약이 곧 타입이라 구현이 계약을 벗어나면 프론트에서 타입 에러로 드러난다.
 
 ---
 
@@ -202,9 +213,10 @@ SERVICES_ORDER_URL=http://localhost:4402 ./gradlew :apps:catalog-api:bootRun
 | 스키마 4분할 | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
 | **스키마 경계 강제** (Phase 1.5) | `catalog_svc` 로 `order_db.inventory` 조회 | ✅ `permission denied for schema order_db` |
 | 재고 소유권 이전 (Phase 0-1) | `catalog_db.books` 에 stock 컬럼 확인 | ✅ 0건 (order_db.inventory 로 이동) |
-| pgvector (Phase 2-7) | `CREATE EXTENSION` + 코사인 연산 | ✅ v0.8.6, `<=>` 동작 |
+| 계약 YAML 파싱 + `$ref` 무결성 | `yaml.safe_load` 4종 | ✅ 통과 (`ai-v1.yaml` 파싱 오류 2건 수정 후) |
+| 자료 → JSONL 변환 | `python scripts/build-corpus-jsonl.py` | ✅ 5편 / 46페이지 / 46청크, 불변식 3종 통과 |
 | 4개 서비스 기동 | `/actuator/health` | ✅ 전부 UP |
-| 재고 API 조합 | `GET /api/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
+| 재고 API 조합 | `GET /api/catalog/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
 | **Fallback** (Phase 2-3) | order 강제 종료 후 도서 상세 조회 | ✅ **HTTP 200**, 도서 정보 정상, `stockQuantity=-1` 로 degrade |
 
 마지막 항목이 이 전환의 핵심 증거다 — **결제 서비스가 죽어도 서점은 계속 돈다.**
@@ -213,9 +225,9 @@ SERVICES_ORDER_URL=http://localhost:4402 ./gradlew :apps:catalog-api:bootRun
 
 ```bash
 docker compose stop order
-curl http://localhost:8081/api/books/1     # HTTP 200, stockQuantity: -1
+curl http://localhost:8081/api/catalog/books/1     # HTTP 200, stockQuantity: -1
 docker compose start order
-curl http://localhost:8081/api/books/1     # stockQuantity: 100
+curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 ```
 
 > `stockQuantity: -1` 은 "재고 조회 실패"를 뜻한다. 품절(`0`)과 구분해야 하므로
@@ -230,19 +242,28 @@ curl http://localhost:8081/api/books/1     # stockQuantity: 100
 | 항목 | 현재 상태 |
 | --- | --- |
 | 결제 상태머신, Redlock 재고차감, 취소·환불 | `inventory` 골격과 `/internal` API 까지만. 결제 로직은 미구현 |
-| RAG / 문의봇 실제 Bedrock 연동 | `StubEmbeddingClient` / `StubLlmClient` 로 자리만 잡음 (차원 1024, 반환 형식은 실제와 동일) |
-| Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 |
-| Flyway 활성화 | 엔티티와 `db/cluster-*/01~03` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
+| 먹인 책 RAG 구현 (BOO-27) | 계약·스키마·자료까지 완료. Bedrock 클라이언트와 `/api/ai/ask` 구현은 진행 중 — `docs/ai-api-plan.md` §12 |
+| Bedrock 실연동 | `BedrockEmbeddingClient` / `BedrockLlmClient` / `S3VectorSearchAdapter` 연동 완료 |
+| Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 — 실제로 `ai-v1.yaml` 이 계속 파싱 실패 상태였다 |
+| Flyway 활성화 | 엔티티와 `db/postgres/01~04` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
 | 리뷰 권한 이벤트 유실 대비 fallback 동기 조회 | 미구현. 이벤트가 유실되면 실제 구매자도 리뷰를 못 쓴다 |
 | `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** |
+| `gradlew build` | spotless `ratchetFrom origin/main` 때문에 실패한다. `ai-api` 앱 전체가 아직 `main` 에 없어 전부 검사 대상이 된다. `gradlew test` 는 통과 |
 
 ---
 
-## ⚙️ 환경 변수 관리
+## ⚙️ 환경 및 검증 경계 관리
 
-- **로컬**: `docker-compose.yml`
-- **AWS 직접 연동**: `docker-compose-aws.yml` — 서비스별 DB 계정이 분리돼 있다. 편의를 위해서라도 공용 계정을 쓰지 말 것(권한 경계가 무너진다)
-- **EKS**: `k8s/base/03-secret.yaml` + 각 서비스의 `configmap.yaml`
+- **로컬 독립 검증 (`docker-compose.yml`)**:
+  - `SPRING_PROFILES_ACTIVE=local` 적용.
+  - 로컬 Postgres/Redis 기반의 빠른 개발 및 DB 계정 권한 격리(`permission denied`) 테스트 전용.
+  - ⚠️ **테스트 제약**: SQS 인제스트 파이프라인, S3 Vectors, Bedrock LLM 및 ElastiCache 클러스터 연동은 로컬 Docker에서 동작하지 않으므로 AWS 연동 환경에서 검증함.
+- **AWS 직접 연동 검증 (`docker-compose-aws.yml`)**:
+  - `SPRING_PROFILES_ACTIVE=prod` 적용.
+  - AWS Aurora, ElastiCache, SQS, Bedrock, S3 Vectors 실제 인프라와 직결하여 EKS 배포 호환성을 100% 검증함.
+- **권한 분리 원칙**:
+  - 모든 환경에서 서비스별 전용 DB 계정(`catalog_svc`, `order_svc`, `member_svc`, `ai_svc`)을 사용하여 스키마 경계를 강제함.
+  - 명시적 환경변수(`AWS_ACCESS_KEY_ID` 등)로 자격증명을 전달함.
 
 ---
 

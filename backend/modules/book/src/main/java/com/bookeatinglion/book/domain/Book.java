@@ -2,14 +2,13 @@ package com.bookeatinglion.book.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "books")
@@ -76,9 +75,19 @@ public class Book extends BaseEntity {
     private LocalDateTime deletedAt;
 
     @Builder
-    public Book(String title, String author, String publisher, String isbn, String category,
-                int price, String coverImageUrl, String description,
-                String detailedSynopsis, SaleStatus saleStatus, LocalDate publishedDate, int salesCount) {
+    public Book(
+            String title,
+            String author,
+            String publisher,
+            String isbn,
+            String category,
+            int price,
+            String coverImageUrl,
+            String description,
+            String detailedSynopsis,
+            SaleStatus saleStatus,
+            LocalDate publishedDate,
+            int salesCount) {
         this.title = title;
         this.author = author;
         this.publisher = publisher;
@@ -96,9 +105,18 @@ public class Book extends BaseEntity {
         this.isDeleted = false;
     }
 
-    public void update(String title, String author, String publisher, String isbn, String category,
-                       int price, String coverImageUrl, String description, String detailedSynopsis,
-                       SaleStatus saleStatus, LocalDate publishedDate) {
+    public void update(
+            String title,
+            String author,
+            String publisher,
+            String isbn,
+            String category,
+            int price,
+            String coverImageUrl,
+            String description,
+            String detailedSynopsis,
+            SaleStatus saleStatus,
+            LocalDate publishedDate) {
         this.title = title;
         this.author = author;
         this.publisher = publisher;
@@ -116,5 +134,10 @@ public class Book extends BaseEntity {
         this.isDeleted = true;
         this.deletedAt = deletedAt;
         this.saleStatus = SaleStatus.STOPPED;
+    }
+
+    public void updateReviewStatistics(BigDecimal averageRating, int reviewCount) {
+        this.averageRating = averageRating;
+        this.reviewCount = reviewCount;
     }
 }

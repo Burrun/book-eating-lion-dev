@@ -1,8 +1,10 @@
 package com.bookeatinglion.order.delivery.controller;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +12,7 @@ import com.bookeatinglion.order.OrderModuleTestApplication;
 import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.dto.DeliveryResponse;
 import com.bookeatinglion.order.delivery.exception.DeliveryNotFoundException;
+import com.bookeatinglion.order.delivery.exception.InvalidDeliveryStatusTransitionException;
 import com.bookeatinglion.order.delivery.exception.UnauthorizedDeliveryAccessException;
 import com.bookeatinglion.order.delivery.service.DeliveryService;
 import java.time.LocalDateTime;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,7 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
 class DeliveryControllerTest {
 
-    private static final long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,12 +42,12 @@ class DeliveryControllerTest {
     }
 
     /**
-     * 소유권 검증에 필요한 값이 sub 가 아니라 member_id 클레임으로 바뀌었다.
-     * 이 클레임이 없으면 order-service 는 회원을 식별하려고 member-service 를
+     * 소유권 검증에 필요한 값은 Cognito 표준 클레임인 sub(subject) 다.
+     * 이 값이 없으면 order-service 는 회원을 식별하려고 member-service 를
      * 동기 호출해야 하고, 그 순간 인증이 결제의 임계경로가 된다.
      */
     private static org.springframework.test.web.servlet.request.RequestPostProcessor authenticated() {
-        return jwt().jwt(jwt -> jwt.subject("member-sub-1").claim("member_id", MEMBER_ID));
+        return jwt().jwt(jwt -> jwt.subject(MEMBER_ID));
     }
 
     @Test
@@ -73,6 +77,47 @@ class DeliveryControllerTest {
 
         mockMvc.perform(get("/api/orders/100/delivery").with(authenticated()))
                 .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 배송_상태_변경은_200과_변경된_데이터를_반환한다() throws Exception {
+        when(deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.SHIPPED))
+                .thenReturn(new DeliveryResponse(
+                        1L, 100L, null, null, DeliveryStatus.SHIPPED, LocalDateTime.now(), LocalDateTime.now()));
+
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SHIPPED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deliveryStatus").value("SHIPPED"));
+    }
+
+    @Test
+    void 잘못된_상태_전이는_409를_반환한다() throws Exception {
+        when(deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.PENDING))
+                .thenThrow(new InvalidDeliveryStatusTransitionException(
+                        100L, DeliveryStatus.SHIPPED, DeliveryStatus.PENDING));
+
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PENDING\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void status가_없으면_배송_상태_변경은_400을_반환한다() throws Exception {
+        mockMvc.perform(patch("/api/orders/100/delivery/status")
+                        .with(authenticated())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
     }
 }

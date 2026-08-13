@@ -41,11 +41,11 @@ public class RealKakaoPayClient implements KakaoPayClient {
     }
 
     @Override
-    public KakaoReadyResult ready(Long orderId, Long memberId, String itemName, int amount) {
+    public KakaoReadyResult ready(Long orderId, String memberId, String itemName, int amount) {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("cid", cid);
         parameters.put("partner_order_id", String.valueOf(orderId));
-        parameters.put("partner_user_id", String.valueOf(memberId));
+        parameters.put("partner_user_id", memberId);
         parameters.put("item_name", itemName);
         parameters.put("quantity", 1);
         parameters.put("total_amount", amount);
@@ -66,12 +66,12 @@ public class RealKakaoPayClient implements KakaoPayClient {
 
     @Override
     @SuppressWarnings("unchecked")
-    public KakaoApproveResult approve(Long orderId, Long memberId, String tid, String pgToken) {
+    public KakaoApproveResult approve(Long orderId, String memberId, String tid, String pgToken) {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("cid", cid);
         parameters.put("tid", tid);
         parameters.put("partner_order_id", String.valueOf(orderId));
-        parameters.put("partner_user_id", String.valueOf(memberId));
+        parameters.put("partner_user_id", memberId);
         parameters.put("pg_token", pgToken);
 
         Map<String, Object> body = post("/online/v1/payment/approve", parameters);

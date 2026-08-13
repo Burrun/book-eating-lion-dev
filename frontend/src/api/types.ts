@@ -19,7 +19,7 @@ export interface Page<T> {
 
 export type SaleStatus = "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
 
-// GET /api/catalog/books, /bestsellers, /new-releases, /wishlist/me, /members/me/recent-books
+// GET /api/catalog/books, /bestsellers, /new-releases, /wishlist/me, /recent-books/me
 export interface BookSummaryResponse {
   id: number;
   title: string;

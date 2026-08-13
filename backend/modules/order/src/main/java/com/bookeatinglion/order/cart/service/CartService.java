@@ -8,6 +8,7 @@ import com.bookeatinglion.order.cart.exception.UnauthorizedCartAccessException;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
 import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookView;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final CatalogClient catalogClient;
 
-    public CartResponse getCart(Long memberId) {
+    public CartResponse getCart(String memberId) {
         var items = cartItemRepository.findByMemberId(memberId).stream()
                 .map(this::toView)
                 .toList();
@@ -38,7 +39,7 @@ public class CartService {
     }
 
     @Transactional
-    public CartItemView addItem(Long memberId, Long bookId, int quantity) {
+    public CartItemView addItem(String memberId, Long bookId, int quantity) {
         CartItem cartItem = cartItemRepository
                 .findByMemberIdAndBookId(memberId, bookId)
                 .map(existing -> {
@@ -51,19 +52,30 @@ public class CartService {
     }
 
     @Transactional
-    public CartItemView changeQuantity(Long memberId, Long cartItemId, int quantity) {
+    public CartItemView changeQuantity(String memberId, Long cartItemId, int quantity) {
         CartItem cartItem = getOwnedCartItem(memberId, cartItemId);
         cartItem.changeQuantity(quantity);
         return toView(cartItem);
     }
 
     @Transactional
-    public void removeItem(Long memberId, Long cartItemId) {
+    public void removeItem(String memberId, Long cartItemId) {
         CartItem cartItem = getOwnedCartItem(memberId, cartItemId);
         cartItemRepository.delete(cartItem);
     }
 
-    private CartItem getOwnedCartItem(Long memberId, Long cartItemId) {
+    /** 소유권 검증은 쿼리 조건(memberId + id in)이 대신한다 — 남의 cartItemId 가 섞여 있어도 그 항목만 조용히 무시된다. */
+    @Transactional
+    public void removeSelectedItems(String memberId, List<Long> cartItemIds) {
+        cartItemRepository.deleteByMemberIdAndIdIn(memberId, cartItemIds);
+    }
+
+    @Transactional
+    public void clearCart(String memberId) {
+        cartItemRepository.deleteByMemberId(memberId);
+    }
+
+    private CartItem getOwnedCartItem(String memberId, Long cartItemId) {
         CartItem cartItem =
                 cartItemRepository.findById(cartItemId).orElseThrow(() -> new CartItemNotFoundException(cartItemId));
 

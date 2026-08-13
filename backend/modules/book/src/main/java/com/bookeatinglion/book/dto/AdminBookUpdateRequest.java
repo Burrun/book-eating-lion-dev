@@ -17,5 +17,4 @@ public record AdminBookUpdateRequest(
         String description,
         String detailedSynopsis,
         SaleStatus saleStatus,
-        LocalDate publishedDate
-) {}
+        LocalDate publishedDate) {}

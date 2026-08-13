@@ -10,14 +10,33 @@ jar {
     enabled = false
 }
 
+dependencyManagement {
+    imports {
+        mavenBom 'software.amazon.awssdk:bom:2.46.7'
+    }
+}
+
 dependencies {
     implementation project(':modules:common')
     implementation project(':modules:ai')
 
+    // 임베딩·LLM(Bedrock Runtime) + 벡터 검색(S3 Vectors).
+    // 두 클라이언트가 같은 SDK 코어를 공유하므로 버전은 BOM 으로 묶는다.
+    implementation 'software.amazon.awssdk:bedrockruntime'
+    implementation 'software.amazon.awssdk:s3vectors'
+
+    // 자동 인제스트 — EPUB 원본은 S3, 등록 이벤트는 SQS 로 온다.
+    // SQS — order-service 의 구매 이벤트를 수신한다.
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sqs'
+
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
-    // Flyway — ai_db 스키마만. 클러스터 B 라 다른 서비스와 아예 다른 DB 다.
+    // 문의봇 WebSocket. modules:ai 가 implementation 으로 선언해 전이되지 않으므로 여기서도 건다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // Flyway — ai_db 스키마만. 다른 서비스와 같은 클러스터지만 계정이 달라 남의 스키마는 못 본다.
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 

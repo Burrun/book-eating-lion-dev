@@ -1,14 +1,14 @@
 spring:
   datasource:
-    # 클러스터 B — 다른 세 서비스와 물리적으로 다른 DB 다.
-    url: jdbc:postgresql://localhost:5433/aidb?currentSchema=ai_db
+    # 다른 세 서비스와 같은 클러스터, 다른 스키마다. 격리는 ai_svc 계정 권한이 만든다.
+    url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=ai_db
     username: ai_svc
     password: ai_pw
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Aurora Serverless v2 의 auto-pause 조건은 "커넥션 0개"다.
-      # HikariCP 기본값은 유휴 커넥션을 유지하므로, 이 두 줄이 없으면
-      # Pod 가 하나라도 살아 있는 한 DB 가 영원히 멈추지 않고 절감액이 0이 된다.
+      # 질의 경로(POST /api/ai/ask)는 DB 를 아예 타지 않는다 — 먹인 책 목록은 Redis 에서
+      # 읽고 벡터는 S3 Vectors 에 있다. DB 는 먹이기·문의 같은 저빈도 쓰기에만 쓰이므로
+      # 유휴 커넥션을 붙들고 있을 이유가 없다.
       minimum-idle: 0
       idle-timeout: 60000
       maximum-pool-size: 5
@@ -37,11 +37,14 @@ spring:
           issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
 
 app:
-  bedrock:
-    region: ${AWS_BEDROCK_REGION:ap-northeast-2}
-    # Phase 0-2b 확정. 바꾸면 전건 재임베딩이 필요하다.
-    embedding-model: amazon.titan-embed-text-v2:0
-    embedding-dimension: 1024
+  ai:
+    # 스텁 구현은 없다. bedrock 이 유일한 값이며, 로컬도 실제 Bedrock / S3 Vectors 를 호출한다.
+    # 따라서 기동에 AWS 자격증명이 필요하고, 기동 시 S3 Vectors 인덱스 검증도 함께 돈다.
+    clients: ${AI_CLIENTS:bedrock}
+    bedrock:
+      region: ${AWS_BEDROCK_REGION:ap-northeast-2}
+    vector:
+      bucket-name: ${AI_VECTOR_BUCKET:final-team3-wiki-vectors-prod}
 
 springdoc:
   swagger-ui:

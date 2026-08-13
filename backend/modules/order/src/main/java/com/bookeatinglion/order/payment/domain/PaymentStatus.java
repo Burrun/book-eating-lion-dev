@@ -5,5 +5,7 @@ public enum PaymentStatus {
     READY,
     APPROVED,
     DECLINED,
-    CANCELLED
+    CANCELLED,
+    /** 배송 완료 후 반품 신청이 승인되어 환불된 상태다. CANCELLED(사전 취소)와 구분한다. */
+    REFUNDED
 }

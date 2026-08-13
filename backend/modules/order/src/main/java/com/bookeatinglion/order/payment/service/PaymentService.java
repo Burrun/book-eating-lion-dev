@@ -40,14 +40,14 @@ public class PaymentService {
 
         String approvalNumber =
                 "AP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        Payment payment =
-                Payment.approved(order, cardId, PaymentMethod.CARD, amount, approvalNumber, null, newIdempotencyKey());
+        Payment payment = Payment.approved(
+                order, cardId, PaymentMethod.VIRTUAL_CARD, amount, approvalNumber, null, newIdempotencyKey());
         return paymentRepository.save(payment);
     }
 
     /** 카카오페이 1단계. 아직 결제는 확정되지 않는다 — Payment 는 READY 로 저장된다. */
     @Transactional
-    public KakaoReadyOutcome readyKakao(Order order, Long memberId, int amount) {
+    public KakaoReadyOutcome readyKakao(Order order, String memberId, int amount) {
         String itemName = "도서 주문 #" + order.getId();
         KakaoReadyResult result = kakaoPayClient.ready(order.getId(), memberId, itemName, amount);
 
@@ -60,7 +60,7 @@ public class PaymentService {
      * 재고가 없으면 이 메서드 자체를 호출하지 않아 카카오에 승인 요청을 보내지 않는다.
      */
     @Transactional
-    public void approveKakao(Payment payment, Long orderId, Long memberId, String pgToken) {
+    public void approveKakao(Payment payment, Long orderId, String memberId, String pgToken) {
         KakaoApproveResult result = kakaoPayClient.approve(orderId, memberId, payment.getPgTid(), pgToken);
         payment.approveKakao(result.approvalNumber());
     }
@@ -71,7 +71,23 @@ public class PaymentService {
      */
     @Transactional
     public void cancel(Payment payment) {
-        if (payment.getPaymentMethod() == PaymentMethod.CARD) {
+        restoreFunds(payment);
+        payment.cancel();
+    }
+
+    /**
+     * 반품 승인 후 환불이다. 자금 복구 방식(카드 한도 복구/카카오 취소 API)은 cancel() 과
+     * 동일하다 — 카카오페이 실 API 는 취소와 환불을 같은 cancel 엔드포인트로 처리한다.
+     * cancel() 과 다른 건 Payment 가 최종적으로 REFUNDED 로 남는다는 것뿐이다.
+     */
+    @Transactional
+    public void refund(Payment payment) {
+        restoreFunds(payment);
+        payment.refund();
+    }
+
+    private void restoreFunds(Payment payment) {
+        if (payment.getPaymentMethod() == PaymentMethod.VIRTUAL_CARD) {
             CardOperationResult result =
                     cardClient.restore(payment.getCardId(), new CardOperationRequest(payment.getAmount()));
             if (!result.approved()) {
@@ -80,7 +96,6 @@ public class PaymentService {
         } else {
             kakaoPayClient.cancel(payment.getPgTid(), payment.getAmount());
         }
-        payment.cancel();
     }
 
     private String newIdempotencyKey() {

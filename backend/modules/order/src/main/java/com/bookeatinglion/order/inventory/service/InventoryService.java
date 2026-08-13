@@ -1,5 +1,7 @@
 package com.bookeatinglion.order.inventory.service;
 
+import com.bookeatinglion.common.event.InventoryRestockedEvent;
+import com.bookeatinglion.order.event.InventoryRestockedPublisher;
 import com.bookeatinglion.order.inventory.domain.Inventory;
 import com.bookeatinglion.order.inventory.dto.InventoryView;
 import com.bookeatinglion.order.inventory.repository.InventoryRepository;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryRestockedPublisher inventoryRestockedPublisher;
 
     /**
      * 벌크 조회. catalog-service 가 도서 목록/상세를 그릴 때 호출한다.
@@ -40,7 +43,12 @@ public class InventoryService {
                 // 신간 최초 입고면 이 시점에 재고 레코드가 생긴다.
                 .orElseGet(() -> inventoryRepository.save(new Inventory(bookId, 0)));
 
+        int previousStock = inventory.getStock();
         inventory.restock(quantity);
+        if (previousStock == 0 && inventory.getStock() > 0) {
+            inventoryRestockedPublisher.publish(
+                    InventoryRestockedEvent.occurred(bookId, previousStock, inventory.getStock()));
+        }
         return InventoryView.from(inventory);
     }
 }

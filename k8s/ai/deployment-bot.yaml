@@ -1,0 +1,81 @@
+# ai-bot — 문의봇 워크로드
+#
+# ai-rag 와 이미지가 같다. 나눈 이유는 두 가지다:
+#   ① 자원 프로파일이 다르다 — 봇은 외부 API 대기라 CPU 를 거의 안 쓴다
+#   ② 타임아웃·스레드풀을 격리해야 한다 — 봇이 폭주해도 RAG 가 죽지 않아야 한다
+#
+# 같은 Deployment 에 두면 HPA 메트릭을 하나밖에 못 쓴다는 게 결정적이었다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-bot-deployment
+  namespace: lion-app
+  labels:
+    app: ai-bot
+    tier: backend
+spec:
+  selector:
+    matchLabels:
+      app: ai-bot
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ai-bot
+        tier: backend
+    spec:
+      containers:
+        - name: ai-service
+          image: "${ECR_REGISTRY}/${ECR_AI_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ai-config
+            - secretRef:
+                name: ai-secret
+
+          # 이 워크로드가 어느 모델 키를 쓰는지만 선언한다. 값 자체는 ai-config 에 있다 —
+          # 모델 교체는 ConfigMap 에서 끝나야 하고, Deployment 는 설정이 아니라 워크로드 명세다.
+          # env 가 envFrom 보다 우선하므로 여기서 AI_LLM_MODEL 이 확정된다.
+          env:
+            - name: AI_LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-config
+                  key: AI_LLM_MODEL_BOT
+
+          # 봇은 I/O 대기라 CPU 가 거의 필요 없다. rag 보다 훨씬 작게 잡는다.
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "384Mi"
+            limits:
+              cpu: "500m"
+              memory: "768Mi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30

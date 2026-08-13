@@ -28,8 +28,8 @@ public class CartItem extends BaseEntity {
     @Column(name = "cart_item_id")
     private Long id;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @Column(name = "member_id", nullable = false, length = 255)
+    private String memberId;
 
     @Column(name = "book_id", nullable = false)
     private Long bookId;
@@ -37,7 +37,7 @@ public class CartItem extends BaseEntity {
     @Column(nullable = false)
     private int quantity;
 
-    public CartItem(Long memberId, Long bookId, int quantity) {
+    public CartItem(String memberId, Long bookId, int quantity) {
         validateQuantity(quantity);
         this.memberId = memberId;
         this.bookId = bookId;
@@ -54,7 +54,7 @@ public class CartItem extends BaseEntity {
         this.quantity = quantity;
     }
 
-    public boolean isOwnedBy(Long memberId) {
+    public boolean isOwnedBy(String memberId) {
         return this.memberId.equals(memberId);
     }
 

@@ -13,6 +13,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * 동기 호출해야 하고, 그 순간 인증이 모든 요청의 임계경로가 된다.
  *
  * 클레임은 member-service 가 Cognito PreTokenGeneration 단계에서 주입한다.
+ *
+ * currentMemberId() 는 하위 호환을 위해 기존 커스텀 클레임(member_id, Long) 기반 그대로
+ * 유지한다 — member/ai 모듈이 아직 이 값을 쓴다. Cognito sub(UUID String) 기반으로
+ * 전환한 도메인(order-service)은 currentMemberSub() 를 쓴다.
  */
 public final class SecurityUtils {
 
@@ -21,6 +25,7 @@ public final class SecurityUtils {
 
     private SecurityUtils() {}
 
+    /** Cognito 표준 클레임 sub(subject) — UUID 문자열 그대로. order-service 가 쓴다. */
     public static String currentMemberSub() {
         return currentJwt().getSubject();
     }

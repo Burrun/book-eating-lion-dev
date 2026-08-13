@@ -2,9 +2,9 @@ package com.bookeatinglion.book.controller;
 
 import com.bookeatinglion.book.dto.ReadingProgressRequest;
 import com.bookeatinglion.book.dto.ReadingProgressResponse;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.ReadingProgressService;
 import com.bookeatinglion.common.dto.ApiResponse;
-import com.bookeatinglion.common.security.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -14,18 +14,18 @@ import org.springframework.web.bind.annotation.*;
 public class ReadingProgressController {
 
     private final ReadingProgressService readingProgressService;
+    private final CatalogMemberIdentity memberIdentity;
 
-    @PutMapping("/api/books/{bookId}/reading-progress")
+    @PutMapping("/api/catalog/books/{bookId}/reading-progress")
     public ApiResponse<ReadingProgressResponse> saveProgress(
             @PathVariable Long bookId,
             @Valid @RequestBody ReadingProgressRequest request) {
-        String memberSub = SecurityUtils.currentMemberSub();
-        return ApiResponse.success(readingProgressService.saveProgress(bookId, memberSub, request));
+        return ApiResponse.success(
+                readingProgressService.saveProgress(bookId, memberIdentity.requiredMemberId(), request));
     }
 
-    @GetMapping("/api/books/{bookId}/reading-progress")
+    @GetMapping("/api/catalog/books/{bookId}/reading-progress")
     public ApiResponse<ReadingProgressResponse> getProgress(@PathVariable Long bookId) {
-        String memberSub = SecurityUtils.currentMemberSub();
-        return ApiResponse.success(readingProgressService.getProgress(bookId, memberSub));
+        return ApiResponse.success(readingProgressService.getProgress(bookId, memberIdentity.requiredMemberId()));
     }
 }

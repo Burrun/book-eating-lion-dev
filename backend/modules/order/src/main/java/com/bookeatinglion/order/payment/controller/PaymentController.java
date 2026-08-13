@@ -22,7 +22,7 @@ public class PaymentController {
 
     @PostMapping("/kakao/approve")
     public ApiResponse<OrderResponse> approveKakaoPayment(@Valid @RequestBody KakaoApproveRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         return ApiResponse.success(orderService.approveKakaoPay(memberId, request.orderId(), request.pgToken()));
     }
 }

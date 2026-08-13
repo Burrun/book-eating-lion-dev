@@ -18,6 +18,22 @@ server:
 services:
   order:
     url: ${SERVICES_ORDER_URL:http://localhost:8082}
+  member:
+    url: ${SERVICES_MEMBER_URL:http://localhost:8083}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
+notifications:
+  email:
+    from-address: ${SES_FROM_ADDRESS:no-reply@example.com}
+  restock:
+    max-retries: ${RESTOCK_EMAIL_MAX_RETRIES:3}
+    retry-delay: ${RESTOCK_EMAIL_RETRY_DELAY:PT5M}
+    retry-scan-delay: ${RESTOCK_EMAIL_RETRY_SCAN_DELAY:60000}
 
 resilience4j:
   circuitbreaker:

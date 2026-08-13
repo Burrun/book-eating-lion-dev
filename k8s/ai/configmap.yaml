@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-config
+  namespace: lion-app
+data:
+  SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
+  SERVER_PORT: "8080"
+
+  # 다른 세 서비스와 같은 클러스터, 다른 스키마(ai_db)다.
+  # 격리는 클러스터가 아니라 계정 권한이 만든다 — ai_svc 는 다른 스키마를 못 읽는다.
+  #
+  # 그리고 질의 경로(POST /api/ai/ask)는 애초에 DB 를 타지 않는다. 먹인 책 목록은
+  # Redis 에서 읽고 벡터는 S3 Vectors 에 있다. DB 는 먹이기/문의 같은 쓰기에만 쓴다.
+  AI_DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
+  AI_DB_PORT: "5432"
+  AI_DB_NAME: "${AI_DB_NAME}"
+
+  AWS_REGION: "${AWS_REGION}"
+  AWS_BEDROCK_REGION: "${AWS_REGION}"
+
+  # 벡터 버킷/인덱스. 인덱스명이 설정인 이유는 v2 컷오버와 롤백 때문이다 —
+  # 재인제스트한 wiki-v2 로 옮기고 문제가 생기면 되돌리는 게 이 한 줄이어야 한다.
+  # 차원·거리척도·비필터키가 어긋나면 기동 시 GetIndex 검증에서 파드가 죽는다.
+  AI_VECTOR_BUCKET: "${AI_VECTOR_BUCKET}"
+  AI_VECTOR_INDEX: "wiki-v1"
+
+  # 재배포 없이 바꾸는 값들. 여기 없는 임베딩 모델·차원·거리척도는 인덱스와 짝이라
+  # 일부러 뺐다 — 바꾸면 전건 재임베딩 + 인덱스 재생성이고, 임베딩 모델은 차원이 같으면
+  # 기동 검증도 통과해서 조용히 틀린 결과만 나온다.
+  #
+  # LLM 모델은 자료 마이그레이션이 없어 교체가 이 두 줄이다.
+  #
+  # 워크로드마다 다른 이유는 추론 난이도가 달라서다 — RAG 는 여러 책 근거를 종합해
+  # 인용 번호까지 맞춰야 하고, 봇은 FAQ 몇 건 중에서 맞는 항목을 고르면 된다.
+  #
+  # 두 Deployment 가 이 ConfigMap 을 통째로 가져다 쓰므로(envFrom) 같은 키가 두 값을
+  # 가질 수 없다. 그래서 값은 여기 두 키로 두고, 각 Deployment 는 자기가 어느 키를
+  # 읽을지만 env.valueFrom 으로 선언한다 — 모델 교체는 어느 쪽이든 이 파일에서 끝난다.
+  #
+  # 🔴 접두사를 떼지 말 것. 둘 다 해당 리전에서 inferenceTypesSupported 가
+  # [INFERENCE_PROFILE] 뿐이라 맨 모델 ID 로는 호출이 거부된다. 접두사가 서로 다르다 —
+  # Haiku 4.5 는 `global.`(ap-northeast-2/us-east-1 양쪽 ACTIVE), Nova 는 `apac.` 이다.
+  AI_LLM_MODEL_RAG: "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+  AI_LLM_MODEL_BOT: "apac.amazon.nova-micro-v1:0"
+  # 🔴 잠정값. 계획서 8~9단계(golden set → 거리 분포)에서 확정할 것.
+  AI_MAX_DISTANCE: "0.75"
+  AI_DAILY_QUOTA: "50"
+
+  AWS_COGNITO_REGION: "${AWS_REGION}"
+  AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
+
+  REDIS_HOST: "${REDIS_HOST}"

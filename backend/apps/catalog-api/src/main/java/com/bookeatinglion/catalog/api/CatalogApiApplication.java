@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * catalog-service — 도서/리뷰/찜/스와이프/추천 추론.
@@ -14,10 +15,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *
  * JPA Auditing 은 common 의 JpaConfig 가 켠다(여기서 또 켜면 빈 중복으로 기동 실패).
  */
-@SpringBootApplication(scanBasePackages = {"com.bookeatinglion.catalog", "com.bookeatinglion.book", "com.bookeatinglion.common"})
+@SpringBootApplication(
+        scanBasePackages = {"com.bookeatinglion.catalog", "com.bookeatinglion.book", "com.bookeatinglion.common"})
 @EntityScan(basePackages = "com.bookeatinglion.book")
 @EnableJpaRepositories(basePackages = "com.bookeatinglion.book")
 @EnableFeignClients(basePackages = "com.bookeatinglion.catalog.api.client")
+@EnableScheduling
 public class CatalogApiApplication {
 
     public static void main(String[] args) {

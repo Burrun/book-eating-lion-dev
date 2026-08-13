@@ -4,19 +4,19 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
@@ -27,21 +27,37 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        // reading-progress는 /api/books/** 아래라 아래의 GET permitAll보다
+                        // reading-progress는 /api/catalog/books/** 아래라 아래의 GET permitAll보다
                         // 먼저 매칭돼야 한다 — 순서가 바뀌면 GET이 인증 없이 뚫린다.
                         // (SecurityConfigTest.인증_없이_이어읽기_위치_조회는_401을_반환한다 가 이 순서를 지킨다)
-                        .requestMatchers("/api/books/*/reading-progress").authenticated()
+                        .requestMatchers("/api/catalog/books/*/reading-progress").authenticated()
                         // 도서 조회는 비로그인도 가능하다.
-                        .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/wishlist/**", "/api/recent-books/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/books/*/reviews").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/reviews/**").authenticated()
-                        .anyRequest().permitAll())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
-                        jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/books/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/categories/**")
+                        .permitAll()
+                        .requestMatchers("/actuator/**")
+                        .permitAll()
+                        .requestMatchers("/api/catalog/admin/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/restock-alert")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/catalog/books/*/restock-alert")
+                        .authenticated()
+                        .requestMatchers("/api/catalog/restock-alerts/**")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/catalog/reviews/**")
+                        .authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/catalog/reviews/**")
+                        .authenticated()
+                        .anyRequest()
+                        .permitAll())
+                .oauth2ResourceServer(
+                        oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
     }

@@ -1,5 +1,11 @@
 package com.bookeatinglion.book.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.BookDetailResponse;
@@ -8,6 +14,10 @@ import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.port.InventoryPort;
 import com.bookeatinglion.book.repository.BookRepository;
+import java.lang.reflect.Field;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,17 +27,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-
-import java.lang.reflect.Field;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BookServiceTest {
@@ -44,9 +43,15 @@ class BookServiceTest {
 
     private Book book(Long id, String title) throws Exception {
         Book book = Book.builder()
-                .title(title).author("저자").publisher("출판사").isbn("978110000" + id)
-                .category("소설").price(10000)
-                .saleStatus(SaleStatus.ON_SALE).publishedDate(LocalDate.of(2026, 1, 1)).salesCount(0)
+                .title(title)
+                .author("저자")
+                .publisher("출판사")
+                .isbn("978110000" + id)
+                .category("소설")
+                .price(10000)
+                .saleStatus(SaleStatus.ON_SALE)
+                .publishedDate(LocalDate.of(2026, 1, 1))
+                .salesCount(0)
                 .build();
         Field idField = Book.class.getDeclaredField("bookId");
         idField.setAccessible(true);
@@ -105,8 +110,7 @@ class BookServiceTest {
     void 존재하지_않는_책_id는_예외를_던진다() {
         when(bookRepository.findByBookIdAndIsDeletedFalse(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> bookService.getBook(999L))
-                .isInstanceOf(BookNotFoundException.class);
+        assertThatThrownBy(() -> bookService.getBook(999L)).isInstanceOf(BookNotFoundException.class);
     }
 
     @Test
@@ -143,7 +147,6 @@ class BookServiceTest {
     void 존재하지_않는_책의_상세줄거리_조회는_예외를_던진다() {
         when(bookRepository.findByBookIdAndIsDeletedFalse(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> bookService.getSynopsisDetail(999L))
-                .isInstanceOf(BookNotFoundException.class);
+        assertThatThrownBy(() -> bookService.getSynopsisDetail(999L)).isInstanceOf(BookNotFoundException.class);
     }
 }

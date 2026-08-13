@@ -2,12 +2,11 @@ package com.bookeatinglion.book.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "recent_books", uniqueConstraints = @UniqueConstraint(columnNames = {"member_id", "book_id"}))
@@ -21,7 +20,7 @@ public class RecentViewedBook extends BaseEntity {
     private Long recentBookId;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private String memberId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id", nullable = false)
@@ -31,7 +30,7 @@ public class RecentViewedBook extends BaseEntity {
     private LocalDateTime viewedAt;
 
     @Builder
-    public RecentViewedBook(Long memberId, Book book, LocalDateTime viewedAt) {
+    public RecentViewedBook(String memberId, Book book, LocalDateTime viewedAt) {
         this.memberId = memberId;
         this.book = book;
         this.viewedAt = viewedAt;

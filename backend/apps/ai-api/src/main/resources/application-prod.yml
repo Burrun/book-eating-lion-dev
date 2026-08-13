@@ -1,13 +1,15 @@
 spring:
   datasource:
-    # 클러스터 B (Aurora Serverless v2, min 0 ACU). AI_DB_HOST 는 클러스터 A 와 다른 엔드포인트다.
-    url: jdbc:postgresql://${AI_DB_HOST}:${AI_DB_PORT}/${AI_DB_NAME}?currentSchema=ai_db&sslmode=require
+    # 다른 세 서비스와 같은 Aurora 클러스터, 다른 스키마다.
+    # AI_DB_HOST 는 db-primary-service 를 가리키며 나머지 서비스와 같은 엔드포인트다.
+    url: jdbc:postgresql://${AI_DB_HOST}:${AI_DB_PORT}/${AI_DB_NAME}?currentSchema=ai_db&sslmode=${DB_SSL_MODE:require}
     username: ${AI_DB_USERNAME}
     password: ${AI_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Phase 2-8 의 검증 대상. 유휴 5분 후 Aurora 가 실제로 auto-pause 되는지
-      # 콘솔에서 확인한다. 이 설정 없이는 절대 멈추지 않는다.
+      # 질의 경로가 DB 를 안 타므로 유휴 커넥션을 붙들 이유가 없다.
+      # (원래는 ai_db 전용 Serverless v2 를 auto-pause 시키려는 설정이었는데,
+      #  클러스터를 합치면서 그 목적은 사라졌다. 커넥션 절약 목적으로만 남긴다.)
       minimum-idle: 0
       idle-timeout: 60000
       maximum-pool-size: 5
@@ -20,14 +22,34 @@ spring:
       hibernate:
         default_schema: ai_db
 
+  # ElastiCache. k8s configmap 이 주는 이름은 REDIS_HOST 이고 Boot 가 읽는 키는
+  # spring.data.redis.host 다. 이 매핑이 없어서 prod 파드가 컨테이너 안
+  # localhost:6379 를 찾고 있었다.
+  # 기본값을 주지 않는다 — 미설정이면 조용히 로컬로 붙는 대신 기동이 실패해야 한다.
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+  # JWT 검증. issuer-uri 가 local 프로필에만 있어서 prod 로 뜨면 JwtDecoder 빈이
+  # 만들어지지 않고 SecurityConfig 가 기동 단계에서 터진다.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
 
 app:
-  bedrock:
-    region: ${AWS_BEDROCK_REGION}
-    embedding-model: amazon.titan-embed-text-v2:0
-    embedding-dimension: 1024
+  ai:
+    clients: bedrock
+    bedrock:
+      region: ${AWS_BEDROCK_REGION}
+    vector:
+      bucket-name: ${AI_VECTOR_BUCKET}
+      # 인덱스명만 바꾸면 v2 컷오버·롤백이 끝난다.
+      index-name: ${AI_VECTOR_INDEX:wiki-v1}
 
 management:
   endpoints:

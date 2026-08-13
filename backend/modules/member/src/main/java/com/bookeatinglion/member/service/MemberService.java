@@ -3,6 +3,7 @@ package com.bookeatinglion.member.service;
 import com.bookeatinglion.member.domain.Member;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
+import com.bookeatinglion.member.dto.NotificationProfileResponse;
 import com.bookeatinglion.member.exception.MemberNotFoundException;
 import com.bookeatinglion.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +28,11 @@ public class MemberService {
         return MemberResponse.from(member);
     }
 
+    public NotificationProfileResponse getNotificationProfile(String cognitoSub) {
+        return NotificationProfileResponse.from(getMember(cognitoSub));
+    }
+
     private Member getMember(String cognitoSub) {
-        return memberRepository.findByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new MemberNotFoundException(cognitoSub));
+        return memberRepository.findByCognitoSub(cognitoSub).orElseThrow(() -> new MemberNotFoundException(cognitoSub));
     }
 }

@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @ContextConfiguration(classes = OrderModuleTestApplication.class)
 class CouponControllerTest {
 
-    private static final long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,7 +38,7 @@ class CouponControllerTest {
     private CouponService couponService;
 
     private static RequestPostProcessor authenticated() {
-        return jwt().jwt(jwt -> jwt.subject("member-sub-1").claim("member_id", MEMBER_ID));
+        return jwt().jwt(jwt -> jwt.subject(MEMBER_ID));
     }
 
     private MemberCouponView memberCouponView() {

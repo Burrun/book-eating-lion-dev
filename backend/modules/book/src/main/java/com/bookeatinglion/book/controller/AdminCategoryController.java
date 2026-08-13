@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/categories")
+@RequestMapping("/api/catalog/admin/categories")
 @RequiredArgsConstructor
 public class AdminCategoryController {
 
@@ -44,8 +44,7 @@ public class AdminCategoryController {
 
     @PatchMapping("/{categoryId}")
     public ApiResponse<CategoryResponse> update(
-            @PathVariable Long categoryId,
-            @Valid @RequestBody CategoryUpdateRequest request) {
+            @PathVariable Long categoryId, @Valid @RequestBody CategoryUpdateRequest request) {
         return ApiResponse.success(categoryService.update(categoryId, request));
     }
 

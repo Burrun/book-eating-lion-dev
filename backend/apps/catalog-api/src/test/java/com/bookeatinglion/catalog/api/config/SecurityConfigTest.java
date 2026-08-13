@@ -2,6 +2,7 @@ package com.bookeatinglion.catalog.api.config;
 
 import com.bookeatinglion.book.controller.BookExceptionHandler;
 import com.bookeatinglion.book.controller.ReadingProgressController;
+import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.ReadingProgressService;
 import com.bookeatinglion.catalog.api.test.CatalogApiModuleTestApplication;
 import org.junit.jupiter.api.Test;
@@ -20,8 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * SecurityConfig의 실제 authorizeHttpRequests 규칙(순서 포함)을 검증한다.
  *
- * 회귀 배경: "/api/books/*_/reading-progress"를 authenticated()로 추가했을 때, 먼저 선언된
- * "GET /api/books/**".permitAll() 규칙이 먼저 매칭돼 GET이 인증 없이 통과하는 버그가 있었다
+ * 회귀 배경: "/api/catalog/books/*_/reading-progress"를 authenticated()로 추가했을 때, 먼저 선언된
+ * "GET /api/catalog/books/**".permitAll() 규칙이 먼저 매칭돼 GET이 인증 없이 통과하는 버그가 있었다
  * (첫 매칭 규칙이 이기는 authorizeHttpRequests의 특성). 규칙 순서를 permitAll보다 앞으로
  * 옮겨서 고쳤는데, book 모듈의 ReadingProgressControllerTest는 이 SecurityConfig 빈을 아예
  * 로드하지 않아 이 순서 문제를 검증하지 못한다 — jwt() 로 인증된 요청만 확인했을 뿐,
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 직접 검증한다.
  */
 @WebMvcTest(controllers = {ReadingProgressController.class, BookExceptionHandler.class})
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, CatalogMemberIdentity.class})
 @ContextConfiguration(classes = CatalogApiModuleTestApplication.class)
 class SecurityConfigTest {
 
@@ -43,13 +44,13 @@ class SecurityConfigTest {
 
     @Test
     void 인증_없이_이어읽기_위치_조회는_401을_반환한다() throws Exception {
-        mockMvc.perform(get("/api/books/1/reading-progress"))
+        mockMvc.perform(get("/api/catalog/books/1/reading-progress"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void 인증_없이_이어읽기_위치_저장은_401을_반환한다() throws Exception {
-        mockMvc.perform(put("/api/books/1/reading-progress")
+        mockMvc.perform(put("/api/catalog/books/1/reading-progress")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cfi\":\"epubcfi(/6/4)\"}"))
                 .andExpect(status().isUnauthorized());

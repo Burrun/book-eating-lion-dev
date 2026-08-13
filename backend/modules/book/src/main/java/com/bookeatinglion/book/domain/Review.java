@@ -23,7 +23,7 @@ public class Review extends BaseEntity {
     private Book book;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private String memberId;
 
     /**
      * order_db.order_items 의 값. FK 가 아니다 — 어느 구매로 얻은 권한인지 추적용.
@@ -44,11 +44,16 @@ public class Review extends BaseEntity {
     private String content;
 
     @Builder
-    public Review(Book book, Long memberId, Long orderItemId, String nickname, int rating, String content) {
+    public Review(Book book, String memberId, Long orderItemId, String nickname, int rating, String content) {
         this.book = book;
         this.memberId = memberId;
         this.orderItemId = orderItemId;
         this.nickname = nickname;
+        this.rating = rating;
+        this.content = content;
+    }
+
+    public void update(int rating, String content) {
         this.rating = rating;
         this.content = content;
     }

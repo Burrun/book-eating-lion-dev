@@ -1,0 +1,43 @@
+# ai-rag — 1 → 6
+#
+# ⚠️ 메트릭 선택의 근거가 Phase 0-2b 결정에 종속된다(판단 ④의 표).
+#
+#   임베딩을 로컬 모델로 뽑으면   → CPU 바운드 → CPU 70% 가 맞다
+#   임베딩을 외부 API 로 뽑으면   → I/O 바운드 → CPU HPA 는 무력하다
+#
+# Phase 0-2b 에서 Bedrock Titan Text Embeddings V2(외부 API)로 확정했으므로
+# **후자**다. RAG 파이프라인에서 Pod CPU 를 쓰는 단계는 컨텍스트 조립뿐이고,
+# 벡터 검색은 애초에 Pod 밖(Aurora)이며 임베딩·LLM 은 둘 다 외부 호출이다.
+#
+# 따라서 CPU 기준으로는 거의 확장되지 않는다. 아래 CPU 메트릭은 폭주 감지용
+# 안전망으로만 남기고, 실제 확장은 동시 요청 수로 가야 한다.
+#
+# 동시 요청 수 HPA 는 KEDA 또는 Prometheus Adapter 가 필요하다(미도입).
+# 도입 전까지는 Bulkhead 스레드풀 격리(application.yml 의 resilience4j.bulkhead)가
+# 유일한 방어선이며, 그건 "여유 시" 항목이 아니라 필수다.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-rag-hpa
+  namespace: lion-app
+  annotations:
+    lion.io/metric-rationale: >-
+      Phase 0-2b 에서 외부 임베딩 API 로 확정 → I/O 바운드.
+      CPU 메트릭은 안전망이며, 동시 요청 수 기반으로 교체 예정(KEDA).
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-rag-deployment
+  # 프리미엄 사용자가 소수라 여기만 1이다. Pod 재시작 시 짧은 단절이 생기지만
+  # 의도적 트레이드오프다. scale-to-zero 는 채택하지 않았다 —
+  # JVM 기동 콜드스타트가 수십 초라 "돈 낸 사용자가 무료 기능보다 느려진다".
+  minReplicas: 1
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

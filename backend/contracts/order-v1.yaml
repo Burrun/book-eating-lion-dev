@@ -373,6 +373,81 @@ paths:
         "409":
           description: PAID 상태가 아니어서 취소할 수 없음(카드 한도 복구 실패 포함)
 
+  /api/orders/{orderId}/return:
+    post:
+      summary: 반품/교환 신청
+      description: |
+        PAID 상태인 주문만 반품 신청할 수 있다. cancel 과 달리 이 시점엔 재고·쿠폰·결제를
+        건드리지 않는다 — orderStatus 를 RETURN_REQUESTED 로 바꾸고 사유를 저장할 뿐이다.
+        실제 환불(재고 복구, 쿠폰 원복, 카드 한도 복구/카카오페이 취소)은 반품 상품 회수
+        확인 후 `POST /api/orders/{orderId}/refund` 로 별도 처리한다.
+      operationId: requestOrderReturn
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestReturnRequest"
+      responses:
+        "200":
+          description: 반품 신청 접수 완료, orderStatus=RETURN_REQUESTED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "400":
+          description: reason 누락
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+        "409":
+          description: PAID 상태가 아니어서 반품 신청할 수 없음
+
+  /api/orders/{orderId}/refund:
+    post:
+      summary: 환불 처리
+      description: |
+        RETURN_REQUESTED 상태인 주문만 환불할 수 있다. 결제 수단별로 CARD 는 가상카드 한도를
+        복구하고 KAKAOPAY 는 카카오페이 실 API(`POST /online/v1/payment/cancel`)를 호출한다
+        (카카오페이는 취소와 환불을 같은 API 로 처리한다). 재고 복구와 쿠폰 사용 원복도
+        cancel 과 동일하게 이뤄진다. 실패하면 전부 롤백되고 주문은 RETURN_REQUESTED 상태로
+        남는다(부분 환불 방지).
+      operationId: refundOrder
+      tags: [order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 환불 완료, orderStatus=REFUNDED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailEnvelope"
+        "403":
+          description: 타인의 주문
+        "404":
+          description: 존재하지 않는 주문
+        "409":
+          description: RETURN_REQUESTED 상태가 아니어서 환불할 수 없음(카드 한도 복구/카카오페이 취소 실패 포함)
+
   /api/payments/kakao/approve:
     post:
       summary: 카카오페이 결제 승인 (2단계 중 2단계)
@@ -674,7 +749,7 @@ components:
           $ref: "#/components/schemas/Recipient"
         paymentMethod:
           type: string
-          enum: [CARD, KAKAOPAY]
+          enum: [VIRTUAL_CARD, KAKAO_PAY]
         cardId:
           type: integer
           format: int64
@@ -705,13 +780,15 @@ components:
           format: int64
         paymentMethod:
           type: string
-          enum: [CARD, KAKAOPAY]
+          enum: [VIRTUAL_CARD, KAKAO_PAY]
         amount:
           type: integer
         paymentStatus:
           type: string
-          enum: [READY, APPROVED, DECLINED, CANCELLED]
-          description: READY 는 카카오페이 ready 는 끝났지만 아직 approve 되지 않은 상태다.
+          enum: [READY, APPROVED, DECLINED, CANCELLED, REFUNDED]
+          description: |
+            READY 는 카카오페이 ready 는 끝났지만 아직 approve 되지 않은 상태다.
+            REFUNDED 는 배송 완료 후 반품이 승인되어 환불된 상태다(CANCELLED=사전 취소와 구분).
         approvalNumber:
           type: string
           nullable: true
@@ -731,6 +808,14 @@ components:
           type: string
           description: 카카오페이 리다이렉트 콜백에서 받은 pg_token.
 
+    RequestReturnRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          example: 단순 변심
+
     OrderResponse:
       type: object
       properties:
@@ -739,7 +824,7 @@ components:
           format: int64
         orderStatus:
           type: string
-          enum: [PENDING_PAYMENT, PAID, CANCELLED]
+          enum: [PENDING_PAYMENT, PAID, CANCELLED, RETURN_REQUESTED, REFUNDED]
         recipient:
           $ref: "#/components/schemas/Recipient"
         totalAmount:
@@ -756,7 +841,11 @@ components:
           description: |
             paymentMethod=KAKAOPAY 로 주문을 막 생성했을 때만 값이 있다. 클라이언트는 이
             URL 로 사용자를 리다이렉트시켜야 한다. 그 외의 모든 응답(CARD 생성, 상세조회,
-            취소, 카카오 승인 이후)에서는 항상 null 이다.
+            취소, 카카오 승인, 반품, 환불 이후)에서는 항상 null 이다.
+        returnReason:
+          type: string
+          nullable: true
+          description: POST /api/orders/{orderId}/return 으로 반품 신청했을 때 저장한 사유다. 반품 신청 전에는 null 이다.
 
     OrderDetailEnvelope:
       type: object

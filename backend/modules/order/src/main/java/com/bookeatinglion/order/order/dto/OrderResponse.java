@@ -14,7 +14,8 @@ public record OrderResponse(
         int totalAmount,
         List<OrderItemView> items,
         PaymentView payment,
-        String nextRedirectUrl) {
+        String nextRedirectUrl,
+        String returnReason) {
 
     /** CARD 생성 완료, 상세조회, 취소, 카카오 승인 이후 — nextRedirectUrl 이 항상 null 인 모든 경우. */
     public static OrderResponse of(Order order, List<OrderItem> items, Payment payment) {
@@ -31,6 +32,7 @@ public record OrderResponse(
                 order.getTotalAmount(),
                 items.stream().map(OrderItemView::from).toList(),
                 payment == null ? null : PaymentView.from(payment),
-                nextRedirectUrl);
+                nextRedirectUrl,
+                order.getReturnReason());
     }
 }

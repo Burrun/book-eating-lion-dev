@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/admin/books")
+@RequestMapping("/api/catalog/admin/books")
 @RequiredArgsConstructor
 public class AdminBookController {
 
@@ -49,8 +49,7 @@ public class AdminBookController {
 
     @PatchMapping("/{bookId}")
     public ApiResponse<AdminBookResponse> update(
-            @PathVariable Long bookId,
-            @Valid @RequestBody AdminBookUpdateRequest request) {
+            @PathVariable Long bookId, @Valid @RequestBody AdminBookUpdateRequest request) {
         return ApiResponse.success(adminBookService.update(bookId, request));
     }
 
