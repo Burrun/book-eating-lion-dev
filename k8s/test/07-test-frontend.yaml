@@ -34,6 +34,13 @@ data:
             proxy_pass http://order-service.lion-app.svc.cluster.local:8080/actuator/health/;
             proxy_set_header Host $host;
         }
+
+        # catalog-service-mock(Prism, 08-test-catalog-mock.yaml)을 직접 호출 —
+        # order-service 를 거치지 않고 목업 자체가 살아있는지 바로 확인하는 용도.
+        location /mock/catalog/ {
+            proxy_pass http://catalog-service-mock.lion-app.svc.cluster.local:8080/api/books/;
+            proxy_set_header Host $host;
+        }
     }
 ---
 apiVersion: v1
@@ -62,12 +69,21 @@ data:
 
       <button onclick="call('/health/', 'health-result')">백엔드 헬스체크 (/actuator/health)</button>
       <button onclick="call('/api/orders', 'orders-result')">주문 조회 (/api/orders, 인증 없음 → 401 예상)</button>
+      <button onclick="call('/mock/catalog/1', 'catalog-result')">카탈로그 목업 조회 (/api/books/1)</button>
 
       <h3>헬스체크 결과</h3>
       <pre id="health-result">(버튼을 눌러주세요)</pre>
 
       <h3>/api/orders 응답</h3>
       <pre id="orders-result">(버튼을 눌러주세요 — 더미 JWT 발급자라 401 Unauthorized 가 나오면 보안 설정이 정상 동작하는 것입니다)</pre>
+
+      <h3>catalog-service-mock 응답</h3>
+      <p>이 버튼은 order-service 를 거치지 않고 catalog-mock(Prism)을 직접 호출합니다.
+         order-service 가 실제로 부르는 경로(order↔catalog 통신)를 브라우저에서 직접
+         확인하려면 아래 실행 가이드의 kubectl exec curl 절차를 참고하세요 — order-service
+         의 /api/cart, /api/orders 는 인증이 필요해 브라우저 목업만으로는 그 경로를
+         재현할 수 없습니다.</p>
+      <pre id="catalog-result">(버튼을 눌러주세요)</pre>
 
       <script>
         async function call(path, targetId) {

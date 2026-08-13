@@ -34,6 +34,11 @@
 # 요구하는데, application-prod.yml 에는 issuer-uri 가 없어 JwtDecoder 빈을 못 만들고
 # 기동이 실패한다. 값 자체(더미 Cognito 형식 URL)는 실제 토큰 검증 시점(최초 요청)에만
 # 쓰이므로 Pod 기동에는 지장이 없다 — 로그인이 필요한 API 만 인증에 실패한다.
+#
+# --- SERVICES_CATALOG_URL / SERVICES_MEMBER_URL ---
+# order 모듈의 CatalogClient/CardClient(Feign)가 기본값으로 localhost:8081/8083 을
+# 바라본다(로컬 개발 전제). MSA 통신 테스트를 위해 08/09-test-*-mock.yaml 의
+# catalog-service-mock/member-service-mock(Prism 목업)을 가리키도록 오버라이드한다.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,3 +52,5 @@ data:
   SPRING_DATA_REDIS_HOST: "redis-test-service.lion-db.svc.cluster.local"
   SPRING_DATA_REDIS_PORT: "6379"
   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_dummyTestPool"
+  SERVICES_CATALOG_URL: "http://catalog-service-mock.lion-app.svc.cluster.local:8080"
+  SERVICES_MEMBER_URL: "http://member-service-mock.lion-app.svc.cluster.local:8080"
