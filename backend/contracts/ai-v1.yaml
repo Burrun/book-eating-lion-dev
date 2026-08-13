@@ -3,20 +3,32 @@ info:
   title: ai-service API
   version: "1.0.0"
   description: |
-    먹인 책 RAG + 고객상담.
+    구매한 책 RAG + 고객상담.
 
-    | 경로                | 하는 일                        | 자료                  |
-    |---------------------|--------------------------------|--------------------|
-    | /api/ai/ask         | 먹인 책 내용에 답하기          | S3 Vectors (wiki-v1)  |
-    | /api/ai/lion/**     | 책 먹이기, 먹을 수 있는 책 목록 | ai_db (wiki/fed_books)|
-    | /api/ai/bot/**      | 고객상담 — 배송·환불·1:1문의   | ai_db (faqs)          |
+    | 경로                      | 하는 일                        | 자료                  |
+    |---------------------------|--------------------------------|--------------------|
+    | /api/ai/lion/ask          | 구매한 책 내용에 답하기        | S3 Vectors (wiki-v1)  |
+    | /api/ai/lion/feed, /me    | 책 먹이기, 사자 상태           | ai_db (lions/fed_books)|
+    | /api/ai/lion/feedable-books | 먹을 수 있는 책 목록         | ai_db (wiki_books)    |
+    | /api/ai/bot/ask           | 고객상담 — FAQ 기반 1차 응답   | ai_db (faqs)          |
+    | /api/ai/bot/chat/ticket   | 상담 웹소켓 1회성 교환권 발급  | Redis (tickets)       |
+    | /ws/ai/chat                | 1:1 라이브/AI 상담 실시간 채널 | Redis Pub/Sub / ZSet  |
 
-    `/api/ai/ask` 는 **책 내용** 전담이고 고객상담은 `/api/ai/bot/**` 이 계속 담당한다.
+    `/api/ai/lion/**` 는 **책 내용** 전담이고 고객상담은 `/api/ai/bot/**` 및 `/ws/ai/chat` 이 담당한다.
     자료도 목적도 달라서 합치지 않는다.
 
-    벡터는 **공용, 권한은 관계형**이다. 책 본문 벡터는 누가 먹였든 1벌만 존재하고
-    (키가 {bookId}#{page}#{seq} 로 결정적), "누가 무엇을 먹였는가"는 fed_books 가
-    들고 있다. 질의 시 그 목록이 그대로 검색 필터가 되므로 안 먹은 책은 나오지 않는다.
+    🔴 **검색 권한의 근거는 "구매"다.** 라이언에게 먹였는지(게이미피케이션)와는 별개다 —
+    사자를 안 키워도 산 책은 읽을 수 있어야 하고, 먹였다고 안 산 책을 읽을 수는 없다.
+
+    벡터는 **공용, 권한은 관계형**이다. 책 본문 벡터는 누가 샀든 1벌만 존재하고
+    (키가 {bookId}#{page}#{seq} 로 결정적), "누가 무엇을 샀는가"는 purchased_books 가
+    들고 있다. 질의 시 그 목록이 그대로 검색 필터가 되므로 안 산 책은 나오지 않는다.
+    이 표는 order-service 가 결제 확정 후 SQS 로 보내는 이벤트로 채워진다
+    (계약: docs/ai-integration.md).
+
+    1:1 문의 등록(`POST /api/ai/bot/inquiries`)은 없앴다. 받아 두기만 하고 답변할 수단이
+    없었다 — 사용자는 답을 기다리는데 아무도 그 행의 존재를 모르는 상태였다. 상담사가
+    없을 때는 문의 게시판으로 안내한다.
 
     Deployment 는 이미지 1개에 2개(ai-rag / ai-bot)이고 Ingress 가 경로로 가른다.
     HPA 메트릭과 타임아웃 정책이 다르기 때문이다 — 임베딩·LLM 이 전부 외부 API 라
@@ -31,7 +43,7 @@ servers:
     description: 클러스터 내부
 
 paths:
-  /api/ai/ask:
+  /api/ai/lion/ask:
     post:
       summary: 위키 RAG Q&A — 답변 + "어느 책 몇 페이지"
       description: |
@@ -113,15 +125,42 @@ paths:
                 bookId: { type: integer, format: int64, example: 1 }
       responses:
         "200":
-          description: 먹이기 완료 (이미 먹인 책이면 상태 변화 없이 현재 값 반환)
+          description: |
+            먹이기 완료 (이미 먹인 책이면 상태 변화 없이 현재 값 반환).
+
+            응답은 `GET /api/ai/lion/me` 와 같은 형태다 — 먹이기 결과도 결국 "먹인 뒤의
+            사자"라 값이 같다. 프론트는 두 응답을 같은 타입으로 다루면 된다.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FeedEnvelope"
+                $ref: "#/components/schemas/LionStatusEnvelope"
         "401":
           description: 인증 없음/만료
         "409":
           description: 아직 인제스트되지 않은 책. ebook 본문이 없으면 먹일 수 없다
+
+  /api/ai/lion/me:
+    get:
+      summary: 내 사자 상태
+      description: |
+        레벨·경험치·성장단계와 먹인 책 수.
+
+        **조회는 사자를 만들지 않는다.** 아직 한 번도 먹이지 않은 사용자는 `lions` 행이
+        없고, 그때는 기본값(레벨 1 / 경험치 0 / CUB)을 돌려준다 — 행이 없는 것과 같은
+        의미이기 때문이다. 사자 행은 첫 `feed` 에서 생긴다.
+      operationId: getMyLion
+      tags: [ai-lion]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 사자 상태
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LionStatusEnvelope"
+        "401":
+          description: 인증 없음/만료
 
   /api/ai/lion/feedable-books:
     get:
@@ -146,7 +185,7 @@ paths:
 
   /api/ai/bot/ask:
     post:
-      summary: 문의봇 질의
+      summary: 문의봇 질의 (단발성 REST)
       description: |
         → ai-bot Deployment.
 
@@ -172,29 +211,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/TextEnvelope"
 
-  /api/ai/bot/inquiries:
+  /api/ai/bot/chat/ticket:
     post:
-      summary: 1:1 문의 등록
+      summary: 상담 채팅 WebSocket 교환권(Ticket) 발급
       description: |
-        → ai-bot Deployment. 요구사항 v2 에서 중고거래 채팅을 대체한 기능이다.
-        WebSocket 이 아니므로 sticky session 도 Redis Pub/Sub 도 필요 없다.
-      operationId: submitInquiry
+        → ai-bot Deployment. 로그인 필수.
+
+        WebSocket 접속용 1회성 교환권을 발급한다.
+        JWT 토큰의 `cognito:groups` 클레임을 분석하여 `ADMIN` 포함 여부로 상담사(`isAgent`)
+        판정을 여기서 완결하고 티켓에 고정한다.
+      operationId: issueChatTicket
       tags: [ai-bot]
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/InquiryRequest"
       responses:
-        "201":
-          description: 등록 완료
+        "200":
+          description: 티켓 발급 성공
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/IdEnvelope"
+                $ref: "#/components/schemas/TicketEnvelope"
+        "401":
+          description: 인증 없음/만료
+
+  /ws/ai/chat:
+    get:
+      summary: 고객상담 실시간 WebSocket 채널
+      description: |
+        → ai-bot Deployment.
+
+        **Query Parameter**: `ticket` (GET /api/ai/bot/chat/ticket 발급 티켓)
+        **CORS**: `Origin` 헤더 기반 백엔드 단독 검증.
+
+        **채팅 상태(ChatState)**: `BOT` → `WAITING` → `LIVE` → `CLOSED`
+
+        **클라이언트 ↔ 서버 JSON 프레임 구조 (`Frame`)**:
+        - `type`: `ASK` | `SAY` | `ESCALATE` | `CLAIM` | `CLOSE`
+        - `text`: 메시지 본문
+        - `roomId`: 상담방 ID
+
+        **액션 상세**:
+        - `ASK`: `BOT` 상태에서 AI봇에게 1:1 질문.
+        - `ESCALATE`: 상담사 연결 요청. 온라인 상담사(`AgentPresence`)가 0명이면 `NO_AGENT` 응답 및 종료.
+        - `CLAIM`: 상담사가 대기 방 수락 (`WAITING` → `LIVE` 전환, 상담사 전용).
+        - `SAY`: `LIVE` 구간에서 사용자 ↔ 상담사 양방향 대화.
+        - `CLOSE`: 상담방 종료.
+      operationId: connectChatWebSocket
+      tags: [ai-bot]
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          description: 발급받은 WebSocket 티켓
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket Protocol Handshake Switch
+        "400":
+          description: 유효하지 않거나 만료된 티켓 / Origin 허용 거부
 
 components:
   securitySchemes:
@@ -220,18 +295,20 @@ components:
             `search` = 검색만. LLM 을 부르지 않으므로 비용 0.
             `answer` = 검색 결과를 LLM 이 종합해 문장으로 답한다.
 
-            생략하면 서버의 2층 분기가 정한다 — 1층 규칙으로 명확하면 즉시 확정하고,
-            애매할 때만 LLM 분류기를 1회 부른다. 흔한 질문은 공짜, 애매한 것만 돈을 낸다.
-            명시하면 두 층을 모두 건너뛴다.
+            생략하면 서버가 정한다. **현재는 1층(규칙)만 구현되어 있고**, 설명을 요구하는
+            표현이 없으면 `search` 로 떨어진다 — 싼 쪽이고, 프론트가 "더 자세히 답변받기"
+            버튼으로 `mode:"answer"` 재요청을 걸 수 있어 사용자가 막히지 않는다.
+
+            계획서 10단계의 2층(LLM 분류기)은 아직 없다. 명시하면 분기를 건너뛴다.
         bookIds:
           type: array
           items: { type: integer, format: int64 }
           description: |
             **좁히기 전용이다. 넓히기에는 쓸 수 없다.**
 
-            서버는 이 목록과 "내가 먹인 책"의 교집합만 검색한다. 안 먹인 bookId 를
+            서버는 이 목록과 "내가 구매한 책"의 교집합만 검색한다. 안 산 bookId 를
             넣어도 무시된다 — 그러지 않으면 먹지 않은 책의 본문을 그대로 읽어갈 수 있다.
-            생략하면 내가 먹인 책 전체가 대상이고, 먹은 책이 없으면 검색하지 않는다.
+            생략하면 내가 구매한 책 전체가 대상이고, 산 책이 없으면 검색하지 않는다.
         topK:
           type: integer
           minimum: 1
@@ -264,6 +341,10 @@ components:
             처리하는 이유는 AI 장애가 나머지 기능으로 전이되면 안 되기 때문이다.
         answer:
           type: string
+          description: |
+            `answer` 모드에서만 LLM 생성문이다. `search` 모드는 LLM 을 부르지 않으므로
+            `"구매한 책에서 근거 N곳을 찾았습니다."` 고정 문구이고 `[n]` 인용 표기가 없다.
+            근거를 못 찾으면 모드와 무관하게 `"구매한 책에서 근거를 찾지 못했습니다."` 다.
           example: 앓는 아내에게 주려고 샀습니다 [1].
         citations:
           type: array
@@ -307,25 +388,35 @@ components:
         success: { type: boolean }
         data: { type: string }
 
-    IdEnvelope:
-      type: object
-      properties:
-        success: { type: boolean }
-        data: { type: integer, format: int64 }
-
-    FeedEnvelope:
+    TicketEnvelope:
       type: object
       properties:
         success: { type: boolean }
         data:
           type: object
-          required: [exp, level, fedBookCount]
+          required: [ticket, expiresInSeconds]
+          properties:
+            ticket: { type: string, example: "8f7a2b91-4c6e-4e3f-912a-8c7b6a5d4e3f" }
+            expiresInSeconds: { type: integer, example: 60 }
+
+    LionStatusEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          required: [exp, level, growthStage, fedBookCount]
           properties:
             exp: { type: integer, format: int64, example: 120 }
             level: { type: integer, example: 2 }
+            growthStage:
+              type: string
+              description: lions.growth_stage. 첫 사자는 CUB 다.
+              example: CUB
             fedBookCount:
               type: integer
-              description: 지금까지 먹인 책 수. 곧 검색 가능한 책의 수다.
+              format: int64
+              description: 먹인 책 수(라이언 경험치용). 검색 가능 여부와는 무관하다 — 그건 구매가 정한다.
               example: 3
 
     FeedableBooksEnvelope:
@@ -344,12 +435,3 @@ components:
                 type: integer
                 description: 인제스트 시 900자를 1페이지로 나눈 결과. 인용에 쓰이는 페이지 번호의 범위다.
                 example: 12
-
-    InquiryRequest:
-      type: object
-      required: [title, content]
-      properties:
-        bookId: { type: integer, format: int64 }
-        bookTitle: { type: string, description: 생성 시점 스냅샷 }
-        title: { type: string }
-        content: { type: string }

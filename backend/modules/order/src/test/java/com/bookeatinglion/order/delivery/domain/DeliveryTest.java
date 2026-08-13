@@ -37,8 +37,10 @@ class DeliveryTest {
 
     @Test
     void 같은_상태로는_전이할_수_없다() {
-        Delivery delivery =
-                Delivery.builder().orderId(1L).deliveryStatus(DeliveryStatus.SHIPPED).build();
+        Delivery delivery = Delivery.builder()
+                .orderId(1L)
+                .deliveryStatus(DeliveryStatus.SHIPPED)
+                .build();
 
         assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.SHIPPED))
                 .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
@@ -46,8 +48,10 @@ class DeliveryTest {
 
     @Test
     void 이전_상태로_역행할_수_없다() {
-        Delivery delivery =
-                Delivery.builder().orderId(1L).deliveryStatus(DeliveryStatus.IN_TRANSIT).build();
+        Delivery delivery = Delivery.builder()
+                .orderId(1L)
+                .deliveryStatus(DeliveryStatus.IN_TRANSIT)
+                .build();
 
         assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.PENDING))
                 .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
@@ -63,8 +67,10 @@ class DeliveryTest {
 
     @Test
     void DELIVERED는_종단_상태라_더이상_전이할_수_없다() {
-        Delivery delivery =
-                Delivery.builder().orderId(1L).deliveryStatus(DeliveryStatus.DELIVERED).build();
+        Delivery delivery = Delivery.builder()
+                .orderId(1L)
+                .deliveryStatus(DeliveryStatus.DELIVERED)
+                .build();
 
         assertThatThrownBy(() -> delivery.updateStatus(DeliveryStatus.DELIVERED))
                 .isInstanceOf(InvalidDeliveryStatusTransitionException.class);

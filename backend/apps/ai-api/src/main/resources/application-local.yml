@@ -38,13 +38,13 @@ spring:
 
 app:
   ai:
-    # 로컬은 AWS 자격증명 없이 뜬다. bedrock 으로 바꾸면 실제 호출이 나가고
-    # 기동 시 S3 Vectors 인덱스 검증도 함께 돈다.
-    clients: ${AI_CLIENTS:stub}
+    # 스텁 구현은 없다. bedrock 이 유일한 값이며, 로컬도 실제 Bedrock / S3 Vectors 를 호출한다.
+    # 따라서 기동에 AWS 자격증명이 필요하고, 기동 시 S3 Vectors 인덱스 검증도 함께 돈다.
+    clients: ${AI_CLIENTS:bedrock}
     bedrock:
       region: ${AWS_BEDROCK_REGION:ap-northeast-2}
     vector:
-      bucket-name: ${AI_VECTOR_BUCKET:bel-wiki-vectors-local}
+      bucket-name: ${AI_VECTOR_BUCKET:final-team3-wiki-vectors-prod}
 
 springdoc:
   swagger-ui:

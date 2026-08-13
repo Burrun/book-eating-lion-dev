@@ -24,7 +24,7 @@ public class Lion extends BaseEntity {
 
     /** member_db 경계 밖. 값만 들고 있고 조인하지 않는다. */
     @Column(name = "member_id", nullable = false, unique = true)
-    private Long memberId;
+    private String memberId;
 
     @Column(nullable = false)
     private int level;
@@ -35,7 +35,7 @@ public class Lion extends BaseEntity {
     @Column(nullable = false)
     private String growthStage;
 
-    public Lion(Long memberId, String growthStage) {
+    public Lion(String memberId, String growthStage) {
         this.memberId = memberId;
         this.level = 1;
         this.exp = 0;

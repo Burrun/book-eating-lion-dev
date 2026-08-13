@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class FeedServiceTest {
 
-    private static final Long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "test-cognito-sub-1";
     private static final Long BOOK_ID = 10L;
 
     private WikiBookRepository wikiBookRepository;
@@ -59,7 +59,7 @@ class FeedServiceTest {
         when(fedBookRepository.existsById(any())).thenReturn(false);
         when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
 
-        FeedService.FeedResult result = service.feed(MEMBER_ID, BOOK_ID);
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
         assertThat(result.fedBookCount()).isEqualTo(1L);
@@ -74,7 +74,7 @@ class FeedServiceTest {
         when(fedBookRepository.existsById(any())).thenReturn(true);
         when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
 
-        FeedService.FeedResult result = service.feed(MEMBER_ID, BOOK_ID);
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
         verify(fedBookRepository, never()).save(any());
@@ -88,5 +88,33 @@ class FeedServiceTest {
 
         assertThat(lion.getExp()).isEqualTo(120);
         assertThat(lion.getLevel()).isEqualTo(2);
+    }
+
+    @Test
+    void 사자_상태를_정상_조회한다() {
+        lion.gainExp(Lion.EXP_PER_FEED);
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(2L);
+
+        FeedService.LionStatus status = service.getLionStatus(MEMBER_ID);
+
+        assertThat(status.level()).isEqualTo(1);
+        assertThat(status.exp()).isEqualTo(Lion.EXP_PER_FEED);
+        assertThat(status.growthStage()).isEqualTo("CUB");
+        assertThat(status.fedBookCount()).isEqualTo(2L);
+    }
+
+    /** 조회가 상태를 만들면 안 된다 — GET 한 번에 lions 행이 생기는 것을 막는 회귀 테스트다. */
+    @Test
+    void 사자가_없으면_기본값을_주고_저장하지_않는다() {
+        when(lionRepository.findByMemberId(MEMBER_ID)).thenReturn(Optional.empty());
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(0L);
+
+        FeedService.LionStatus status = service.getLionStatus(MEMBER_ID);
+
+        assertThat(status.level()).isEqualTo(1);
+        assertThat(status.exp()).isZero();
+        assertThat(status.growthStage()).isEqualTo("CUB");
+        assertThat(status.fedBookCount()).isZero();
+        verify(lionRepository, never()).save(any());
     }
 }

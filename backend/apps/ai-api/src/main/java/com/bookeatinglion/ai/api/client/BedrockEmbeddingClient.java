@@ -19,7 +19,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
  * 벡터를 넣어야 거리 값의 의미가 인제스트/질의 사이에서 같다.
  */
 @Component
-@ConditionalOnProperty(name = "app.ai.clients", havingValue = "bedrock")
+@ConditionalOnProperty(name = "app.ai.clients", havingValue = "bedrock", matchIfMissing = true)
 public class BedrockEmbeddingClient implements EmbeddingClient {
 
     private final BedrockRuntimeClient bedrock;

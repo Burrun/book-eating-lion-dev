@@ -19,7 +19,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootApplication(scanBasePackages = {"com.bookeatinglion.ai", "com.bookeatinglion.common"})
 @EntityScan(basePackages = "com.bookeatinglion.ai")
 @EnableJpaRepositories(basePackages = "com.bookeatinglion.ai")
-@ConfigurationPropertiesScan(basePackages = {"com.bookeatinglion.ai.api.config", "com.bookeatinglion.ai.wiki.config"})
+@ConfigurationPropertiesScan(
+        basePackages = {
+            "com.bookeatinglion.ai.api.config",
+            "com.bookeatinglion.ai.wiki.config",
+            "com.bookeatinglion.ai.bot.config"
+        })
+@org.springframework.scheduling.annotation.EnableScheduling
 public class AiApiApplication {
 
     public static void main(String[] args) {

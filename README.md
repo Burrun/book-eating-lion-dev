@@ -243,7 +243,7 @@ curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 | --- | --- |
 | 결제 상태머신, Redlock 재고차감, 취소·환불 | `inventory` 골격과 `/internal` API 까지만. 결제 로직은 미구현 |
 | 먹인 책 RAG 구현 (BOO-27) | 계약·스키마·자료까지 완료. Bedrock 클라이언트와 `/api/ai/ask` 구현은 진행 중 — `docs/ai-api-plan.md` §12 |
-| Bedrock 실연동 | `StubEmbeddingClient` / `StubLlmClient` 로 자리만 잡음 (차원 1024, 반환 형식은 실제와 동일) |
+| Bedrock 실연동 | `BedrockEmbeddingClient` / `BedrockLlmClient` / `S3VectorSearchAdapter` 연동 완료 |
 | Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 — 실제로 `ai-v1.yaml` 이 계속 파싱 실패 상태였다 |
 | Flyway 활성화 | 엔티티와 `db/postgres/01~04` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
 | 리뷰 권한 이벤트 유실 대비 fallback 동기 조회 | 미구현. 이벤트가 유실되면 실제 구매자도 리뷰를 못 쓴다 |
@@ -252,11 +252,18 @@ curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 
 ---
 
-## ⚙️ 환경 변수 관리
+## ⚙️ 환경 및 검증 경계 관리
 
-- **로컬**: `docker-compose.yml`
-- **AWS 직접 연동**: `docker-compose-aws.yml` — 서비스별 DB 계정이 분리돼 있다. 편의를 위해서라도 공용 계정을 쓰지 말 것(권한 경계가 무너진다)
-- **EKS**: `k8s/base/03-secret.yaml` + 각 서비스의 `configmap.yaml`
+- **로컬 독립 검증 (`docker-compose.yml`)**:
+  - `SPRING_PROFILES_ACTIVE=local` 적용.
+  - 로컬 Postgres/Redis 기반의 빠른 개발 및 DB 계정 권한 격리(`permission denied`) 테스트 전용.
+  - ⚠️ **테스트 제약**: SQS 인제스트 파이프라인, S3 Vectors, Bedrock LLM 및 ElastiCache 클러스터 연동은 로컬 Docker에서 동작하지 않으므로 AWS 연동 환경에서 검증함.
+- **AWS 직접 연동 검증 (`docker-compose-aws.yml`)**:
+  - `SPRING_PROFILES_ACTIVE=prod` 적용.
+  - AWS Aurora, ElastiCache, SQS, Bedrock, S3 Vectors 실제 인프라와 직결하여 EKS 배포 호환성을 100% 검증함.
+- **권한 분리 원칙**:
+  - 모든 환경에서 서비스별 전용 DB 계정(`catalog_svc`, `order_svc`, `member_svc`, `ai_svc`)을 사용하여 스키마 경계를 강제함.
+  - 명시적 환경변수(`AWS_ACCESS_KEY_ID` 등)로 자격증명을 전달함.
 
 ---
 

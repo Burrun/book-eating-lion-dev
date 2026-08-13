@@ -2,7 +2,7 @@ spring:
   datasource:
     # 쓰기 서비스라 Aurora Writer 로 간다. RDS Proxy 는 이쪽에만 붙인다
     # (ai_db 에 붙이면 Serverless v2 auto-pause 와 상충한다 — 판단 ②).
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=order_db&sslmode=require
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=order_db&sslmode=${DB_SSL_MODE:require}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -19,6 +19,22 @@ spring:
         default_batch_fetch_size: 100
         default_schema: order_db
 
+  # ElastiCache. k8s configmap 이 주는 이름은 REDIS_HOST 이고 Boot 가 읽는 키는
+  # spring.data.redis.host 다. 이 매핑이 없어서 prod 파드가 컨테이너 안
+  # localhost:6379 를 찾고 있었다.
+  # 기본값을 주지 않는다 — 미설정이면 조용히 로컬로 붙는 대신 기동이 실패해야 한다.
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+  # JWT 검증. issuer-uri 가 local 프로필에만 있어서 prod 로 뜨면 JwtDecoder 빈이
+  # 만들어지지 않고 SecurityConfig 가 기동 단계에서 터진다.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
 
