@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface LionRepository extends JpaRepository<Lion, Long> {
 
-    Optional<Lion> findByMemberId(Long memberId);
+    Optional<Lion> findByMemberId(String memberId);
 }

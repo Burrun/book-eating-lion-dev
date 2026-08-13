@@ -7,6 +7,14 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
+    // 문의봇 WebSocket 채널. STOMP 브로커는 쓰지 않는다 — 요청/응답 한 쌍이라
+    // 구독 모델이 필요 없고, 브로커를 넣으면 Redis Pub/Sub 까지 딸려온다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // EPUB 파싱. 컨테이너는 zip 이고 OPF 는 XML 이라 JDK 로 충분하지만, 본문 xhtml 은
+    // &nbsp; 같은 엔티티 때문에 엄격 XML 파서로 깨진다. jsoup 이 그걸 견디고 OPF 도 겸한다.
+    implementation 'org.jsoup:jsoup:1.18.3'
+
     testImplementation 'com.h2database:h2'
     testImplementation 'org.springframework.security:spring-security-test'
 }

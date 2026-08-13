@@ -7,15 +7,39 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * ai-service 의 외부 의존(Bedrock, S3 Vectors) 설정.
  *
- * <p>인덱스명·버킷명을 상수가 아니라 설정으로 두는 이유는 v2 컷오버와 롤백 때문이다.
+ * <p>
+ * 인덱스명·버킷명을 상수가 아니라 설정으로 두는 이유는 v2 컷오버와 롤백 때문이다.
  * 재인제스트한 `wiki-v2` 로 옮기고 문제가 생기면 되돌리는 게 설정 한 줄이어야 한다.
  *
- * <p>{@code clients} 는 {@code bedrock} 또는 {@code stub} 이다. 스텁 판별에
- * {@code @ConditionalOnMissingBean} 을 쓰지 않는다 — 자동설정 클래스 밖에서는
- * 빈 등록 순서에 따라 둘 다 뜨거나 랜덤해진다.
+ * <p>
+ * {@code clients} 의 기본값은 {@code bedrock} 이다.
  */
 @ConfigurationProperties(prefix = "app.ai")
-public record AiProperties(String clients, Bedrock bedrock, Vector vector) {
+public record AiProperties(String clients, Bedrock bedrock, Vector vector, Ingest ingest, Sqs sqs) {
+
+    /**
+     * EPUB 원본 버킷. 벡터 버킷과 다르다 — 원본은 관리자가 올리는 파일이고 벡터는
+     * 우리가 만든 파생물이라 수명도 권한도 다르다.
+     */
+    public record Ingest(String bucketName) {}
+
+    /**
+     * 자동 인제스트 큐. {@code enabled=false} 면 리스너 빈 자체를 만들지 않는다 —
+     * 로컬에서 큐를 폴링하며 비용을 태우지 않기 위해서다.
+     *
+     * <p>{@code waitTimeSeconds} 는 롱폴링이다. 0 이면 빈 응답을 초당 수십 번 받아
+     * 요청 과금만 늘어난다.
+     */
+    public record Sqs(boolean enabled, String queueUrl, int waitTimeSeconds, int maxMessages, Purchase purchase) {}
+
+    /**
+     * 구매 이벤트 큐. order-service 가 결제 완료 시 발행한다.
+     *
+     * <p>인제스트 큐와 {@code waitTimeSeconds} 는 공유하지만 URL 과 on/off 는 따로다 —
+     * 한쪽이 죽었다고 다른 쪽까지 멈출 이유가 없고, 로컬에서 구매만 켜고 인제스트는
+     * 꺼두는 조합이 흔하다.
+     */
+    public record Purchase(boolean enabled, String queueUrl) {}
 
     // apiCallTimeout 이 실제 방어선이다 — resilience4j 의 timelimiter 는
     // @TimeLimiter + CompletableFuture 반환일 때만 동작해서 동기 호출에는 걸리지 않는다.

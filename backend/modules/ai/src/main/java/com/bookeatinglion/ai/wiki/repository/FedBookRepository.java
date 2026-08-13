@@ -13,7 +13,7 @@ public interface FedBookRepository extends JpaRepository<FedBook, FedBook.Key> {
      * {@code minimum-idle: 0} 이 무의미해진다 — 그래서 원본이지 읽기 경로가 아니다.
      */
     @Query("select f.bookId from FedBook f where f.memberId = :memberId order by f.bookId")
-    List<Long> findBookIdsByMemberId(@Param("memberId") Long memberId);
+    List<Long> findBookIdsByMemberId(@Param("memberId") String memberId);
 
-    long countByMemberId(Long memberId);
+    long countByMemberId(String memberId);
 }

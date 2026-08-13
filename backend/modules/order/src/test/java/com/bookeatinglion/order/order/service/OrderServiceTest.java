@@ -548,7 +548,9 @@ class OrderServiceTest {
         Page<OrderSummaryResponse> result = orderService.getOrders(MEMBER_ID, pageable);
 
         assertThat(result.getTotalElements()).isEqualTo(2);
-        assertThat(result.getContent()).extracting(OrderSummaryResponse::orderId).containsExactly(2L, 1L);
+        assertThat(result.getContent())
+                .extracting(OrderSummaryResponse::orderId)
+                .containsExactly(2L, 1L);
     }
 
     // ---------------------------------------------------------------- getOrder

@@ -35,7 +35,7 @@ public class FedBookCache {
      * 그래서 한 권도 안 먹은 사용자는 매번 DB 를 1회 탄다. 그 사용자는 어차피 검색이
      * 성립하지 않으므로(교집합이 비어 검색을 건너뛴다) 문제가 되지 않는다.
      */
-    public Set<Long> fedBookIds(Long memberId) {
+    public Set<Long> fedBookIds(String memberId) {
         String key = key(memberId);
         try {
             Set<String> cached = redis.opsForSet().members(key);
@@ -54,7 +54,7 @@ public class FedBookCache {
     }
 
     /** 먹이기 성공 후 호출한다. 실패해도 예외를 올리지 않는다 — 원본은 이미 DB 에 들어갔다. */
-    public void add(Long memberId, Long bookId) {
+    public void add(String memberId, Long bookId) {
         String key = key(memberId);
         try {
             redis.opsForSet().add(key, String.valueOf(bookId));
@@ -81,7 +81,7 @@ public class FedBookCache {
         return ids;
     }
 
-    private static String key(Long memberId) {
+    private static String key(String memberId) {
         return "ai:fed:" + memberId;
     }
 }

@@ -116,8 +116,7 @@ class DeliveryServiceTest {
         Order order = orderOwnedBy(MEMBER_ID);
         when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(
-                        () -> deliveryService.updateDeliveryStatus(OTHER_MEMBER_ID, 100L, DeliveryStatus.SHIPPED))
+        assertThatThrownBy(() -> deliveryService.updateDeliveryStatus(OTHER_MEMBER_ID, 100L, DeliveryStatus.SHIPPED))
                 .isInstanceOf(UnauthorizedDeliveryAccessException.class);
     }
 

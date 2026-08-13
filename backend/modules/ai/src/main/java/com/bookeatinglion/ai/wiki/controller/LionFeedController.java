@@ -24,13 +24,18 @@ public class LionFeedController {
     public record FeedRequest(@NotNull Long bookId) {}
 
     @PostMapping("/feed")
-    public ApiResponse<FeedService.FeedResult> feed(@Valid @RequestBody FeedRequest request) {
+    public ApiResponse<FeedService.LionStatus> feed(@Valid @RequestBody FeedRequest request) {
         // memberId 는 JWT 클레임에서 온다. member-service 호출 없음.
-        return ApiResponse.success(feedService.feed(SecurityUtils.currentMemberId(), request.bookId()));
+        return ApiResponse.success(feedService.feed(SecurityUtils.currentMemberSub(), request.bookId()));
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<FeedService.LionStatus> myLion() {
+        return ApiResponse.success(feedService.getLionStatus(SecurityUtils.currentMemberSub()));
     }
 
     @GetMapping("/feedable-books")
     public ApiResponse<List<FeedService.FeedableBook>> feedableBooks() {
-        return ApiResponse.success(feedService.feedableBooks(SecurityUtils.currentMemberId()));
+        return ApiResponse.success(feedService.feedableBooks(SecurityUtils.currentMemberSub()));
     }
 }

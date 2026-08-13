@@ -31,18 +31,17 @@ public class DailyQuota {
     private final StringRedisTemplate redis;
     private final RagProperties props;
 
-    public void consume(Long memberId) {
+    public void consume(String memberId) {
         long used;
         try {
-            String key = "ai:quota:%d:%s".formatted(memberId, LocalDate.now());
+            String key = "ai:quota:%s:%s".formatted(memberId, LocalDate.now());
             Long count = redis.opsForValue().increment(key);
             if (count == null) {
                 return;
             }
-            if (count == 1L) {
-                // 첫 요청에만 만료를 건다. 매번 걸면 하루 종일 쓰는 사용자의 키가 안 죽는다.
-                redis.expire(key, Duration.ofDays(1));
-            }
+            // 만료를 매번 다시 건다. 키에 날짜가 들어 있어 갱신해도 자정까지만 살고,
+            // 첫 요청에만 걸면 그때 expire 가 실패한 키는 TTL 없이 영원히 남는다.
+            redis.expire(key, Duration.ofSeconds(Math.max(1, secondsUntilMidnight())));
             used = count;
         } catch (DataAccessException e) {
             log.warn("Redis 장애로 일일 쿼터를 확인하지 못했다 — 통과시킨다(fail-open). memberId={}", memberId, e);

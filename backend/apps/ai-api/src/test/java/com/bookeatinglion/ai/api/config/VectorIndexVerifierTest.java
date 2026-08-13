@@ -32,7 +32,9 @@ class VectorIndexVerifierTest {
                     0.2,
                     Duration.ofSeconds(30),
                     Duration.ofSeconds(10)),
-            new AiProperties.Vector("bel-wiki-vectors-test", "wiki-v1", "cosine", List.of("text")));
+            new AiProperties.Vector("bel-wiki-vectors-test", "wiki-v1", "cosine", List.of("text")),
+            new AiProperties.Ingest("epub-bucket"),
+            new AiProperties.Sqs(false, null, 20, 1, new AiProperties.Purchase(false, null)));
 
     @SuppressWarnings("unchecked")
     private static VectorIndexVerifier verifierSeeing(int dimension, String metric, List<String> nonFilterable) {

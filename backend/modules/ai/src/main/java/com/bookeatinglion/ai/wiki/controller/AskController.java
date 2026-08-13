@@ -20,11 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * /api/ai/ask → ai-rag Deployment.
  *
- * <p>고객상담({@code /api/ai/bot/**})과 합치지 않는다. 자료도 목적도 다르다 — 이쪽은
+ * <p>
+ * 고객상담({@code /api/ai/bot/**})과 합치지 않는다. 자료도 목적도 다르다 — 이쪽은
  * 먹인 책 본문(S3 Vectors)이고 저쪽은 FAQ(ai_db)다.
  */
 @RestController
-@RequestMapping("/api/ai")
+@RequestMapping("/api/ai/lion")
 @RequiredArgsConstructor
 public class AskController {
 
@@ -39,7 +40,7 @@ public class AskController {
 
     @PostMapping("/ask")
     public ApiResponse<WikiRagService.AskResult> ask(@Valid @RequestBody AskRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberId = SecurityUtils.currentMemberSub();
         dailyQuota.consume(memberId);
 
         return ApiResponse.success(wikiRagService.ask(

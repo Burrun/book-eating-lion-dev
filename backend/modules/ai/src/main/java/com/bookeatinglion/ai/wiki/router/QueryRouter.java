@@ -22,8 +22,9 @@ public class QueryRouter {
 
     private static final Logger log = LoggerFactory.getLogger(QueryRouter.class);
 
-    /** 설명을 요구하는 신호. 이게 있으면 검색 결과만 돌려줘도 사용자가 원하는 답이 아니다. */
-    private static final Pattern EXPLAIN = Pattern.compile("왜|이유|어째서|어떻게|무엇|때문|설명|요약|알려|말해|찾아|가르|도와");
+    // 설명을 요구하는 신호. 이게 있으면 검색 결과만 돌려줘도 사용자가 원하는 답이 아니다.
+
+    private static final Pattern EXPLAIN = Pattern.compile("왜|이유|어째서|어떻게|무엇|때문|설명|요약|알려|말해|가르|도와");
 
     public AskMode route(String query) {
         AskMode mode = EXPLAIN.matcher(query).find() ? AskMode.ANSWER : AskMode.SEARCH;

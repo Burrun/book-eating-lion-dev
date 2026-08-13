@@ -26,25 +26,25 @@ import org.mockito.ArgumentCaptor;
  */
 class WikiRagServiceTest {
 
-    private static final Long MEMBER_ID = 1L;
+    private static final String MEMBER_ID = "test-cognito-sub-1";
 
     private static final RagProperties PROPS = new RagProperties(8, 3, 0.75, 12288, 50);
 
-    private FedBookCache fedBookCache;
+    private PurchasedBookCache purchasedBookCache;
     private GuardedAiCalls ai;
     private VectorSearchPort vectorSearch;
     private WikiRagService service;
 
     @BeforeEach
     void setUp() {
-        fedBookCache = mock(FedBookCache.class);
+        purchasedBookCache = mock(PurchasedBookCache.class);
         ai = mock(GuardedAiCalls.class);
         vectorSearch = mock(VectorSearchPort.class);
 
         when(ai.embed(anyString())).thenReturn(new float[1024]);
         when(ai.complete(anyString(), anyString())).thenReturn("생성된 답변 [1].");
 
-        service = new WikiRagService(fedBookCache, ai, vectorSearch, new QueryRouter(), PROPS);
+        service = new WikiRagService(purchasedBookCache, ai, vectorSearch, new QueryRouter(), PROPS);
     }
 
     private static Match match(long bookId, int page, double distance) {
@@ -52,7 +52,7 @@ class WikiRagServiceTest {
     }
 
     private void fed(Long... bookIds) {
-        when(fedBookCache.fedBookIds(MEMBER_ID)).thenReturn(Set.of(bookIds));
+        when(purchasedBookCache.purchasedBookIds(MEMBER_ID)).thenReturn(Set.of(bookIds));
     }
 
     private void found(Match... matches) {

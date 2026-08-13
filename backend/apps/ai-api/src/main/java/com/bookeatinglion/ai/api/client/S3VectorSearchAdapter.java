@@ -23,7 +23,7 @@ import software.amazon.awssdk.services.s3vectors.model.VectorData;
  * 정작 볼 수 있는 책이 밀려난다 — 결과가 비는 게 아니라 조용히 나빠진다.
  */
 @Component
-@ConditionalOnProperty(name = "app.ai.clients", havingValue = "bedrock")
+@ConditionalOnProperty(name = "app.ai.clients", havingValue = "bedrock", matchIfMissing = true)
 public class S3VectorSearchAdapter implements VectorSearchPort {
 
     private final S3VectorsClient s3Vectors;

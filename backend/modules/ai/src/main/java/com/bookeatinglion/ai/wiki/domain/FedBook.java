@@ -27,10 +27,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class FedBook {
 
-    /** FK 없음: member_db 경계 밖. */
+    /**
+     * FK 없음: member_db 경계 밖.
+     *
+     * <p>값은 Cognito sub(UUID 문자열)다. 컬럼명이 member_id 인 것은 다른 스키마와 어휘를
+     * 맞추기 위해서이고, member_db.members.member_id(BIGINT)와는 타입이 달라 비교되지 않는다.
+     */
     @Id
     @Column(name = "member_id")
-    private Long memberId;
+    private String memberId;
 
     @Id
     @Column(name = "book_id")
@@ -39,7 +44,7 @@ public class FedBook {
     @Column(name = "fed_at", nullable = false)
     private LocalDateTime fedAt;
 
-    public FedBook(Long memberId, Long bookId, LocalDateTime fedAt) {
+    public FedBook(String memberId, Long bookId, LocalDateTime fedAt) {
         this.memberId = memberId;
         this.bookId = bookId;
         this.fedAt = fedAt;
@@ -48,12 +53,12 @@ public class FedBook {
     /** 복합 키. record 를 쓰지 않는 이유는 JPA 가 no-arg 생성자를 요구하기 때문이다. */
     public static class Key implements Serializable {
 
-        private Long memberId;
+        private String memberId;
         private Long bookId;
 
         protected Key() {}
 
-        public Key(Long memberId, Long bookId) {
+        public Key(String memberId, Long bookId) {
             this.memberId = memberId;
             this.bookId = bookId;
         }

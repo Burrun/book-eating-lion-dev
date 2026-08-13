@@ -20,5 +20,5 @@ public interface WikiBookRepository extends JpaRepository<WikiBook, Long> {
             where w.bookId not in (select f.bookId from FedBook f where f.memberId = :memberId)
             order by w.bookId
             """)
-    List<WikiBook> findFeedableFor(@Param("memberId") Long memberId);
+    List<WikiBook> findFeedableFor(@Param("memberId") String memberId);
 }

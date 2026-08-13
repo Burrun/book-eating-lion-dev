@@ -39,14 +39,28 @@ public class WikiBook {
     @Column(name = "chunk_count", nullable = false)
     private int chunkCount;
 
+    /**
+     * 원본 파일의 SHA-256. 같은 파일이 다시 오면 임베딩을 건너뛰는 근거다.
+     *
+     * <p>nullable 인 이유는 JSONL 코퍼스 배치가 원본 파일 단위가 아니라 이 값을 못 채우기
+     * 때문이다. null 이면 항상 재인제스트한다 — 건너뛰는 쪽이 기본값이면 안 된다.
+     */
+    @Column(name = "source_hash", length = 64)
+    private String sourceHash;
+
     @Column(name = "ingested_at", nullable = false)
     private LocalDateTime ingestedAt;
 
     public WikiBook(Long bookId, String title, int pages, int chunkCount, LocalDateTime ingestedAt) {
+        this(bookId, title, pages, chunkCount, null, ingestedAt);
+    }
+
+    public WikiBook(Long bookId, String title, int pages, int chunkCount, String sourceHash, LocalDateTime ingestedAt) {
         this.bookId = bookId;
         this.title = title;
         this.pages = pages;
         this.chunkCount = chunkCount;
+        this.sourceHash = sourceHash;
         this.ingestedAt = ingestedAt;
     }
 }

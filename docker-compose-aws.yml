@@ -1,12 +1,97 @@
-# AWS 직접 연동 전용 (로컬 DB 컨테이너 없이 Aurora 에 직접 붙는다)
+# =============================================================================
+# AWS 연동 검증 스택 (SPRING_PROFILES_ACTIVE=prod)
 #
-# 서비스가 4개로 나뉘면서 접속 정보도 나뉜다:
-#   catalog / order / member / ai → 같은 Aurora 클러스터, 스키마와 계정이 각각 다르다
-#   격리를 만드는 건 클러스터가 아니라 계정 권한이다 — ai_svc 는 order_db 를 못 읽는다
+# 실제 AWS 를 타는 것:
+#   SQS · Bedrock · S3 Vectors · S3 · Cognito
+#   전부 공개 API 엔드포인트라 SigV4 서명만 있으면 어디서든 붙는다.
 #
-# 계정을 하나로 합치면 스키마 권한 경계가 무너져 MSA 전환의 핵심 장치가 사라진다.
-# 편의를 위해서라도 공용 계정을 쓰지 말 것.
+# 로컬 컨테이너로 두는 것 — 원리상 다른 방법이 없다:
+#   Postgres  Aurora 클러스터가 아직 없다. 생기더라도 퍼블릭 액세스를 열지 않는 한
+#             노트북에서는 못 붙는다.
+#   Redis     ElastiCache 는 VPC 내부 전용이라 공인 엔드포인트 자체가 존재하지 않는다.
+#             배스천/터널 없이는 불가능하다.
+#
+# 배선은 EKS 와 같은 경로를 쓴다. DB_HOST / REDIS_HOST / AWS_COGNITO_* 를 주면
+# application-prod.yml 이 나머지를 조립한다. SPRING_DATASOURCE_URL 같은 것으로 통째로
+# 덮지 않는다 — 그러면 prod 프로필을 검증하는 게 아니라 우회하는 것이 된다.
+#
+# 그래도 "EKS 와 100% 동일"은 아니다. 네트워크 경계(VPC·보안그룹·IRSA)는 여기서
+# 검증되지 않으며 그건 클러스터에 올려야만 확인된다.
+#
+# ⚠️ docker-compose.yml 과 앱 포트(8081~8084, 3000)가 겹쳐 동시에 못 띄운다.
+#    인프라 포트만 5433/6380 으로 비켜 두어 두 스택의 DB 가 섞이지 않게 했다.
+#
+# Usage:
+#   docker compose -f docker-compose-aws.yml up -d --build
+#   docker compose -f docker-compose-aws.yml logs -f ai-aws
+# =============================================================================
+
+# 🔴 프로젝트 이름을 고정한다. 기본값은 디렉터리명이라 docker-compose.yml 과 같아지고,
+# 그러면 두 파일의 postgres/redis 가 같은 네트워크에서 같은 별칭을 갖는다. 어느 DB 에
+# 붙었는지 알 수 없게 되고, 실제로 이름 해석이 깨져 기동에 실패했다.
+name: final-aws
+
+x-aws-credentials: &aws-credentials
+  AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  # 임시 자격증명(STS/AssumeRole)일 때만 채운다. 장기 키면 빈 값이어야 한다.
+  AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+
+x-cognito: &cognito
+  # application-prod.yml 이 이 둘로 issuer-uri 를 조립한다.
+  AWS_COGNITO_REGION: ${AWS_COGNITO_REGION:-ap-northeast-2}
+  AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
+
+x-infra: &infra
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_NAME: ${DB_NAME:-bookdb}
+  # 로컬 Postgres 에는 TLS 가 없다. 기본값이 require 이므로 Aurora 경로는 그대로다.
+  DB_SSL_MODE: disable
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
 services:
+  # ── 로컬 인프라 ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aws-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-bookdb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rootpassword}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - aws-postgres-data:/var/lib/postgresql/data
+      # 서비스 계정(catalog_svc 등)을 만드는 스크립트다. 비밀번호의 기준이 여기라
+      # .env 값이 다르면 인증 실패로만 나타난다.
+      - ./db/postgres/00-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./db/postgres/90-demo-data.sql:/docker-entrypoint-initdb.d/90-demo-data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${DB_NAME:-bookdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: aws-redis
+    # noeviction 은 운영 ElastiCache 파라미터 그룹과 맞춘 값이다. 락·스트림·쿼터·채팅이
+    # 들어 있어 조용히 사라지면 안 된다. 넘치면 에러가 나는 쪽이 낫다.
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 애플리케이션 ───────────────────────────────────────────────────────────
   catalog-aws:
     build:
       context: ./backend
@@ -14,23 +99,17 @@ services:
     container_name: final-catalog-aws
     ports:
       - "8081:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     environment:
+      <<: [*aws-credentials, *cognito, *infra]
       SPRING_PROFILES_ACTIVE: prod
-      # 읽기 95% 이므로 Reader 엔드포인트를 쓴다.
-      DB_HOST: ${DB_READER_HOST:-host.docker.internal}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME}
-      DB_USERNAME: ${CATALOG_DB_USERNAME}
-      DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      DB_USERNAME: ${CATALOG_DB_USERNAME:-catalog_svc}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog_pw}
       SERVICES_ORDER_URL: http://order-aws:8080
-      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
-    volumes:
-      - ~/.aws:/root/.aws:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # EPUB 등록 시 ai 로 넘기는 큐. 발행 측 구현은 catalog 담당 (docs/ai-integration.md §4)
+      SQS_BOOK_INGEST_QUEUE_URL: ${SQS_INGEST_QUEUE_URL:-}
 
   order-aws:
     build:
@@ -39,22 +118,16 @@ services:
     container_name: final-order-aws
     ports:
       - "8082:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     environment:
+      <<: [*aws-credentials, *cognito, *infra]
       SPRING_PROFILES_ACTIVE: prod
-      # 쓰기 서비스라 Writer 로 간다.
-      DB_HOST: ${DB_HOST:-host.docker.internal}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME}
-      DB_USERNAME: ${ORDER_DB_USERNAME}
-      DB_PASSWORD: ${ORDER_DB_PASSWORD}
-      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
-    volumes:
-      - ~/.aws:/root/.aws:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      DB_USERNAME: ${ORDER_DB_USERNAME:-order_svc}
+      DB_PASSWORD: ${ORDER_DB_PASSWORD:-order_pw}
+      # 구매 확정 시 ai 로 넘기는 큐. 발행 측 구현은 order 담당 (docs/ai-integration.md §2)
+      SQS_PURCHASE_QUEUE_URL: ${SQS_PURCHASE_QUEUE_URL:-}
 
   member-aws:
     build:
@@ -63,23 +136,17 @@ services:
     container_name: final-member-aws
     ports:
       - "8083:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     environment:
+      <<: [*aws-credentials, *cognito, *infra]
       SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: ${DB_HOST:-host.docker.internal}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME}
-      DB_USERNAME: ${MEMBER_DB_USERNAME}
-      DB_PASSWORD: ${MEMBER_DB_PASSWORD}
-      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
+      DB_USERNAME: ${MEMBER_DB_USERNAME:-member_svc}
+      DB_PASSWORD: ${MEMBER_DB_PASSWORD:-member_pw}
+      # 로그인(InitiateAuth)에 필요하다. 다른 서비스는 JWT 검증만 해서 client 값이 없어도 된다.
       AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID}
       AWS_COGNITO_CLIENT_SECRET: ${AWS_COGNITO_CLIENT_SECRET}
-    volumes:
-      - ~/.aws:/root/.aws:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   ai-aws:
     build:
@@ -88,30 +155,48 @@ services:
     container_name: final-ai-aws
     ports:
       - "8084:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     environment:
+      <<: [*aws-credentials, *cognito, *infra]
       SPRING_PROFILES_ACTIVE: prod
-      # 다른 세 서비스와 같은 엔드포인트다. 계정만 다르다(ai_svc).
-      AI_DB_HOST: ${DB_HOST:-host.docker.internal}
-      AI_DB_PORT: ${AI_DB_PORT:-5432}
-      AI_DB_NAME: ${AI_DB_NAME}
-      AI_DB_USERNAME: ${AI_DB_USERNAME}
-      AI_DB_PASSWORD: ${AI_DB_PASSWORD}
-      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_BEDROCK_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_REGION: ${AWS_REGION:-ap-northeast-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
-      REDIS_HOST: ${REDIS_HOST:-host.docker.internal}
-    volumes:
-      - ~/.aws:/root/.aws:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # ai 만 AI_DB_* 를 쓴다. 같은 클러스터의 다른 스키마다.
+      AI_DB_HOST: postgres
+      AI_DB_PORT: 5432
+      AI_DB_NAME: ${DB_NAME:-bookdb}
+      AI_DB_USERNAME: ${AI_DB_USERNAME:-ai_svc}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:-ai_pw}
+
+      # --- Bedrock / S3 Vectors (실제 호출. 요청마다 과금된다) ---
+      AI_CLIENTS: ${AI_CLIENTS:-bedrock}
+      AWS_BEDROCK_REGION: ${AWS_BEDROCK_REGION:-ap-northeast-2}
+      AI_VECTOR_BUCKET: ${AI_VECTOR_BUCKET}
+      AI_VECTOR_INDEX: ${AI_VECTOR_INDEX:-wiki-v1}
+
+      # --- SQS 수신 ---
+      # enabled 가 true 인데 URL 이 비면 기동은 되고 워커만 조용히 안 돈다.
+      # "왜 메시지가 안 처리되지"로만 보이므로 둘을 같이 관리할 것.
+      SQS_INGEST_ENABLED: ${SQS_INGEST_ENABLED:-true}
+      SQS_INGEST_QUEUE_URL: ${SQS_INGEST_QUEUE_URL}
+      SQS_PURCHASE_ENABLED: ${SQS_PURCHASE_ENABLED:-true}
+      SQS_PURCHASE_QUEUE_URL: ${SQS_PURCHASE_QUEUE_URL}
+      AI_EPUB_BUCKET: ${AI_EPUB_BUCKET:-}
+
+      # --- 상담 채팅 ---
+      # 브라우저는 WebSocket 에 CORS preflight 를 보내지 않아 Ingress CORS 가 안 먹는다.
+      # 이 값이 유일한 Origin 방어선이다.
+      CHAT_ALLOWED_ORIGINS: ${CHAT_ALLOWED_ORIGINS:-*}
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: final-frontend
+    container_name: final-frontend-aws
     ports:
       - "3000:80"
     depends_on:
       - catalog-aws
+
+volumes:
+  aws-postgres-data:
