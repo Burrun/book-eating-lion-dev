@@ -27,6 +27,8 @@ interface BookSeed {
   price: number;
   publishedDate: string;
   description: string;
+  /** 전자책(EPUB) 지원 여부. 미지정이면 false(ebook 준비중)로 취급한다. */
+  ebookUrl?: string;
 }
 
 // id 는 목록/상세/찜(mocks/wishlist.ts)이 같은 책을 가리키도록 통일했다.
@@ -296,17 +298,57 @@ const SEEDS: BookSeed[] = [
     description:
       "푸와 친구들이 주고받는 말에서 뽑아낸 위로의 문장들. 오늘 하루를 조금 느긋하게 지나가도 괜찮다고 말해 준다.",
   },
+  // 아래 두 권은 ebook 뷰어(EbookViewer, react-reader) 검증용으로 추가했다.
+  // EPUB은 저작권 만료된 구텐베르크 프로젝트 원문을 frontend/public/ebooks/ 에 받아뒀다.
+  {
+    id: 23,
+    title: "이상한 나라의 앨리스",
+    author: "루이스 캐럴",
+    publisher: "Project Gutenberg (원문)",
+    isbn: "9788900000023",
+    category: "소설",
+    price: 0,
+    publishedDate: "1865-11-26",
+    description:
+      "토끼굴에 빠진 앨리스가 카드 왕국과 미친 다과회를 지나 여왕의 재판정에 이르는 여정. 논리와 말장난으로 뒤집힌 세계를 그린 고전 판타지.",
+    ebookUrl: "/ebooks/alice-in-wonderland.epub",
+  },
+  {
+    id: 24,
+    title: "프랑켄슈타인",
+    author: "메리 셸리",
+    publisher: "Project Gutenberg (원문)",
+    isbn: "9788900000024",
+    category: "소설",
+    price: 0,
+    publishedDate: "1818-01-01",
+    description:
+      "빅터 프랑켄슈타인이 창조한 존재가 세상에서 거부당하며 벌어지는 비극. 창조자의 책임과 고독을 묻는 최초의 SF 소설로 꼽힌다.",
+    ebookUrl: "/ebooks/frankenstein.epub",
+  },
 ];
 
 const BESTSELLER_IDS = [1, 2, 3, 6];
 const NEW_RELEASE_IDS = [18, 16, 4, 5];
 
 export const swipeDeck: SwipeDeckItem[] = [
-  { id: "3", title: "해리 포터와 마법사의 돌", reason: "AI 추천사유: 판타지 분야 선호도 98% 분석 결과" },
-  { id: "2", title: "클린 코드 (Clean Code)", reason: "AI 추천사유: 최근 열람한 IT/개발서와 82% 유사" },
+  {
+    id: "3",
+    title: "해리 포터와 마법사의 돌",
+    reason: "AI 추천사유: 판타지 분야 선호도 98% 분석 결과",
+  },
+  {
+    id: "2",
+    title: "클린 코드 (Clean Code)",
+    reason: "AI 추천사유: 최근 열람한 IT/개발서와 82% 유사",
+  },
   { id: "15", title: "돈의 속성", reason: "AI 추천사유: 경제/재테크 관심 카테고리 1위" },
   { id: "11", title: "사피엔스", reason: "AI 추천사유: 인문/역사 도서 완독률 상위 5%" },
-  { id: "6", title: "스프링 부트 실전 활용", reason: "AI 추천사유: 최근 완독한 JPA 도서와 연관 구매율 78%" },
+  {
+    id: "6",
+    title: "스프링 부트 실전 활용",
+    reason: "AI 추천사유: 최근 완독한 JPA 도서와 연관 구매율 78%",
+  },
 ];
 
 function toSummary(seed: BookSeed): BookSummaryResponse {
@@ -337,6 +379,8 @@ function toDetail(seed: BookSeed): BookDetailResponse {
     publishedDate: seed.publishedDate,
     createdAt: `${seed.publishedDate}T00:00:00`,
     updatedAt: `${seed.publishedDate}T00:00:00`,
+    ebookAvailable: Boolean(seed.ebookUrl),
+    ebookUrl: seed.ebookUrl ?? null,
   };
 }
 

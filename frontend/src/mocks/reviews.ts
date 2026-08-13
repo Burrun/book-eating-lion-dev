@@ -30,11 +30,7 @@ const REVIEWS: ReviewResponse[] = [
   },
 ];
 
-export function mockGetReviews(
-  bookId: number | string,
-  page = 0,
-  size = 20,
-): Page<ReviewResponse> {
+export function mockGetReviews(bookId: number | string, page = 0, size = 20): Page<ReviewResponse> {
   const matched = REVIEWS.filter((review) => String(review.bookId) === String(bookId));
   const totalPages = Math.max(1, Math.ceil(matched.length / size));
   const number = Math.min(Math.max(page, 0), totalPages - 1);

@@ -29,21 +29,21 @@ public class CardController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
     public ApiResponse<CardResponse> issueCard(@Valid @RequestBody(required = false) IssueCardRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
+        String memberSub = SecurityUtils.currentMemberSub();
         return ApiResponse.success(
-                cardService.issueCard(memberId, request == null ? new IssueCardRequest(null) : request));
+                cardService.issueCard(memberSub, request == null ? new IssueCardRequest(null) : request));
     }
 
     @GetMapping("/me")
     public ApiResponse<List<CardResponse>> getMyCards() {
-        Long memberId = SecurityUtils.currentMemberId();
-        return ApiResponse.success(cardService.getMyCards(memberId));
+        String memberSub = SecurityUtils.currentMemberSub();
+        return ApiResponse.success(cardService.getMyCards(memberSub));
     }
 
     @PatchMapping("/{cardId}/status")
     public ApiResponse<CardResponse> changeStatus(
             @PathVariable Long cardId, @Valid @RequestBody ChangeCardStatusRequest request) {
-        Long memberId = SecurityUtils.currentMemberId();
-        return ApiResponse.success(cardService.changeStatus(memberId, cardId, request.cardStatus()));
+        String memberSub = SecurityUtils.currentMemberSub();
+        return ApiResponse.success(cardService.changeStatus(memberSub, cardId, request.cardStatus()));
     }
 }

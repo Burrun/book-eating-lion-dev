@@ -1,17 +1,27 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const NAV_LINKS = [
   { label: "베스트셀러", to: "/best" },
   { label: "신간", to: "/new" },
   { label: "분야별", to: "/category" },
-  { label: "중고서점", to: "/used" },
 ];
 
 export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
+  const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const handleLogout = () => {
+    logout();
+    // 로그아웃하면 장바구니 조회 기준이 서버 카트 -> 게스트 카트로 바뀌므로 뱃지도 다시 조회한다.
+    queryClient.invalidateQueries({ queryKey: ["cart"] });
+    navigate("/");
+  };
 
   // 검색 결과는 목록 화면이 ?q= 로 받아서 처리한다.
   function handleSearch(e) {
@@ -85,6 +95,22 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
                 </span>
               )}
             </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그아웃
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                로그인
+              </Link>
+            )}
             <Link
               to="/mypage"
               aria-label="마이페이지"

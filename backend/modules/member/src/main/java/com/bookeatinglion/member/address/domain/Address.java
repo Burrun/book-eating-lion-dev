@@ -22,7 +22,7 @@ public class Address extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "member_sub", nullable = false)
     private String memberSub;
 
     @Column(nullable = false)

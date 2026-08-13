@@ -1,7 +1,6 @@
 package com.bookeatinglion.member.service;
 
 import com.bookeatinglion.member.domain.Member;
-import com.bookeatinglion.member.dto.MemberGradeResponse;
 import com.bookeatinglion.member.dto.MemberResponse;
 import com.bookeatinglion.member.dto.MemberUpdateRequest;
 import com.bookeatinglion.member.dto.NotificationProfileResponse;
@@ -27,10 +26,6 @@ public class MemberService {
         Member member = getMember(cognitoSub);
         member.updateProfile(request.name(), request.phoneNumber(), request.gender(), request.birthDate());
         return MemberResponse.from(member);
-    }
-
-    public MemberGradeResponse getGrade(String cognitoSub) {
-        return MemberGradeResponse.from(getMember(cognitoSub));
     }
 
     public NotificationProfileResponse getNotificationProfile(String cognitoSub) {

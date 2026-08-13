@@ -38,8 +38,8 @@ public class Card {
     @Column(name = "card_id")
     private Long id;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @Column(name = "member_sub", nullable = false)
+    private String memberSub;
 
     @Column(name = "card_token", nullable = false, unique = true)
     private String cardToken;
@@ -66,8 +66,8 @@ public class Card {
     @Version
     private Long version;
 
-    public Card(Long memberId, String cardToken, String maskedCardNumber, long monthlyLimit) {
-        this.memberId = memberId;
+    public Card(String memberSub, String cardToken, String maskedCardNumber, long monthlyLimit) {
+        this.memberSub = memberSub;
         this.cardToken = cardToken;
         this.maskedCardNumber = maskedCardNumber;
         this.cardStatus = CardStatus.ACTIVE;
@@ -101,7 +101,7 @@ public class Card {
         this.cardStatus = newStatus;
     }
 
-    public boolean isOwnedBy(Long memberId) {
-        return this.memberId.equals(memberId);
+    public boolean isOwnedBy(String memberSub) {
+        return this.memberSub.equals(memberSub);
     }
 }

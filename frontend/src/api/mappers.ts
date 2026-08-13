@@ -6,7 +6,6 @@ import type {
   BookSummaryResponse,
   BookSynopsisDetailResponse,
   CardResponse,
-  MemberGradeResponse,
   MemberResponse,
   Page,
   ReviewResponse,
@@ -14,7 +13,7 @@ import type {
 } from "./types.ts";
 import type { Book, BookSummary, Review, WebtoonCut } from "../types/book.ts";
 import type { Card } from "../types/card.ts";
-import type { GradeInfo, Member, Subscription } from "../types/member.ts";
+import type { Member, Subscription } from "../types/member.ts";
 import type { Paged } from "../types/common.ts";
 
 // --- 임시 기본값 (백엔드 미구현 / 미합의) ---
@@ -56,6 +55,8 @@ export function toBook(dto: BookDetailResponse): Book {
     synopsis: dto.description, // 무료 회원용 줄거리
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다
     reviews: [], // 별도 API(/books/{id}/reviews)에서 toReview로 채운다
+    ebookAvailable: dto.ebookAvailable,
+    ebookUrl: dto.ebookUrl,
   };
 }
 
@@ -69,21 +70,11 @@ export function toWebtoonCuts(dto: BookSynopsisDetailResponse): WebtoonCut[] {
     .map((caption, i) => ({ id: `cut-${i + 1}`, caption }));
 }
 
-export function toGradeInfo(dto: MemberGradeResponse): GradeInfo {
-  return {
-    grade: dto.grade,
-    point: dto.point,
-    isPremium: dto.grade === "PREMIUM",
-  };
-}
-
 export function toMember(dto: MemberResponse): Member {
   return {
     id: String(dto.id),
     name: dto.name,
     email: dto.email,
-    grade: dto.grade,
-    point: dto.point,
   };
 }
 
@@ -94,18 +85,16 @@ export function toSubscription(dto: SubscriptionResponse | null): Subscription {
 
 export function toCard(dto: CardResponse): Card {
   return {
-    id: String(dto.id),
-    company: dto.cardCompany,
+    id: String(dto.cardId),
     maskedNumber: dto.maskedCardNumber,
     status: dto.cardStatus,
     monthlyLimit: dto.monthlyLimit,
     currentUsage: dto.currentUsage,
-    virtualBalance: dto.virtualBalance,
-    isDefault: dto.isDefault,
-    issuedDate: dto.issuedDate,
-    expiryDate: dto.expiryDate,
+    availableLimit: Math.max(dto.monthlyLimit - dto.currentUsage, 0),
     // 한도가 0이면 나눗셈이 Infinity/NaN 이 되므로 방어한다.
     usageRatio: dto.monthlyLimit > 0 ? Math.min(dto.currentUsage / dto.monthlyLimit, 1) : 0,
+    issuedDate: dto.issuedDate,
+    expiryDate: dto.expiryDate,
   };
 }
 

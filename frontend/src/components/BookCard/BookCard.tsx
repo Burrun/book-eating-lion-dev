@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom'
+import { Link } from "react-router-dom";
 
 interface BookCardProps {
-  id: string
-  title: string
-  price: number
-  rating: number
+  id: string;
+  title: string;
+  price: number;
+  rating: number;
 }
 
 export default function BookCard({ id, title, price, rating }: BookCardProps) {
@@ -21,5 +21,5 @@ export default function BookCard({ id, title, price, rating }: BookCardProps) {
         {price.toLocaleString()}원 | ⭐{rating}
       </p>
     </Link>
-  )
+  );
 }

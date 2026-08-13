@@ -37,7 +37,7 @@ export async function removeFromWishlist(bookId: number | string): Promise<void>
   await unwrap(apiClient.delete<ApiResponse<void>>(`/catalog/wishlist/${bookId}`));
 }
 
-// GET /api/catalog/recent-books/me — 최근 본 상품 (JWT 인증 + X-Member-Id 필요)
+// GET /api/catalog/recent-books/me — 최근 본 상품 (JWT 인증 필요)
 // 위와 같은 이유로 경로가 바뀌었다.
 export async function getRecentBooks(limit = 20): Promise<BookSummary[]> {
   const list = await unwrap(

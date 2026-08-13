@@ -34,7 +34,7 @@ app:
     region: ${AWS_COGNITO_REGION:ap-northeast-2}
     user-pool-id: ${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
     client-id: ${AWS_COGNITO_CLIENT_ID:local_dummy_client_id}
-    client-secret: ${AWS_COGNITO_CLIENT_SECRET:local_dummy_client_secret}
+    client-secret: ${AWS_COGNITO_CLIENT_SECRET:}
 
 springdoc:
   swagger-ui:

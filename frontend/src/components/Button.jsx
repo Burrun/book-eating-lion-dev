@@ -32,7 +32,7 @@ const Button = forwardRef(function Button(
     children,
     ...rest
   },
-  ref
+  ref,
 ) {
   // primary 버튼은 기본적으로 hover 시 사자 갈기 느낌의 shimmer가 쓸고 지나감
   const showShimmer = shimmer ?? variant === "primary";
@@ -51,11 +51,7 @@ const Button = forwardRef(function Button(
         />
       )}
       <span className="relative flex items-center justify-center gap-2">
-        {loading ? (
-          <Loader2 size={16} className="animate-spin" />
-        ) : (
-          leftIcon
-        )}
+        {loading ? <Loader2 size={16} className="animate-spin" /> : leftIcon}
         {children}
         {!loading && rightIcon}
       </span>

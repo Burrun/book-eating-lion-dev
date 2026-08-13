@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { Award, BookOpen, Flame, Quote, Send, Star } from "lucide-react";
+import { Award, BookOpen, Flame, Quote, Send, Star, X } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
+import LionCharacter, { getLionTier } from "../components/LionCharacter.jsx";
 import {
   fetchProfile,
   fetchFedBooks,
@@ -20,25 +21,45 @@ import {
 } from "../api/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
-const EXP_PER_BOOK = 15;
+
+// 프로필(GET /api/members/me)을 뺀 마이페이지의 나머지 기능은 아직 실제 API가 없다
+// (사자 EXP/RAG는 BOO-17·AI 서비스 미착수, 주문목록/쿠폰/반품/재입고/내 리뷰 목록은 계약(contracts/*.yaml)에 없음).
+// 실제 서버 모드(VITE_USE_MOCK=false)에서 존재하지 않는 엔드포인트를 호출하지 않도록 mock 모드에서만 노출한다.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
-  { id: "coupons", label: "쿠폰/포인트 현황" },
+  { id: "coupons", label: "쿠폰 현황" },
   { id: "returns", label: "취소/교환/반품/환불" },
   { id: "restock", label: "재입고 알림 신청" },
+  { id: "cards", label: "카드 관리" },
 ];
 
 const ORDER_STATUS_META = {
   shipping: { label: "배송중", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  delivered: { label: "배송완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
-  canceled: { label: "주문취소", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  delivered: {
+    label: "배송완료",
+    className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
+  },
+  canceled: {
+    label: "주문취소",
+    className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
+  },
 };
 
 const RETURN_STATUS_META = {
-  requested: { label: "접수완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
-  processing: { label: "처리중", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  completed: { label: "환불완료", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  requested: {
+    label: "접수완료",
+    className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
+  },
+  processing: {
+    label: "처리중",
+    className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]",
+  },
+  completed: {
+    label: "환불완료",
+    className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
+  },
 };
 
 export default function MyPage() {
@@ -67,12 +88,29 @@ export default function MyPage() {
         <Skeleton variant="rectangular" className="h-28 w-full" />
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <LionFeedingCard exp={exp} setExp={setExp} setLevel={setLevel} />
-        <LionRagCard />
+      <div className="mt-6">
+        {USE_MOCK ? (
+          <LionFeedingCard exp={exp} setExp={setExp} level={level} setLevel={setLevel} />
+        ) : (
+          <ComingSoonCard
+            title="사자 성장 & 완독 도서 먹이기"
+            message="사자 레벨/EXP/완독 도서 시스템은 아직 준비 중이에요 (BOO-17)."
+          />
+        )}
       </div>
 
-      <OrdersSection />
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {USE_MOCK ? (
+          <LionRagCard />
+        ) : (
+          <ComingSoonCard
+            title="🦁 사자에게 물어보기"
+            message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
+          />
+        )}
+        <OrdersSection />
+      </div>
+
       <ReviewsSection />
     </div>
   );
@@ -86,33 +124,90 @@ function ProfileCard({ profile, level }) {
           🦁
         </div>
         <h1 className="font-display text-xl text-[var(--color-forest)]">
-          {profile.name} 님의 마이페이지{" "}
-          <span className="text-[var(--color-honey)]">
-            (Lv.{level} {profile.title})
-          </span>
+          {profile.name || profile.email || "회원"} 님의 마이페이지{" "}
+          {USE_MOCK && (
+            <span className="text-[var(--color-honey)]">
+              (Lv.{level} {getLionTier(level).label})
+            </span>
+          )}
         </h1>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {profile.badges.map((badge) => {
-          const Icon = BADGE_ICONS[badge.type] ?? Award;
-          return (
-            <span
-              key={badge.label}
-              className="flex items-center gap-1.5 rounded-full bg-[var(--color-forest)]/5 px-3 py-1.5 text-sm text-[var(--color-forest)]"
-            >
-              <Icon size={14} />
-              {badge.label}
-            </span>
-          );
-        })}
-      </div>
+      {USE_MOCK && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {profile.badges.map((badge) => {
+            if (badge.type === "streak") {
+              return (
+                <StreakBadge
+                  key={badge.label}
+                  label={badge.label}
+                  streakCount={profile.streakCount ?? 0}
+                />
+              );
+            }
+            const Icon = BADGE_ICONS[badge.type] ?? Award;
+            return (
+              <span
+                key={badge.label}
+                className="flex items-center gap-1.5 rounded-full bg-[var(--color-forest)]/5 px-3 py-1.5 text-sm text-[var(--color-forest)]"
+              >
+                <Icon size={14} />
+                {badge.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
 
-function LionFeedingCard({ exp, setExp, setLevel }) {
+// 연속 출석 3일 이상이면 불꽃이 살짝 흔들리고(flicker), 7일 이상이면 더 크고 진한 코랄색으로 타오른다.
+function StreakBadge({ label, streakCount }) {
+  const isBlazing = streakCount >= 7;
+  const isHot = streakCount >= 3;
+
+  return (
+    <span
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
+        isBlazing
+          ? "bg-[var(--color-coral)]/10 text-[var(--color-coral)]"
+          : "bg-[var(--color-forest)]/5 text-[var(--color-forest)]"
+      }`}
+    >
+      {isHot ? (
+        <motion.span
+          className="flex items-center"
+          animate={{ scale: [1, isBlazing ? 1.15 : 1.08, 1], opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: isBlazing ? 0.9 : 1.3, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Flame
+            size={isBlazing ? 18 : 14}
+            fill={isBlazing ? "var(--color-coral)" : "none"}
+            className={isBlazing ? "text-[var(--color-coral)]" : "text-[var(--color-honey)]"}
+          />
+        </motion.span>
+      ) : (
+        <Flame size={14} />
+      )}
+      {label}
+    </span>
+  );
+}
+
+function ComingSoonCard({ title, message }) {
+  return (
+    <section className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-forest)]/15 bg-white p-6 text-center shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+      <h2 className="font-display mb-2 text-lg text-[var(--color-forest)]">{title}</h2>
+      <p className="text-sm text-[var(--color-ink)] opacity-50">{message}</p>
+    </section>
+  );
+}
+
+function LionFeedingCard({ exp, setExp, level, setLevel }) {
   const [books, setBooks] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+  const [feedAmount, setFeedAmount] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -132,10 +227,21 @@ function LionFeedingCard({ exp, setExp, setLevel }) {
 
     setBooks((prev) => prev.filter((b) => b.id !== active.id));
     setIsFeeding(true);
+    setFeedAmount(book.exp);
     setExp((prev) => {
-      const next = prev + EXP_PER_BOOK;
+      const next = prev + book.exp;
       if (next >= 100) {
-        setLevel((lv) => lv + 1);
+        setLevel((lv) => {
+          const nextLevel = lv + 1;
+          const prevTier = getLionTier(lv);
+          const nextTier = getLionTier(nextLevel);
+          setLevelUpInfo({
+            level: nextLevel,
+            tierChanged: prevTier.key !== nextTier.key,
+            becameAdult: prevTier.key !== "adult" && nextTier.key === "adult",
+          });
+          return nextLevel;
+        });
         return next - 100;
       }
       return next;
@@ -144,59 +250,168 @@ function LionFeedingCard({ exp, setExp, setLevel }) {
   };
 
   return (
-    <section className="rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-5 text-lg text-[var(--color-forest)]">
+    <section className="relative rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-8 shadow-[0_1px_3px_rgba(27,59,54,0.08)] sm:p-10">
+      <h2 className="font-display mb-6 text-center text-2xl text-[var(--color-forest)]">
         사자 성장 & 완독 도서 먹이기
       </h2>
 
       <DndContext onDragEnd={handleDragEnd}>
-        <div className="flex flex-col items-center gap-6">
-          <LionDropZone exp={exp} isFeeding={isFeeding} />
+        <div className="flex flex-col items-center gap-8">
+          <LionDropZone exp={exp} isFeeding={isFeeding} level={level} feedAmount={feedAmount} />
 
-          <div className="grid w-full grid-cols-2 gap-3">
+          <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {books === null ? (
               <>
                 <Skeleton variant="rectangular" className="h-24 w-full" />
                 <Skeleton variant="rectangular" className="h-24 w-full" />
               </>
             ) : books.length === 0 ? (
-              <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50">
+              <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50 sm:col-span-3 md:col-span-4">
                 완독한 책을 모두 사자에게 먹였어요! 🦁
               </p>
             ) : (
-              books.map((book) => <DraggableBook key={book.id} id={book.id} title={book.title} />)
+              <AnimatePresence>
+                {books.map((book) => (
+                  <motion.div
+                    key={book.id}
+                    layout
+                    exit={{ opacity: 0, scale: 0.7 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <DraggableBook id={book.id} title={book.title} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
         </div>
       </DndContext>
 
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-sm text-[var(--color-ink)] opacity-50">
+      <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-[var(--color-ink)] opacity-50">
         🐾 사자 입으로 드래그하여 먹이기
       </p>
+
+      <AnimatePresence>
+        {levelUpInfo && (
+          <LevelUpOverlay
+            level={levelUpInfo.level}
+            tierChanged={levelUpInfo.tierChanged}
+            becameAdult={levelUpInfo.becameAdult}
+            onClose={() => setLevelUpInfo(null)}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }
 
-function LionDropZone({ exp, isFeeding }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "lion-mouth" });
+// 렌더 중 Math.random() 호출은 순수성 규칙에 걸리므로, 인덱스 기반의
+// 결정적 분산 공식(골든 앵글 근사치인 137도 회전)으로 흩뿌린 것처럼 보이게 한다.
+const CONFETTI_COLORS = ["var(--color-honey)", "var(--color-coral)", "var(--color-forest)"];
+const CONFETTI_PARTICLES = Array.from({ length: 30 }).map((_, i) => ({
+  id: i,
+  x: ((i * 47) % 260) - 130,
+  rotate: (i * 137) % 360,
+  delay: (i % 10) * 0.04,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+}));
+
+function LevelUpOverlay({ level, tierChanged, becameAdult, onClose }) {
+  const tier = getLionTier(level);
+
+  useEffect(() => {
+    const timer = setTimeout(onClose, 2500);
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
   return (
-    <div className="flex w-full flex-col items-center gap-4">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-forest)]/60 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0, x: 0 }}
+        animate={{ scale: 1, opacity: 1, x: [0, -6, 6, -4, 4, 0] }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        transition={{
+          scale: { type: "spring", stiffness: 260, damping: 20 },
+          opacity: { duration: 0.3 },
+          x: { duration: 0.3, ease: "easeInOut" },
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col items-center gap-2 overflow-hidden rounded-2xl bg-white px-12 py-10 text-center shadow-xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute right-3 top-3 rounded-full p-1 text-[var(--color-ink)] opacity-40 transition-opacity hover:opacity-70"
+        >
+          <X size={18} />
+        </button>
+
+        {CONFETTI_PARTICLES.map((p) => (
+          <motion.span
+            key={p.id}
+            initial={{ x: 0, y: 0, opacity: 1, rotate: 0 }}
+            animate={{ x: p.x, y: 180, opacity: 0, rotate: p.rotate }}
+            transition={{ duration: 1.1, delay: p.delay, ease: "easeOut" }}
+            className="pointer-events-none absolute left-1/2 top-10 h-2 w-2 rounded-sm"
+            style={{ backgroundColor: p.color }}
+          />
+        ))}
+
+        <motion.div
+          animate={{ rotate: [0, -4, 4, -3, 3, 0] }}
+          transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 0.4 }}
+        >
+          <LionCharacter level={level} isLevelingUp crownEntrance={becameAdult} size={112} />
+        </motion.div>
+
+        <motion.p
+          initial={{ scale: 0 }}
+          animate={{ scale: [0, 1.2, 1] }}
+          transition={{ type: "spring", stiffness: 300, damping: 12 }}
+          className="font-display mt-2 text-2xl text-[var(--color-honey)]"
+        >
+          🎉 레벨 업!
+        </motion.p>
+        {tierChanged && (
+          <motion.p
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-full bg-[var(--color-coral)]/15 px-3 py-1 text-xs font-medium text-[var(--color-coral)]"
+          >
+            ✨ 티어 승급!
+          </motion.p>
+        )}
+        <p className="text-sm text-[var(--color-ink)] opacity-70">
+          Lv.{level} {tier.label}이(가) 되었어요
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function LionDropZone({ exp, isFeeding, level, feedAmount }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "lion-mouth" });
+  const tier = getLionTier(level);
+
+  return (
+    <div className="flex w-full max-w-sm flex-col items-center gap-4">
       <div
         ref={setNodeRef}
-        className={`relative flex h-32 w-32 items-center justify-center rounded-full border-4 transition-all duration-200 ${
+        className={`relative flex h-56 w-56 items-center justify-center rounded-full border-4 transition-all duration-200 ${
           isOver
-            ? "scale-110 border-[var(--color-honey)] bg-[var(--color-honey)]/25"
+            ? "scale-105 border-[var(--color-honey)] bg-[var(--color-honey)]/25"
             : "border-[var(--color-honey)]/40 bg-[var(--color-honey)]/10"
         }`}
       >
-        <motion.span
-          animate={isFeeding ? { scale: [1, 1.3, 1], rotate: [0, -8, 8, 0] } : {}}
-          transition={{ duration: 0.5 }}
-          className="text-5xl leading-none"
-        >
-          🦁
-        </motion.span>
+        <LionCharacter level={level} isFeeding={isFeeding} size={172} />
         <AnimatePresence>
           {isFeeding && (
             <motion.span
@@ -206,11 +421,13 @@ function LionDropZone({ exp, isFeeding }) {
               transition={{ duration: 0.6, ease: "easeOut" }}
               className="font-display pointer-events-none absolute top-0 text-sm text-[var(--color-honey)]"
             >
-              +{EXP_PER_BOOK} EXP
+              +{feedAmount} EXP
             </motion.span>
           )}
         </AnimatePresence>
       </div>
+
+      <p className="-mt-2 text-sm text-[var(--color-ink)] opacity-40">{tier.label}</p>
 
       <div className="w-full">
         <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-forest)]/10">
@@ -296,7 +513,9 @@ function LionRagCard() {
     <section className="rounded-2xl border-2 border-[var(--color-forest)]/15 bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
       <h2 className="font-display mb-4 flex items-center gap-2 text-lg text-[var(--color-forest)]">
         🦁 사자에게 물어보기{" "}
-        <span className="text-sm font-normal text-[var(--color-ink)] opacity-40">(Spring AI RAG)</span>
+        <span className="text-sm font-normal text-[var(--color-ink)] opacity-40">
+          (Spring AI RAG)
+        </span>
       </h2>
 
       <div className="mb-4">
@@ -317,7 +536,8 @@ function LionRagCard() {
               >
                 <Quote size={13} className="mt-0.5 shrink-0 text-[var(--color-forest)]/40" />
                 <span className="text-[var(--color-ink)]">
-                  <span className="font-medium text-[var(--color-forest)]">[{note.book}]</span> {note.quote}
+                  <span className="font-medium text-[var(--color-forest)]">[{note.book}]</span>{" "}
+                  {note.quote}
                 </span>
               </li>
             ))}
@@ -339,7 +559,13 @@ function LionRagCard() {
           placeholder="내가 작성한 메모 중 객체지향 관련 있어?"
           className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
         />
-        <Button type="submit" variant="primary" shimmer={false} disabled={isBusy} className="shrink-0 px-4">
+        <Button
+          type="submit"
+          variant="primary"
+          shimmer={false}
+          disabled={isBusy}
+          className="shrink-0 px-4"
+        >
           <Send size={15} />
         </Button>
       </form>
@@ -379,11 +605,24 @@ function LionRagCard() {
 }
 
 function OrdersSection() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const activeTab = ORDER_TABS.some((t) => t.id === requestedTab) ? requestedTab : "orders";
 
+  // 카드 관리는 이 안에 임베드하지 않고 기존 /cards 라우트를 그대로 쓴다
+  // (CardsPage는 자체 <main>과 섹션 레이아웃을 가진 독립 페이지라 탭 패널에 끼워 넣기엔 구조가 맞지 않는다).
+  useEffect(() => {
+    if (activeTab === "cards") {
+      navigate("/cards", { replace: true });
+    }
+  }, [activeTab, navigate]);
+
   const setTab = (id) => {
+    if (id === "cards") {
+      navigate("/cards");
+      return;
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("tab", id);
@@ -392,8 +631,8 @@ function OrdersSection() {
   };
 
   return (
-    <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">주문 / 배송 소식</h2>
+    <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">주문 · 결제 관리</h2>
 
       <div className="mt-3 flex flex-wrap gap-1 border-b border-[var(--color-forest)]/10">
         {ORDER_TABS.map((tab) => (
@@ -436,6 +675,7 @@ function OrdersTab() {
   const [orders, setOrders] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchOrders().then((data) => {
       if (!ignore) setOrders(data);
@@ -445,6 +685,7 @@ function OrdersTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="주문/배송 조회 기능은 준비 중이에요" />;
   if (!orders) return <TabSkeleton />;
 
   return (
@@ -474,7 +715,12 @@ function OrdersTab() {
                   <Button variant="secondary" size="sm" shimmer={false}>
                     배송조회
                   </Button>
-                  <Button variant="ghost" size="sm" shimmer={false} className="text-[var(--color-coral)]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    shimmer={false}
+                    className="text-[var(--color-coral)]"
+                  >
                     취소/반품
                   </Button>
                 </>
@@ -506,6 +752,7 @@ function CouponsTab() {
   const [state, setState] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchCoupons().then((data) => {
       if (!ignore) setState(data);
@@ -515,22 +762,19 @@ function CouponsTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="쿠폰 현황 기능은 준비 중이에요" />;
   if (!state) return <TabSkeleton />;
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-xl bg-[var(--color-honey)]/10 p-4">
-        <p className="text-sm text-[var(--color-ink)] opacity-70">보유 포인트</p>
-        <p className="font-display text-2xl text-[var(--color-forest)]">
-          {state.pointBalance.toLocaleString()}P
-        </p>
-      </div>
       <ul className="flex flex-col gap-2">
         {state.coupons.map((coupon) => (
           <li
             key={coupon.id}
             className={`flex items-center justify-between rounded-xl border border-dashed px-4 py-3 ${
-              coupon.status === "expired" ? "border-[var(--color-ink)]/15 opacity-40" : "border-[var(--color-honey)]/50"
+              coupon.status === "expired"
+                ? "border-[var(--color-ink)]/15 opacity-40"
+                : "border-[var(--color-honey)]/50"
             }`}
           >
             <div>
@@ -539,7 +783,9 @@ function CouponsTab() {
             </div>
             <span
               className={`text-xs font-medium ${
-                coupon.status === "expired" ? "text-[var(--color-ink)] opacity-40" : "text-[var(--color-coral)]"
+                coupon.status === "expired"
+                  ? "text-[var(--color-ink)] opacity-40"
+                  : "text-[var(--color-coral)]"
               }`}
             >
               {coupon.status === "expired" ? "기간 만료" : "사용 가능"}
@@ -555,6 +801,7 @@ function ReturnsTab() {
   const [requests, setRequests] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchReturnRequests().then((data) => {
       if (!ignore) setRequests(data);
@@ -564,6 +811,7 @@ function ReturnsTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="취소/교환/반품/환불 기능은 준비 중이에요" />;
   if (!requests) return <TabSkeleton />;
   if (requests.length === 0) {
     return <EmptyState message="진행 중인 취소/교환/반품 내역이 없어요" />;
@@ -597,6 +845,7 @@ function RestockTab() {
   const [requests, setRequests] = useState(null);
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchRestockRequests().then((data) => {
       if (!ignore) setRequests(data);
@@ -606,6 +855,7 @@ function RestockTab() {
     };
   }, []);
 
+  if (!USE_MOCK) return <EmptyState message="재입고 알림 신청 기능은 준비 중이에요" />;
   if (!requests) return <TabSkeleton />;
   if (requests.length === 0) {
     return <EmptyState message="신청한 재입고 알림이 없어요" />;
@@ -653,6 +903,7 @@ function ReviewsSection() {
   const [editForm, setEditForm] = useState({ rating: 5, content: "" });
 
   useEffect(() => {
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchReviews().then((data) => {
       if (!ignore) setReviews(data);
@@ -680,8 +931,10 @@ function ReviewsSection() {
     }
     setReviews((prev) =>
       prev.map((r) =>
-        r.id === editingReview.id ? { ...r, rating: editForm.rating, content: editForm.content.trim() } : r
-      )
+        r.id === editingReview.id
+          ? { ...r, rating: editForm.rating, content: editForm.content.trim() }
+          : r,
+      ),
     );
     setEditingReview(null);
     toast.success("리뷰가 수정되었습니다.");
@@ -693,7 +946,9 @@ function ReviewsSection() {
         내가 작성한 한줄평 & 도서 리뷰 관리
       </h2>
 
-      {reviews === null ? (
+      {!USE_MOCK ? (
+        <EmptyState message="내가 작성한 리뷰 모아보기 기능은 준비 중이에요" />
+      ) : reviews === null ? (
         <TabSkeleton />
       ) : reviews.length === 0 ? (
         <EmptyState message="아직 작성한 리뷰가 없어요" />
@@ -719,10 +974,20 @@ function ReviewsSection() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
-                    <Button variant="secondary" size="sm" shimmer={false} onClick={() => openEdit(review)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      shimmer={false}
+                      onClick={() => openEdit(review)}
+                    >
                       수정
                     </Button>
-                    <Button variant="coral" size="sm" shimmer={false} onClick={() => setPendingDelete(review)}>
+                    <Button
+                      variant="coral"
+                      size="sm"
+                      shimmer={false}
+                      onClick={() => setPendingDelete(review)}
+                    >
                       삭제
                     </Button>
                   </div>
@@ -771,7 +1036,9 @@ function ReviewsSection() {
       >
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-1.5 text-sm font-medium text-[var(--color-ink)] opacity-80">{editingReview?.book}</p>
+            <p className="mb-1.5 text-sm font-medium text-[var(--color-ink)] opacity-80">
+              {editingReview?.book}
+            </p>
             <StarPicker
               rating={editForm.rating}
               onChange={(rating) => setEditForm((prev) => ({ ...prev, rating }))}

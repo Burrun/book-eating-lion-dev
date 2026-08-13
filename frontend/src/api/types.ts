@@ -46,6 +46,11 @@ export interface BookDetailResponse {
   publishedDate: string;
   createdAt: string;
   updatedAt: string;
+  // 전자책 지원 여부. GET /api/catalog/books/{bookId}/ebook 이 아직 로컬에서 확인되지 않아
+  // 임시로 상세 응답에 얹어뒀다. 실 엔드포인트 계약이 확정되면 별도 API 호출로 분리 예정
+  // (EbookViewer/ProductDetailPage는 url 문자열만 받으므로 호출부만 바꾸면 된다).
+  ebookAvailable: boolean;
+  ebookUrl: string | null;
 }
 
 // GET /api/catalog/books/{bookId}/synopsis/detail
@@ -71,15 +76,8 @@ export interface ReviewRequest {
 }
 
 // --- 회원 (Member) ---
-export type MemberGrade = "BASIC" | "PREMIUM";
 export type Role = "USER" | "ADMIN";
 export type Gender = "MALE" | "FEMALE";
-
-// GET /api/members/me/grade
-export interface MemberGradeResponse {
-  grade: MemberGrade;
-  point: number;
-}
 
 // GET /api/members/me
 export interface MemberResponse {
@@ -90,8 +88,6 @@ export interface MemberResponse {
   gender: Gender;
   birthDate: string;
   role: Role;
-  grade: MemberGrade;
-  point: number;
 }
 
 // --- 구독 (Subscription) ---
@@ -107,34 +103,95 @@ export interface SubscriptionResponse {
 }
 
 // --- 가상 카드 (Card) ---
-// 주의: API 명세서 초안에 카드 엔드포인트가 아직 없다.
-// 아래 필드는 db/schema.sql 의 cards 테이블을 기준으로 정의했고,
-// 경로는 기존 명세 컨벤션(/api/members/me/*)을 따랐다. 백엔드 확정 시 조정 필요.
-// card_token 은 결제 토큰이라 프론트로 내려오면 안 되므로 의도적으로 제외했다.
-export type CardStatus = "ACTIVE" | "SUSPENDED" | "TERMINATED";
+// member-service 실제 명세 기준 (backend/docs/member-service-spec.md 섹션 2.4).
+// card_token 은 결제 토큰이라 프론트로 내려오면 안 되므로 응답에 포함되지 않는다.
+export type CardStatus = "ACTIVE" | "SUSPENDED" | "CLOSED";
 
-// GET /api/members/me/cards
+// GET /api/cards/me, POST /api/cards, PATCH /api/cards/{cardId}/status
 export interface CardResponse {
-  id: number;
-  cardCompany: string | null;
+  cardId: number;
   maskedCardNumber: string;
   cardStatus: CardStatus;
   monthlyLimit: number;
   currentUsage: number;
-  virtualBalance: number;
-  isDefault: boolean;
   issuedDate: string;
   expiryDate: string;
 }
 
-// POST /api/members/me/cards
+// POST /api/cards (body 자체도 생략 가능)
 export interface CardIssueRequest {
-  monthlyLimit: number;
-  cardCompany?: string;
+  monthlyLimit?: number;
 }
 
-// PATCH /api/cards/{cardId}
+// PATCH /api/cards/{cardId}/status — 카드 상태 변경만 지원한다(월 한도 변경 API는 없음).
 export interface CardUpdateRequest {
-  monthlyLimit?: number;
-  cardStatus?: CardStatus;
+  cardStatus: CardStatus;
+}
+
+// --- 장바구니 (Cart) ---
+// GET /api/cart, POST /api/cart, PATCH /api/cart/{cartItemId} 의 items 항목
+export interface CartItemView {
+  cartItemId: number;
+  bookId: number;
+  title: string;
+  price: number;
+  coverImageUrl: string | null;
+  quantity: number;
+  subtotal: number;
+}
+
+// GET /api/cart
+export interface CartResponse {
+  items: CartItemView[];
+  totalQuantity: number;
+  totalPrice: number;
+}
+
+// POST /api/cart (quantity 생략 시 서버 기본값 1)
+export interface AddCartItemRequest {
+  bookId: number;
+  quantity?: number;
+}
+
+// PATCH /api/cart/{cartItemId}
+export interface ChangeCartItemQuantityRequest {
+  quantity: number;
+}
+// DELETE /api/cart/{cartItemId} — 204 No Content (응답 바디 없음, 별도 타입 없음)
+
+// --- 주문 (Order) ---
+// 이번 스코프는 주문 생성 + 카드/무통장 결제만. KAKAOPAY도 같은 enum 값을 쓰지만
+// 결제 승인(POST /api/payments/kakao/approve)은 별도 작업으로 미룬다.
+export type PaymentMethod = "KAKAOPAY" | "VIRTUAL_CARD" | "BANK_TRANSFER";
+// 실제 enum 미확인 — 카드/무통장 결제 응답에서 관찰되는 값 기준으로 추정.
+export type OrderStatus = "PENDING" | "PAID" | "CANCELLED";
+
+export interface OrderItemRequest {
+  bookId: number;
+  quantity: number;
+}
+
+// 필드명 미확정 — member-service AddressCreateRequest 컨벤션(recipientName/phoneNumber/...)을 따라 추정.
+export interface OrderRecipient {
+  recipientName: string;
+  phoneNumber: string;
+  zipcode: string;
+  address: string;
+  detailAddress: string;
+  deliveryRequest?: string;
+}
+
+// POST /api/orders
+export interface CreateOrderRequest {
+  items: OrderItemRequest[];
+  memberCouponId: number | null;
+  recipient: OrderRecipient;
+  paymentMethod: PaymentMethod;
+  cardId: number | null;
+}
+
+// POST /api/orders 응답 — 상세 스펙 미확인, orderId/status만 실제로 쓰고 있음.
+export interface OrderResponse {
+  orderId: number;
+  status: OrderStatus;
 }

@@ -248,6 +248,61 @@ paths:
         "403":
           description: 구매 확정 이력 없음 (REVIEW_PERMISSION_REQUIRED)
 
+  /api/catalog/books/{bookId}/reading-progress:
+    put:
+      summary: 전자책 이어읽기 위치 저장
+      description: |
+        회원×도서 단위 upsert. 이력은 남기지 않고 최신 위치/퍼센트만 유지한다.
+
+        wishlist/reviews 와 달리 X-Member-Id 헤더를 쓰지 않는다 — JWT `sub` 클레임(memberSub)으로
+        회원을 식별하는 최신 방식(member-service Card 도메인과 동일)을 카탈로그 모듈에서 처음 적용했다.
+      operationId: saveReadingProgress
+      tags: [reading-progress]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadingProgressRequest"
+      responses:
+        "200":
+          description: 저장 성공 (생성 또는 갱신)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadingProgressEnvelope"
+        "404":
+          description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND)
+    get:
+      summary: 전자책 이어읽기 위치 조회
+      description: |
+        한 번도 읽지 않은 책은 오류가 아니라 정상 상태다 — data: null 로 200 을 반환한다.
+      operationId: getReadingProgress
+      tags: [reading-progress]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: "조회 성공 (기록이 없으면 data: null)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadingProgressEnvelope"
+        "404":
+          description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND)
+
   /api/catalog/wishlist/me:
     get:
       summary: 내 찜 목록
@@ -663,6 +718,32 @@ components:
         rating: { type: integer, minimum: 1, maximum: 5 }
         content: { type: string, maxLength: 1000 }
 
+    ReadingProgress:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        cfi:
+          type: string
+          description: epub.js CFI(Canonical Fragment Identifier) 문자열.
+          example: "epubcfi(/6/14!/4/2/2/1:0)"
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+        updatedAt: { type: string, format: date-time }
+
+    ReadingProgressRequest:
+      type: object
+      required: [cfi]
+      properties:
+        cfi: { type: string }
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          nullable: true
+
     ReviewUpdateRequest:
       type: object
       required: [rating, content]
@@ -779,3 +860,13 @@ components:
               items:
                 $ref: "#/components/schemas/Review"
             totalElements: { type: integer }
+
+    ReadingProgressEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          nullable: true
+          description: 한 번도 읽지 않은 책이면 null.
+          allOf:
+            - $ref: "#/components/schemas/ReadingProgress"

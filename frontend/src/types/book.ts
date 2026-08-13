@@ -39,6 +39,9 @@ export interface Book {
   /** 구독 회원 전용 웹툰 요약 컷 */
   webtoonCuts: WebtoonCut[];
   reviews: Review[];
+  ebookAvailable: boolean;
+  /** 로컬 정적 경로든 S3 presigned URL이든 그대로 담긴다. ebookAvailable이 false면 null. */
+  ebookUrl: string | null;
 }
 
 export interface SwipeDeckItem {

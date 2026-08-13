@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMyCards, issueCard, updateCard } from "../../api/cards.ts";
+import { getMyCards, issueCard, updateCardStatus } from "../../api/cards.ts";
+import { useToast } from "../../components/Toast.jsx";
 import type { Card, CardStatus } from "../../types/card.ts";
 
 const CARDS_QUERY_KEY = ["cards"];
@@ -11,14 +12,14 @@ const MAN = 10000;
 const STATUS_LABEL: Record<CardStatus, string> = {
   ACTIVE: "사용중",
   SUSPENDED: "정지됨",
-  TERMINATED: "해지됨",
+  CLOSED: "해지됨",
 };
 
 // 카드 앞면(어두운 배경) 위에 올라가는 뱃지 색상
 const STATUS_CLASS: Record<CardStatus, string> = {
   ACTIVE: "bg-paper/20 text-paper",
   SUSPENDED: "bg-honey text-forest",
-  TERMINATED: "bg-coral text-paper",
+  CLOSED: "bg-coral text-paper",
 };
 
 /** 1000000 -> "100만" */
@@ -45,8 +46,7 @@ export default function CardsPage() {
 
   const issue = useMutation({ mutationFn: issueCard, onSuccess: invalidate });
   const update = useMutation({
-    mutationFn: ({ id, monthlyLimit, cardStatus }: UpdateArgs) =>
-      updateCard(id, { monthlyLimit, cardStatus }),
+    mutationFn: ({ id, cardStatus }: UpdateArgs) => updateCardStatus(id, { cardStatus }),
     onSuccess: invalidate,
   });
 
@@ -99,8 +99,7 @@ export default function CardsPage() {
 
 interface UpdateArgs {
   id: string;
-  monthlyLimit?: number;
-  cardStatus?: CardStatus;
+  cardStatus: CardStatus;
 }
 
 /** 만원 단위 입력값을 검증하고 원 단위로 변환한다. */
@@ -117,30 +116,42 @@ interface IssueCardFormProps {
 }
 
 function IssueCardForm({ onSubmit, isSubmitting }: IssueCardFormProps) {
+  // useToast()는 지금까지 .jsx 파일에서만 쓰여서(checkJs: false) 드러나지 않았지만,
+  // Toast.jsx의 createContext(null) + if(!ctx) throw 패턴이 TS 제어 흐름상 반환 타입을
+  // never로 좁힌다. 공용 파일을 건드리는 대신 여기서만 실제 형태로 타입을 명시한다.
+  const toast = useToast() as { error: (message: string) => void };
   const limit = useManInput(1000000);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!limit.isValid) {
+      toast.error("월 한도를 입력해주세요.");
+      return;
+    }
+    onSubmit({ monthlyLimit: limit.won });
+  };
 
   return (
     <form
       className="flex flex-col gap-3 rounded-xl border border-forest/10 bg-paper p-4 sm:flex-row sm:items-end"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (limit.isValid) onSubmit({ monthlyLimit: limit.won });
-      }}
+      onSubmit={handleSubmit}
     >
-      <label className="flex flex-1 flex-col gap-1.5">
-        <span className="text-sm font-semibold">월 한도 (만원)</span>
-        <input
-          type="number"
-          min={1}
-          step={1}
-          value={limit.text}
-          onChange={(e) => limit.setText(e.target.value)}
-          className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
-        />
-      </label>
+      <div className="flex flex-1 flex-col gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold">월 한도 (만원)</span>
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={limit.text}
+            onChange={(e) => limit.setText(e.target.value)}
+            className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
+          />
+        </label>
+      </div>
       <button
         type="submit"
-        disabled={!limit.isValid || isSubmitting}
+        disabled={isSubmitting}
         className="shrink-0 rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:opacity-40"
       >
         {isSubmitting ? "발급 중..." : "새 카드 발급"}
@@ -156,11 +167,8 @@ interface CardItemProps {
 }
 
 function CardItem({ card, onUpdate, isUpdating }: CardItemProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const limit = useManInput(card.monthlyLimit);
-
   const isActive = card.status === "ACTIVE";
-  const isTerminated = card.status === "TERMINATED";
+  const isClosed = card.status === "CLOSED";
 
   return (
     <li className="flex flex-col gap-2.5">
@@ -173,19 +181,12 @@ function CardItem({ card, onUpdate, isUpdating }: CardItemProps) {
         }`}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="text-sm font-semibold">{card.company ?? "카드사 미지정"}</span>
-          <div className="flex shrink-0 gap-1">
-            {card.isDefault ? (
-              <span className="rounded-full bg-paper px-2 py-0.5 text-[11px] font-semibold text-forest">
-                기본
-              </span>
-            ) : null}
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_CLASS[card.status]}`}
-            >
-              {STATUS_LABEL[card.status]}
-            </span>
-          </div>
+          <span className="text-sm font-semibold opacity-80">가상카드</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_CLASS[card.status]}`}
+          >
+            {STATUS_LABEL[card.status]}
+          </span>
         </div>
 
         <p className="font-mono text-base tracking-[0.12em] sm:text-lg">{card.maskedNumber}</p>
@@ -204,65 +205,20 @@ function CardItem({ card, onUpdate, isUpdating }: CardItemProps) {
             />
           </div>
           <div className="flex justify-between text-[11px] opacity-70">
-            <span>잔액 {toMan(card.virtualBalance)}만원</span>
+            <span>가용한도 {toMan(card.availableLimit)}만원</span>
             <span>VALID THRU {formatExpiry(card.expiryDate)}</span>
           </div>
         </div>
       </div>
 
-      {isEditing ? (
-        <div className="flex gap-2">
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={limit.text}
-            onChange={(e) => limit.setText(e.target.value)}
-            aria-label="월 한도 (만원)"
-            className="w-full min-w-0 rounded-lg border border-forest/20 px-3 py-2 text-sm outline-none focus:border-forest"
-          />
-          <button
-            type="button"
-            disabled={!limit.isValid || isUpdating}
-            onClick={() => {
-              onUpdate({ id: card.id, monthlyLimit: limit.won });
-              setIsEditing(false);
-            }}
-            className="shrink-0 rounded-lg bg-forest px-3 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light disabled:opacity-40"
-          >
-            저장
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              limit.setText(String(card.monthlyLimit / MAN));
-              setIsEditing(false);
-            }}
-            className="shrink-0 rounded-lg border border-forest/20 px-3 py-2 text-sm font-semibold transition hover:bg-paper"
-          >
-            취소
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={isTerminated || isUpdating}
-            onClick={() => setIsEditing(true)}
-            className="flex-1 rounded-lg border border-forest/20 px-3 py-2 text-sm font-semibold transition hover:bg-paper disabled:opacity-40"
-          >
-            한도 변경
-          </button>
-          <button
-            type="button"
-            disabled={isTerminated || isUpdating}
-            onClick={() => onUpdate({ id: card.id, cardStatus: isActive ? "SUSPENDED" : "ACTIVE" })}
-            className="flex-1 rounded-lg border border-forest/20 px-3 py-2 text-sm font-semibold transition hover:bg-paper disabled:opacity-40"
-          >
-            {isActive ? "일시 정지" : "정지 해제"}
-          </button>
-        </div>
-      )}
+      <button
+        type="button"
+        disabled={isClosed || isUpdating}
+        onClick={() => onUpdate({ id: card.id, cardStatus: isActive ? "SUSPENDED" : "ACTIVE" })}
+        className="rounded-lg border border-forest/20 px-3 py-2 text-sm font-semibold transition hover:bg-paper disabled:opacity-40"
+      >
+        {isActive ? "일시 정지" : "정지 해제"}
+      </button>
     </li>
   );
 }

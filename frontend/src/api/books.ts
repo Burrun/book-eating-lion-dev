@@ -1,6 +1,6 @@
-import { apiClient, unwrap } from './client.ts'
-import { toBook, toBookSummary, toPaged, toWebtoonCuts } from './mappers.ts'
-import { mockDelay } from '../mocks/delay.ts'
+import { apiClient, unwrap } from "./client.ts";
+import { toBook, toBookSummary, toPaged, toWebtoonCuts } from "./mappers.ts";
+import { mockDelay } from "../mocks/delay.ts";
 import {
   mockGetBestsellers,
   mockGetBook,
@@ -8,21 +8,21 @@ import {
   mockGetNewReleases,
   mockGetSynopsisDetail,
   mockSearchBooks,
-} from '../mocks/books.ts'
+} from "../mocks/books.ts";
 import type {
   ApiResponse,
   BookDetailResponse,
   BookSummaryResponse,
   BookSynopsisDetailResponse,
   Page,
-} from './types.ts'
-import type { Book, BookSummary, WebtoonCut } from '../types/book.ts'
-import type { Paged } from '../types/common.ts'
+} from "./types.ts";
+import type { Book, BookSummary, WebtoonCut } from "../types/book.ts";
+import type { Paged } from "../types/common.ts";
 
 // 백엔드/DB 연동 전까지는 목업으로 화면을 확인한다.
 // 목업도 실 API와 똑같이 DTO -> 매퍼 경로를 태운다. 따라서 백엔드에 없는 필드
 // (rating, reviewCount 등)는 목업 모드에서도 매퍼의 임시 기본값이 그대로 나온다.
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // GET /api/catalog/books — 도서 목록 (카테고리/페이징)
 export async function getBooks(
@@ -30,20 +30,24 @@ export async function getBooks(
 ): Promise<Paged<BookSummary>> {
   const page = USE_MOCK
     ? await mockDelay(mockGetBooks(params))
-    : await unwrap(apiClient.get<ApiResponse<Page<BookSummaryResponse>>>('/catalog/books', { params }))
-  return toPaged(page, toBookSummary)
+    : await unwrap(
+        apiClient.get<ApiResponse<Page<BookSummaryResponse>>>("/catalog/books", { params }),
+      );
+  return toPaged(page, toBookSummary);
 }
 
 // GET /api/catalog/books/search?q= — 도서 검색
 export async function searchBooks(params: {
-  q: string
-  page?: number
-  size?: number
+  q: string;
+  page?: number;
+  size?: number;
 }): Promise<Paged<BookSummary>> {
   const page = USE_MOCK
     ? await mockDelay(mockSearchBooks(params))
-    : await unwrap(apiClient.get<ApiResponse<Page<BookSummaryResponse>>>('/catalog/books/search', { params }))
-  return toPaged(page, toBookSummary)
+    : await unwrap(
+        apiClient.get<ApiResponse<Page<BookSummaryResponse>>>("/catalog/books/search", { params }),
+      );
+  return toPaged(page, toBookSummary);
 }
 
 // GET /api/catalog/books/bestsellers — 베스트셀러 목록
@@ -51,9 +55,11 @@ export async function getBestsellers(limit = 10): Promise<BookSummary[]> {
   const list = USE_MOCK
     ? await mockDelay(mockGetBestsellers(limit))
     : await unwrap(
-        apiClient.get<ApiResponse<BookSummaryResponse[]>>('/catalog/books/bestsellers', { params: { limit } }),
-      )
-  return list.map(toBookSummary)
+        apiClient.get<ApiResponse<BookSummaryResponse[]>>("/catalog/books/bestsellers", {
+          params: { limit },
+        }),
+      );
+  return list.map(toBookSummary);
 }
 
 // GET /api/catalog/books/new-releases — 신간 목록
@@ -61,17 +67,19 @@ export async function getNewReleases(limit = 10): Promise<BookSummary[]> {
   const list = USE_MOCK
     ? await mockDelay(mockGetNewReleases(limit))
     : await unwrap(
-        apiClient.get<ApiResponse<BookSummaryResponse[]>>('/catalog/books/new-releases', { params: { limit } }),
-      )
-  return list.map(toBookSummary)
+        apiClient.get<ApiResponse<BookSummaryResponse[]>>("/catalog/books/new-releases", {
+          params: { limit },
+        }),
+      );
+  return list.map(toBookSummary);
 }
 
 // GET /api/catalog/books/{bookId} — 도서 상세 (X-Member-Id 있으면 최근 본 상품에 기록됨)
 export async function getBook(bookId: number | string): Promise<Book> {
   const dto = USE_MOCK
     ? await mockDelay(mockGetBook(bookId))
-    : await unwrap(apiClient.get<ApiResponse<BookDetailResponse>>(`/catalog/books/${bookId}`))
-  return toBook(dto)
+    : await unwrap(apiClient.get<ApiResponse<BookDetailResponse>>(`/catalog/books/${bookId}`));
+  return toBook(dto);
 }
 
 // GET /api/catalog/books/{bookId}/synopsis/detail — 구독 회원 전용. 줄거리는 기본 제공되고,
@@ -79,6 +87,10 @@ export async function getBook(bookId: number | string): Promise<Book> {
 export async function getWebtoonCuts(bookId: number | string): Promise<WebtoonCut[]> {
   const dto = USE_MOCK
     ? await mockDelay(mockGetSynopsisDetail(bookId))
-    : await unwrap(apiClient.get<ApiResponse<BookSynopsisDetailResponse>>(`/catalog/books/${bookId}/synopsis/detail`))
-  return toWebtoonCuts(dto)
+    : await unwrap(
+        apiClient.get<ApiResponse<BookSynopsisDetailResponse>>(
+          `/catalog/books/${bookId}/synopsis/detail`,
+        ),
+      );
+  return toWebtoonCuts(dto);
 }

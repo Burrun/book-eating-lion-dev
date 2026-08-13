@@ -19,6 +19,8 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     Optional<Book> findByBookIdAndIsDeletedFalse(Long bookId);
 
+    boolean existsByBookIdAndIsDeletedFalse(Long bookId);
+
     Page<Book> findByIsDeleted(boolean isDeleted, Pageable pageable);
 
     boolean existsByCategoryAndIsDeletedFalse(String category);
