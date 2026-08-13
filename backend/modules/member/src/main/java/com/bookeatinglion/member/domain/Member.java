@@ -2,12 +2,11 @@ package com.bookeatinglion.member.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "members")
@@ -49,11 +48,7 @@ public class Member extends BaseEntity {
     }
 
     public static Member register(String cognitoSub, String email, String name) {
-        return Member.builder()
-                .cognitoSub(cognitoSub)
-                .email(email)
-                .name(name)
-                .build();
+        return Member.builder().cognitoSub(cognitoSub).email(email).name(name).build();
     }
 
     /**

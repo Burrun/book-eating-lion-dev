@@ -2,6 +2,12 @@ package com.bookeatinglion.member.infra.cognito;
 
 import com.bookeatinglion.member.config.CognitoProperties;
 import com.bookeatinglion.member.exception.CognitoAuthException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,13 +29,6 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.NotAuthoriz
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -45,9 +44,11 @@ public class CognitoAuthClient {
                     .username(email)
                     .userAttributes(
                             AttributeType.builder().name("email").value(email).build(),
-                            AttributeType.builder().name("email_verified").value("true").build(),
-                            AttributeType.builder().name("name").value(name).build()
-                    )
+                            AttributeType.builder()
+                                    .name("email_verified")
+                                    .value("true")
+                                    .build(),
+                            AttributeType.builder().name("name").value(name).build())
                     .messageAction(MessageActionType.SUPPRESS)
                     .build());
 
@@ -67,9 +68,13 @@ public class CognitoAuthClient {
                     .filter(attr -> "sub".equals(attr.name()))
                     .map(AttributeType::value)
                     .findFirst()
-                    .orElseThrow(() -> new CognitoAuthException("COGNITO_SIGNUP_FAILED", "Cognito 사용자 식별자(sub)를 확인할 수 없습니다."));
+                    .orElseThrow(() ->
+                            new CognitoAuthException("COGNITO_SIGNUP_FAILED", "Cognito 사용자 식별자(sub)를 확인할 수 없습니다."));
         } catch (InvalidPasswordException e) {
-            throw new CognitoAuthException("INVALID_PASSWORD", resolvePasswordPolicyMessage(e.awsErrorDetails().errorMessage()), e);
+            throw new CognitoAuthException(
+                    "INVALID_PASSWORD",
+                    resolvePasswordPolicyMessage(e.awsErrorDetails().errorMessage()),
+                    e);
         } catch (UsernameExistsException e) {
             throw new CognitoAuthException("DUPLICATE_EMAIL", "이미 가입된 이메일입니다.", e);
         } catch (CognitoIdentityProviderException e) {
@@ -122,7 +127,8 @@ public class CognitoAuthClient {
         } catch (NotAuthorizedException | UserNotFoundException e) {
             throw new CognitoAuthException("INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다.", e);
         } catch (CognitoIdentityProviderException e) {
-            throw new CognitoAuthException("COGNITO_LOGIN_FAILED", e.awsErrorDetails().errorMessage(), e);
+            throw new CognitoAuthException(
+                    "COGNITO_LOGIN_FAILED", e.awsErrorDetails().errorMessage(), e);
         }
     }
 
@@ -141,7 +147,8 @@ public class CognitoAuthClient {
         } catch (NotAuthorizedException e) {
             throw new CognitoAuthException("INVALID_REFRESH_TOKEN", "리프레시 토큰이 유효하지 않습니다.", e);
         } catch (CognitoIdentityProviderException e) {
-            throw new CognitoAuthException("COGNITO_REFRESH_FAILED", e.awsErrorDetails().errorMessage(), e);
+            throw new CognitoAuthException(
+                    "COGNITO_REFRESH_FAILED", e.awsErrorDetails().errorMessage(), e);
         }
     }
 

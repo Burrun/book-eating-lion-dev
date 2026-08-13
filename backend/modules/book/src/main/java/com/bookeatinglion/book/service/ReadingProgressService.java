@@ -26,7 +26,8 @@ public class ReadingProgressService {
     @Transactional
     public ReadingProgressResponse saveProgress(Long bookId, String memberSub, ReadingProgressRequest request) {
         // 이미 기록이 있어도 도서가 그 사이 삭제됐을 수 있으니, 분기와 무관하게 먼저 검증한다.
-        Book book = bookRepository.findByBookIdAndIsDeletedFalse(bookId)
+        Book book = bookRepository
+                .findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
 
         ReadingProgress readingProgress = readingProgressRepository
@@ -49,7 +50,8 @@ public class ReadingProgressService {
         if (!bookRepository.existsByBookIdAndIsDeletedFalse(bookId)) {
             throw new BookNotFoundException(bookId);
         }
-        return readingProgressRepository.findByMemberSubAndBook_BookId(memberSub, bookId)
+        return readingProgressRepository
+                .findByMemberSubAndBook_BookId(memberSub, bookId)
                 .map(ReadingProgressResponse::from)
                 .orElse(null);
     }

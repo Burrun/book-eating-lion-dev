@@ -18,8 +18,7 @@ public class ReadingProgressController {
 
     @PutMapping("/api/catalog/books/{bookId}/reading-progress")
     public ApiResponse<ReadingProgressResponse> saveProgress(
-            @PathVariable Long bookId,
-            @Valid @RequestBody ReadingProgressRequest request) {
+            @PathVariable Long bookId, @Valid @RequestBody ReadingProgressRequest request) {
         return ApiResponse.success(
                 readingProgressService.saveProgress(bookId, memberIdentity.requiredMemberId(), request));
     }

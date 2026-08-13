@@ -28,8 +28,8 @@ public class CardService {
     public CardResponse issueCard(String memberSub, IssueCardRequest request) {
         long monthlyLimit = request.monthlyLimit() != null ? request.monthlyLimit() : DEFAULT_MONTHLY_LIMIT;
 
-        Card card = new Card(
-                memberSub, UUID.randomUUID().toString(), CardNumberGenerator.generateMasked(), monthlyLimit);
+        Card card =
+                new Card(memberSub, UUID.randomUUID().toString(), CardNumberGenerator.generateMasked(), monthlyLimit);
         return CardResponse.from(cardRepository.save(card));
     }
 
