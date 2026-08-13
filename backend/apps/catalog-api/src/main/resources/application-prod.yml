@@ -1,4 +1,7 @@
 spring:
+  config:
+    import: classpath:application-redis-prod.yml
+
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=catalog_db&sslmode=require
     username: ${DB_USERNAME}
@@ -21,15 +24,10 @@ spring:
   flyway:
     enabled: false
 
-  # ReviewPermissionStreamConfig(Redis Streams 컨슈머 그룹)가 이 값을 쓴다.
-  # REDIS_HOST 는 catalog-config 에 이미 있었지만 이 키로는 안 읽혀서 죽은 값이었다
-  # (order-api 에서 발견된 것과 동일한 패턴, /code-review 지적사항) — 이 값이
-  # 없으면 Redis 연결이 조용히 localhost:6379 로 fallback 해서, order-service 가
-  # 발행하는 구매 후 리뷰 작성 권한 이벤트를 영원히 못 받는다.
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: 6379
+  # ReviewPermissionStreamConfig(Redis Streams 컨슈머 그룹)가 spring.data.redis.host/port
+  # 를 쓴다. 값이 없으면 Redis 연결이 조용히 localhost:6379 로 fallback 해서, order-service
+  # 가 발행하는 구매 후 리뷰 작성 권한 이벤트를 영원히 못 받는다. 값 자체는 위
+  # application-redis-prod.yml import 로 온다(공유 파일 참고).
 
   # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
   # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
