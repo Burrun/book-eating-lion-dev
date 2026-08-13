@@ -15,10 +15,16 @@
 #      테스트 값만 적용된다.
 #   3. resources — VM 테스트 환경 스펙에 맞춰 운영(Guaranteed, 500m/1Gi)보다 낮춘다.
 #      결제 트랜잭션 QoS 보장은 테스트 목적과 무관하다.
+#   4. 이름 — 운영 Deployment 와 같은 이름(order-deployment)을 쓰지 않는다.
+#      k8s/order/hpa.yaml 이 scaleTargetRef 로 그 이름을 타겟팅하기 때문에, 이름이
+#      같으면 누군가 실수로 hpa.yaml 을 같이 apply했을 때 HPA 가 minReplicas: 2 를
+#      강제해서 이 Deployment 의 replicas: 1 과 충돌한다(/code-review 지적사항).
+#      Service 연결은 Deployment 이름이 아니라 Pod label(app: order-service)로
+#      되므로, 이름을 바꿔도 k8s/order/service.yaml 재사용에는 영향이 없다.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: order-deployment
+  name: order-test-deployment
   namespace: lion-app
   labels:
     app: order-service

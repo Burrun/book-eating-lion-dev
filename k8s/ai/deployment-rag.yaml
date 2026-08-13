@@ -25,6 +25,21 @@ spec:
         app: ai-rag
         tier: backend
     spec:
+      # order/catalog/member 에는 다 있는 노드 분산 규칙이 ai 에만 빠져 있었다
+      # (/code-review 지적사항) — 없으면 스케줄러가 ai-rag replica 전부를 노드
+      # 하나에 몰아넣을 수 있어, 그 노드 하나가 죽으면 ai-rag 전체가 같이 죽는다.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - ai-rag
+                topologyKey: "kubernetes.io/hostname"
       containers:
         - name: ai-service
           # bot 과 동일한 이미지다. ECR 리포지터리도 하나다.

@@ -78,8 +78,25 @@ spec:
           port: 443
 
 ---
-# /internal/** 접근 제한 — order-service 의 재고 API 는 catalog-service 만 부른다.
-# Ingress 에 /internal 경로가 없는 것이 1차 방어선이고, 이게 2차 방어선이다.
+# /internal/** 접근 제한 — order-service 의 재고 API 는 catalog-service 만 부른다는
+# "의도"였으나, 현재 이 정책은 실질적으로 아무것도 막지 못한다(/code-review 지적사항).
+#
+# NetworkPolicy 는 같은 Pod 를 여러 정책이 선택하면 각 정책의 규칙이 합집합(OR)으로
+# 적용된다 — 이 정책이 더 좁게 허용 목록을 선언해도, lion-app-baseline 이 이미
+# order-service(tier: backend)에 "같은 네임스페이스의 모든 backend-tier Pod" +
+# "VPC_CIDR 전체"를 8080 포트로 열어두고 있어서(위 파일 39-45번 줄) 그 허용이 그대로
+# 살아있다. 즉 member-service/ai-bot/ai-rag 도, VPC 안 어디서든도 /internal/** 에
+# 도달할 수 있다 — 이 정책이 있든 없든 결과가 같다.
+#
+# NetworkPolicy 는 포트 단위로만 필터링하고 HTTP 경로를 못 본다. /internal/** 과
+# 공개 API(/api/orders 등)가 같은 8080 포트를 쓰는 한, order-service 를 향한 트래픽을
+# "catalog-service 만" 허용하도록 실제로 좁히려면 lion-app-baseline 의 같은 네임스페이스
+# 백엔드 간 인그레스 규칙에서 order-service 를 제외하는 구조 변경이 필요하다(현재는
+# 하지 않음 — 별도 판단 필요, 그 전까지 SecurityConfig 의
+# `.requestMatchers("/internal/**").permitAll()` 을 실질적으로 보호하는 건 없다).
+#
+# Ingress 에 /internal 경로가 없는 것이 1차 방어선이고, 이 정책은 지금 상태로는
+# 2차 방어선 역할을 하지 못한다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
