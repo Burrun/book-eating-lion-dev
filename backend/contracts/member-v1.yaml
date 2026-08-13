@@ -236,6 +236,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/CardOperationResult"
 
+  /internal/members/{memberId}/notification-profile:
+    get:
+      summary: 내부 알림 수신 프로필 조회
+      description: 클러스터 내부 전용이며 Ingress에 노출하지 않는다.
+      tags: [internal-members]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, description: Cognito sub }
+      responses:
+        "200": { description: 이메일과 이름 조회 성공 }
+        "404": { description: 회원 없음 }
+
 components:
   securitySchemes:
     bearerAuth:

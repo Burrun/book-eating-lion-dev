@@ -4,6 +4,8 @@ import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.exception.CategoryNotFoundException;
+import com.bookeatinglion.book.exception.RestockAlertConflictException;
+import com.bookeatinglion.book.exception.RestockAlertNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
@@ -51,6 +53,18 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleReviewPermissionRequired(ReviewPermissionRequiredException e) {
         return ResponseEntity.status(e.getErrorCode().getStatus())
                 .body(ApiResponse.error(e.getErrorCode().name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(RestockAlertNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRestockAlertNotFound(RestockAlertNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.RESTOCK_ALERT_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.RESTOCK_ALERT_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(RestockAlertConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRestockAlertConflict(RestockAlertConflictException e) {
+        return ResponseEntity.status(BookErrorCode.RESTOCK_ALERT_CONFLICT.getStatus())
+                .body(ApiResponse.error(BookErrorCode.RESTOCK_ALERT_CONFLICT.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

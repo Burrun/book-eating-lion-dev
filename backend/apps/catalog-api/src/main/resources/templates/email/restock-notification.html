@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><title>재입고 알림</title></head>
+<body style="margin:0;background:#f6f3ec;font-family:Arial,'Noto Sans KR',sans-serif;color:#2b2b2b">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center">
+  <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border-radius:16px;overflow:hidden">
+    <tr><td style="padding:28px;background:#c98b3c;color:#fff;font-size:24px;font-weight:bold">🦁 책 먹는 사자</td></tr>
+    <tr><td style="padding:32px">
+      <p style="margin-top:0" th:text="|${recipientName}님, 안녕하세요.|">고객님, 안녕하세요.</p>
+      <h1 style="font-size:24px">기다리시던 도서가 재입고되었습니다.</h1>
+      <table role="presentation" width="100%"><tr>
+        <td width="120" valign="top"><img th:if="${coverImageUrl != null}" th:src="${coverImageUrl}" alt="도서 표지" width="100" style="border-radius:8px"></td>
+        <td valign="top"><strong style="font-size:18px" th:text="${bookTitle}">도서명</strong><p th:text="${author}">저자</p></td>
+      </tr></table>
+      <p style="margin:28px 0">재고가 다시 소진되기 전에 확인해 주세요.</p>
+      <a th:href="${bookDetailUrl}" style="display:inline-block;padding:14px 24px;background:#2b2b2b;color:#fff;text-decoration:none;border-radius:8px">도서 확인하기</a>
+    </td></tr>
+  </table>
+</td></tr></table>
+</body>
+</html>
