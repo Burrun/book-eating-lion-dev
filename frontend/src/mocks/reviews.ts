@@ -7,7 +7,7 @@ const REVIEWS: ReviewResponse[] = [
   {
     id: 1,
     bookId: 1,
-    memberId: 102,
+    memberId: "102",
     rating: 5,
     content: "JPA 입문에 최고의 책입니다. 웹툰 요약 컷도 쉽게 잘 정리되어 있어서 대만족!",
     createdAt: "2026-07-29T10:12:00",
@@ -15,7 +15,7 @@ const REVIEWS: ReviewResponse[] = [
   {
     id: 2,
     bookId: 2,
-    memberId: 88,
+    memberId: "88",
     rating: 4,
     content: "개발자 필독서! 명구절들 정리해두기 좋았습니다.",
     createdAt: "2026-07-25T09:40:00",
@@ -23,7 +23,7 @@ const REVIEWS: ReviewResponse[] = [
   {
     id: 3,
     bookId: 3,
-    memberId: 45,
+    memberId: "45",
     rating: 5,
     content: "저렴하게 잘 구해서 읽었습니다.",
     createdAt: "2026-07-18T20:05:00",

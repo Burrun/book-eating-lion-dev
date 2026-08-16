@@ -18,6 +18,7 @@ import {
   fetchReturnRequests,
   fetchRestockRequests,
   fetchReviews,
+  fetchLionStatus,
 } from "../api/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
@@ -65,15 +66,20 @@ const RETURN_STATUS_META = {
 export default function MyPage() {
   const [profile, setProfile] = useState(null);
   const [level, setLevel] = useState(0);
+  // 누적 경험치다(레벨업해도 차감되지 않는다). 진행바는 exp % 100 을 쓴다.
   const [exp, setExp] = useState(0);
 
+  // 회원 정보와 사자 상태는 소유 서비스가 다르다 — member 와 ai.
+  // 한 응답에 섞여 오지 않으므로 따로 부르고 화면에서 합친다.
   useEffect(() => {
     let ignore = false;
     fetchProfile().then((data) => {
+      if (!ignore) setProfile(data);
+    });
+    fetchLionStatus().then((lion) => {
       if (ignore) return;
-      setProfile(data);
-      setLevel(data.level);
-      setExp(data.exp);
+      setLevel(lion.level);
+      setExp(lion.exp);
     });
     return () => {
       ignore = true;
@@ -203,6 +209,16 @@ function ComingSoonCard({ title, message }) {
   );
 }
 
+// 책 1권을 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며
+// 책마다 다르지 않다 — feedable-books 응답에 exp 가 없는 이유다.
+const EXP_PER_FEED = 40;
+
+// 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다.
+const EXP_PER_LEVEL = 100;
+
+// 백엔드 Lion.gainExp 와 같은 식이다: level = 1 + exp/100 (정수 나눗셈).
+const levelOf = (totalExp) => 1 + Math.floor(totalExp / EXP_PER_LEVEL);
+
 function LionFeedingCard({ exp, setExp, level, setLevel }) {
   const [books, setBooks] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
@@ -222,17 +238,19 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over?.id !== "lion-mouth") return;
-    const book = books?.find((b) => b.id === active.id);
+    const book = books?.find((b) => b.bookId === active.id);
     if (!book) return;
 
-    setBooks((prev) => prev.filter((b) => b.id !== active.id));
+    setBooks((prev) => prev.filter((b) => b.bookId !== active.id));
     setIsFeeding(true);
-    setFeedAmount(book.exp);
+    setFeedAmount(EXP_PER_FEED);
+    // 누적값이라 차감하지 않는다. 레벨은 백엔드와 같은 식(Lion.gainExp)으로 계산한다 —
+    // 여기서 따로 세면 서버가 준 값과 어긋난다.
     setExp((prev) => {
-      const next = prev + book.exp;
-      if (next >= 100) {
+      const next = prev + EXP_PER_FEED;
+      const nextLevel = levelOf(next);
+      if (nextLevel > levelOf(prev)) {
         setLevel((lv) => {
-          const nextLevel = lv + 1;
           const prevTier = getLionTier(lv);
           const nextTier = getLionTier(nextLevel);
           setLevelUpInfo({
@@ -242,7 +260,6 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           });
           return nextLevel;
         });
-        return next - 100;
       }
       return next;
     });
@@ -273,12 +290,12 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
               <AnimatePresence>
                 {books.map((book) => (
                   <motion.div
-                    key={book.id}
+                    key={book.bookId}
                     layout
                     exit={{ opacity: 0, scale: 0.7 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <DraggableBook id={book.id} title={book.title} />
+                    <DraggableBook id={book.bookId} title={book.title} />
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -400,6 +417,7 @@ function LevelUpOverlay({ level, tierChanged, becameAdult, onClose }) {
 function LionDropZone({ exp, isFeeding, level, feedAmount }) {
   const { setNodeRef, isOver } = useDroppable({ id: "lion-mouth" });
   const tier = getLionTier(level);
+  const levelProgress = exp % EXP_PER_LEVEL;
 
   return (
     <div className="flex w-full max-w-sm flex-col items-center gap-4">
@@ -429,16 +447,18 @@ function LionDropZone({ exp, isFeeding, level, feedAmount }) {
 
       <p className="-mt-2 text-sm text-[var(--color-ink)] opacity-40">{tier.label}</p>
 
+      {/* exp 는 누적값이라 그대로 쓰면 진행바가 100%를 넘는다. 현재 레벨 구간만 잘라 쓴다. */}
       <div className="w-full">
         <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--color-forest)]/10">
           <motion.div
             className="h-full rounded-full bg-[var(--color-honey)]"
-            animate={{ width: `${exp}%` }}
+            animate={{ width: `${levelProgress}%` }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           />
         </div>
         <p className="mt-1.5 text-center text-sm text-[var(--color-ink)] opacity-70">
-          EXP: {exp} / 100 <span className="opacity-70">(다음 레벨까지 {100 - exp})</span>
+          EXP: {levelProgress} / {EXP_PER_LEVEL}{" "}
+          <span className="opacity-70">(다음 레벨까지 {EXP_PER_LEVEL - levelProgress})</span>
         </p>
       </div>
     </div>
@@ -469,6 +489,13 @@ function DraggableBook({ id, title }) {
   );
 }
 
+// citations[].score 는 0~1 이고 클수록 유사하다. 화면은 백분율 하나만 쓰므로
+// 가장 가까운 근거를 대표값으로 삼는다. 근거가 없으면(grounded: false) 0 이다.
+function toSimilarityPercent(citations) {
+  if (!citations?.length) return 0;
+  return Math.round(Math.max(...citations.map((c) => c.score)) * 100);
+}
+
 function LionRagCard() {
   const [notes, setNotes] = useState(null);
   const [question, setQuestion] = useState("");
@@ -491,11 +518,11 @@ function LionRagCard() {
     setStatus("loading");
     setDisplayedAnswer("");
 
-    const answer = await askLion(question);
-    setSimilarity(answer.similarity);
+    const result = await askLion(question);
+    setSimilarity(toSimilarityPercent(result.citations));
     setStatus("streaming");
 
-    const full = answer.text;
+    const full = result.answer;
     let i = 0;
     const interval = setInterval(() => {
       i += 2;
@@ -765,31 +792,23 @@ function CouponsTab() {
   if (!USE_MOCK) return <EmptyState message="쿠폰 현황 기능은 준비 중이에요" />;
   if (!state) return <TabSkeleton />;
 
+  // 만료/사용 분기는 없앴다. 백엔드가 미사용 + 미만료 쿠폰만 내려주므로
+  // 만료된 항목이 이 목록에 도달할 경로가 없다.
   return (
     <div className="flex flex-col gap-5">
       <ul className="flex flex-col gap-2">
-        {state.coupons.map((coupon) => (
+        {state.map((coupon) => (
           <li
-            key={coupon.id}
-            className={`flex items-center justify-between rounded-xl border border-dashed px-4 py-3 ${
-              coupon.status === "expired"
-                ? "border-[var(--color-ink)]/15 opacity-40"
-                : "border-[var(--color-honey)]/50"
-            }`}
+            key={coupon.memberCouponId}
+            className="flex items-center justify-between rounded-xl border border-dashed border-[var(--color-honey)]/50 px-4 py-3"
           >
             <div>
-              <p className="text-sm font-medium text-[var(--color-ink)]">{coupon.label}</p>
-              <p className="text-sm text-[var(--color-ink)] opacity-50">~{coupon.expiresAt}까지</p>
+              <p className="text-sm font-medium text-[var(--color-ink)]">{coupon.couponName}</p>
+              <p className="text-sm text-[var(--color-ink)] opacity-50">
+                ~{coupon.expiresAt?.slice(0, 10)}까지
+              </p>
             </div>
-            <span
-              className={`text-xs font-medium ${
-                coupon.status === "expired"
-                  ? "text-[var(--color-ink)] opacity-40"
-                  : "text-[var(--color-coral)]"
-              }`}
-            >
-              {coupon.status === "expired" ? "기간 만료" : "사용 가능"}
-            </span>
+            <span className="text-xs font-medium text-[var(--color-coral)]">사용 가능</span>
           </li>
         ))}
       </ul>
@@ -865,7 +884,7 @@ function RestockTab() {
     <ul className="flex flex-col gap-3">
       {requests.map((item) => (
         <li
-          key={item.id}
+          key={item.restockAlertId}
           className="flex items-center justify-between rounded-xl border border-[var(--color-forest)]/10 p-4"
         >
           <div className="flex items-center gap-3">
@@ -874,14 +893,18 @@ function RestockTab() {
             </span>
             <div>
               <p className="text-sm font-medium text-[var(--color-ink)]">{item.title}</p>
-              <p className="text-sm text-[var(--color-ink)] opacity-50">{item.requestedAt} 신청</p>
+              <p className="text-sm text-[var(--color-ink)] opacity-50">
+                {item.requestedAt?.slice(0, 10)} 신청
+              </p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
             shimmer={false}
-            onClick={() => setRequests((prev) => prev.filter((r) => r.id !== item.id))}
+            onClick={() =>
+              setRequests((prev) => prev.filter((r) => r.restockAlertId !== item.restockAlertId))
+            }
           >
             신청 취소
           </Button>

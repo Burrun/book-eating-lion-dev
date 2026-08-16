@@ -6,6 +6,7 @@ import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -38,9 +39,15 @@ public class ReviewPermissionStreamConfig {
         return StreamMessageListenerContainer.create(connectionFactory, options);
     }
 
+    /**
+     * 🔴 {@code @Qualifier} 를 빼면 기동이 실패한다. 같은 타입의 컨테이너 빈이 둘이고
+     * (여기와 {@link InventoryRestockedStreamConfig}), 파라미터 이름으로 고르는 방식은
+     * 컴파일러의 {@code -parameters} 설정에 의존해 조용히 깨진다.
+     */
     @Bean
     public StreamSubscriptionLifecycle reviewPermissionSubscription(
-            StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
+            @Qualifier("reviewPermissionContainer")
+                    StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             StringRedisTemplate redisTemplate,
             ReviewPermissionConsumer consumer) {
         return new StreamSubscriptionLifecycle(container, redisTemplate, consumer);

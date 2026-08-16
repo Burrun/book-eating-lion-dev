@@ -1,3 +1,24 @@
+// 계약(backend/contracts/*.yaml)에서 생성한 타입에 프론트가 쓰던 이름을 붙여 다시 내보내는
+// 파사드다. 손으로 적던 형태를 여기서 없앴다 — 계약이 바뀌면 추측이 아니라 타입 에러로
+// 드러나야 한다.
+//
+// 🔴 여기에 계약에 없는 필드를 덧붙이지 않는다. 부득이하면 optional 로 두고, 왜 없는지와
+//    언제 지울지를 같이 적는다. 규칙과 그 근거는 docs/frontend/type-generation.md §4.
+//
+// 생성 방법은 README, 상세는 docs/frontend/type-generation.md.
+// 이 파일을 openapi-typescript 의 -o 대상으로 지정하지 말 것(아래 래퍼가 사라진다).
+import type { components as CatalogComponents } from "./generated/catalog.ts";
+import type { components as MemberComponents } from "./generated/member.ts";
+import type { components as OrderComponents } from "./generated/order.ts";
+
+type Catalog = CatalogComponents["schemas"];
+type MemberSchemas = MemberComponents["schemas"];
+type Order = OrderComponents["schemas"];
+
+// --- 계약에 없는 것 ---
+// ApiResponse/Page 는 제네릭 래퍼라 OpenAPI 스키마로 표현되지 않는다.
+// 계약에는 도메인마다 *Envelope 로 펼쳐져 있고, 프론트는 unwrap() 으로 벗겨 쓴다.
+
 // 백엔드 공통 응답 래퍼 (common/dto/ApiResponse.java)
 export interface ApiResponse<T> {
   success: boolean;
@@ -17,181 +38,56 @@ export interface Page<T> {
   last: boolean;
 }
 
-export type SaleStatus = "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
+// --- 도서 (Catalog) ---
+export type BookSummaryResponse = Catalog["BookSummary"];
 
-// GET /api/catalog/books, /bestsellers, /new-releases, /wishlist/me, /recent-books/me
-export interface BookSummaryResponse {
-  id: number;
-  title: string;
-  author: string;
-  price: number;
-  coverImageUrl: string | null;
-  category: string;
-  saleStatus: SaleStatus;
-}
-
-// GET /api/catalog/books/{bookId}
-export interface BookDetailResponse {
-  id: number;
-  title: string;
-  author: string;
-  publisher: string;
-  isbn: string;
-  category: string;
-  price: number;
-  stockQuantity: number;
-  coverImageUrl: string | null;
-  description: string;
-  saleStatus: SaleStatus;
-  publishedDate: string;
-  createdAt: string;
-  updatedAt: string;
-  // 전자책 지원 여부. GET /api/catalog/books/{bookId}/ebook 이 아직 로컬에서 확인되지 않아
-  // 임시로 상세 응답에 얹어뒀다. 실 엔드포인트 계약이 확정되면 별도 API 호출로 분리 예정
-  // (EbookViewer/ProductDetailPage는 url 문자열만 받으므로 호출부만 바꾸면 된다).
-  ebookAvailable: boolean;
-  ebookUrl: string | null;
-}
-
-// GET /api/catalog/books/{bookId}/synopsis/detail
-export interface BookSynopsisDetailResponse {
-  bookId: number;
-  title: string;
-  detailedSynopsis: string;
-}
-
-// GET/POST /api/catalog/books/{bookId}/reviews
-export interface ReviewResponse {
-  id: number;
-  bookId: number;
-  memberId: number;
-  rating: number;
-  content: string;
-  createdAt: string;
-}
-
-export interface ReviewRequest {
-  rating: number;
-  content: string;
-}
+// 🔴 ebookAvailable / ebookUrl 은 백엔드에 없다. Book 엔티티에 해당 컬럼이 없고
+// 전자책 조회 API 도 아직 없다 — 지금은 mock 만 채워 준다.
+// 실 API 모드에서는 항상 undefined 이므로 매퍼가 false/null 로 떨어뜨린다.
+// 전자책 계약이 생기면 이 교차 타입을 지우고 생성 타입만 쓰면 된다.
+export type BookDetailResponse = Catalog["BookDetail"] & {
+  ebookAvailable?: boolean;
+  ebookUrl?: string | null;
+};
+export type BookSynopsisDetailResponse = Catalog["BookSynopsisDetail"];
+export type ReviewResponse = Catalog["Review"];
+export type ReviewRequest = Catalog["ReviewRequest"];
+export type SaleStatus = NonNullable<Catalog["BookSummary"]["saleStatus"]>;
 
 // --- 회원 (Member) ---
-export type Role = "USER" | "ADMIN";
-export type Gender = "MALE" | "FEMALE";
+export type MemberResponse = MemberSchemas["Member"];
+export type Role = NonNullable<MemberSchemas["Member"]["role"]>;
+export type Gender = NonNullable<MemberSchemas["Member"]["gender"]>;
 
-// GET /api/members/me
-export interface MemberResponse {
-  id: number;
-  email: string;
-  name: string;
-  phoneNumber: string;
-  gender: Gender;
-  birthDate: string;
-  role: Role;
-}
+// --- 가상 카드 (Card) ---
+export type CardResponse = MemberSchemas["Card"];
+export type CardIssueRequest = MemberSchemas["IssueCardRequest"];
+export type CardUpdateRequest = MemberSchemas["ChangeCardStatusRequest"];
+export type CardStatus = NonNullable<MemberSchemas["Card"]["cardStatus"]>;
 
-// --- 구독 (Subscription) ---
+// --- 장바구니 (Cart) ---
+export type CartItemView = Order["CartItemView"];
+export type CartResponse = Order["CartResponse"];
+export type AddCartItemRequest = Order["AddCartItemRequest"];
+export type ChangeCartItemQuantityRequest = Order["ChangeCartItemQuantityRequest"];
+
+// --- 주문 (Order) ---
+export type OrderItemRequest = Order["OrderItemRequest"];
+export type OrderRecipient = Order["Recipient"];
+export type CreateOrderRequest = Order["CreateOrderRequest"];
+export type OrderResponse = Order["OrderResponse"];
+export type PaymentMethod = NonNullable<Order["CreateOrderRequest"]["paymentMethod"]>;
+export type OrderStatus = NonNullable<Order["OrderResponse"]["orderStatus"]>;
+
+// --- 계약에 없는 도메인 ---
+// 구독: 백엔드에 엔드포인트가 없다(GET /api/members/me/subscription 미구현).
+// mock 전용이며, 실 API 가 생기면 계약에서 생성된 타입으로 교체할 것.
 export type SubscriptionStatus = "ACTIVE" | "CANCELLED";
 
-// GET /api/members/me/subscription (구독 이력 없으면 data: null)
 export interface SubscriptionResponse {
   status: SubscriptionStatus;
   planName: string;
   monthlyPrice: number;
   nextDeliveryDate: string | null;
   cancelledAt: string | null;
-}
-
-// --- 가상 카드 (Card) ---
-// member-service 실제 명세 기준 (backend/docs/member-service-spec.md 섹션 2.4).
-// card_token 은 결제 토큰이라 프론트로 내려오면 안 되므로 응답에 포함되지 않는다.
-export type CardStatus = "ACTIVE" | "SUSPENDED" | "CLOSED";
-
-// GET /api/cards/me, POST /api/cards, PATCH /api/cards/{cardId}/status
-export interface CardResponse {
-  cardId: number;
-  maskedCardNumber: string;
-  cardStatus: CardStatus;
-  monthlyLimit: number;
-  currentUsage: number;
-  issuedDate: string;
-  expiryDate: string;
-}
-
-// POST /api/cards (body 자체도 생략 가능)
-export interface CardIssueRequest {
-  monthlyLimit?: number;
-}
-
-// PATCH /api/cards/{cardId}/status — 카드 상태 변경만 지원한다(월 한도 변경 API는 없음).
-export interface CardUpdateRequest {
-  cardStatus: CardStatus;
-}
-
-// --- 장바구니 (Cart) ---
-// GET /api/cart, POST /api/cart, PATCH /api/cart/{cartItemId} 의 items 항목
-export interface CartItemView {
-  cartItemId: number;
-  bookId: number;
-  title: string;
-  price: number;
-  coverImageUrl: string | null;
-  quantity: number;
-  subtotal: number;
-}
-
-// GET /api/cart
-export interface CartResponse {
-  items: CartItemView[];
-  totalQuantity: number;
-  totalPrice: number;
-}
-
-// POST /api/cart (quantity 생략 시 서버 기본값 1)
-export interface AddCartItemRequest {
-  bookId: number;
-  quantity?: number;
-}
-
-// PATCH /api/cart/{cartItemId}
-export interface ChangeCartItemQuantityRequest {
-  quantity: number;
-}
-// DELETE /api/cart/{cartItemId} — 204 No Content (응답 바디 없음, 별도 타입 없음)
-
-// --- 주문 (Order) ---
-// 이번 스코프는 주문 생성 + 카드/무통장 결제만. KAKAOPAY도 같은 enum 값을 쓰지만
-// 결제 승인(POST /api/payments/kakao/approve)은 별도 작업으로 미룬다.
-export type PaymentMethod = "KAKAOPAY" | "VIRTUAL_CARD" | "BANK_TRANSFER";
-// 실제 enum 미확인 — 카드/무통장 결제 응답에서 관찰되는 값 기준으로 추정.
-export type OrderStatus = "PENDING" | "PAID" | "CANCELLED";
-
-export interface OrderItemRequest {
-  bookId: number;
-  quantity: number;
-}
-
-// 필드명 미확정 — member-service AddressCreateRequest 컨벤션(recipientName/phoneNumber/...)을 따라 추정.
-export interface OrderRecipient {
-  recipientName: string;
-  phoneNumber: string;
-  zipcode: string;
-  address: string;
-  detailAddress: string;
-  deliveryRequest?: string;
-}
-
-// POST /api/orders
-export interface CreateOrderRequest {
-  items: OrderItemRequest[];
-  memberCouponId: number | null;
-  recipient: OrderRecipient;
-  paymentMethod: PaymentMethod;
-  cardId: number | null;
-}
-
-// POST /api/orders 응답 — 상세 스펙 미확인, orderId/status만 실제로 쓰고 있음.
-export interface OrderResponse {
-  orderId: number;
-  status: OrderStatus;
 }
