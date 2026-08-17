@@ -41,7 +41,7 @@ class AuthControllerTest {
 
     @Test
     void 회원가입은_200과_회원정보를_반환한다() throws Exception {
-        when(authService.signup(any())).thenReturn(new SignupResponse(1L, "lion@bookeating.com", "책먹는사자"));
+        when(authService.signup(any())).thenReturn(new SignupResponse("sub-1", "lion@bookeating.com", "책먹는사자"));
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -43,7 +43,7 @@ class MemberControllerTest {
 
     private MemberResponse memberResponse() {
         return new MemberResponse(
-                1L, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
+                SUB, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
     }
 
     @Test
@@ -53,7 +53,9 @@ class MemberControllerTest {
         mockMvc.perform(get("/api/members/me").with(jwt().jwt(jwt -> jwt.subject(SUB))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.email").value("lion@bookeating.com"));
+                .andExpect(jsonPath("$.data.email").value("lion@bookeating.com"))
+                // id 는 DB PK 가 아니라 JWT sub 다.
+                .andExpect(jsonPath("$.data.id").value(SUB));
     }
 
     @Test

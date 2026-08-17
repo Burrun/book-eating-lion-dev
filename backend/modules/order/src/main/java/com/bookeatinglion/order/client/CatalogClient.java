@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "catalog-book", url = "${services.catalog.url}", fallback = CatalogClientFallback.class)
 public interface CatalogClient {
 
-    @GetMapping("/api/books/{bookId}")
+    @GetMapping("/api/catalog/books/{bookId}")
     BookDetailEnvelope getBook(@PathVariable("bookId") Long bookId);
 
     @JsonIgnoreProperties(ignoreUnknown = true)

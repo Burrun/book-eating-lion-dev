@@ -220,8 +220,10 @@ services:
   nginx:
     image: nginx:alpine
     container_name: msa-nginx
+    # 호스트 80 은 다른 스택(caddy 등)이 이미 쓰고 있어 8080 으로 낸다.
+    # 컨테이너 안쪽은 그대로 80 이므로 nginx/default.conf 는 손댈 필요 없다.
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       # default.conf 가 proxy-headers.inc 를 include 하므로 디렉터리째 마운트한다.
       - ./nginx:/etc/nginx/conf.d:ro
