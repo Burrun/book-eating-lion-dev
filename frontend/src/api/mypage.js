@@ -1,7 +1,6 @@
 import { apiClient, unwrap } from "./client.ts";
 import {
   MOCK_PROFILE,
-  MOCK_LION_STATUS,
   MOCK_FED_BOOKS,
   MOCK_READING_NOTES,
   MOCK_RAG_ANSWER,
@@ -10,6 +9,8 @@ import {
   MOCK_RETURN_REQUESTS,
   MOCK_RESTOCK_REQUESTS,
   MOCK_REVIEWS,
+  mockGetLionStatus,
+  mockFeedLion,
 } from "../mocks/mypage.js";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -33,9 +34,9 @@ export async function fetchProfile() {
 // 🔴 exp 는 누적값이다(레벨업해도 차감되지 않는다). 백엔드가 level = 1 + exp/100 으로
 // 계산하므로 exp 120 이면 level 2 다. 진행바처럼 0~100 이 필요한 자리에서는 exp % 100 을 쓴다.
 //
-// 조회는 사자를 만들지 않는다. 한 번도 안 먹인 사용자는 기본값(exp 0 / level 1 / CUB)이 온다.
+// 조회는 사자를 만들지 않는다. 한 번도 안 먹인 사용자는 기본값(exp 0 / level 1 / BABY)이 온다.
 export async function fetchLionStatus() {
-  if (USE_MOCK) return mockDelay(MOCK_LION_STATUS);
+  if (USE_MOCK) return mockDelay(mockGetLionStatus());
   return unwrap(apiClient.get("/ai/lion/me"));
 }
 
@@ -44,6 +45,13 @@ export async function fetchLionStatus() {
 export async function fetchFedBooks() {
   if (USE_MOCK) return mockDelay(MOCK_FED_BOOKS);
   return unwrap(apiClient.get("/ai/lion/feedable-books"));
+}
+
+// POST /api/ai/lion/feed — 책 먹이기. 응답은 GET /api/ai/lion/me 와 같은 형태(LionStatus)다.
+// 같은 책을 다시 먹여도 안전(멱등) — exp 가 중복으로 오르지 않는다.
+export async function feedLion(bookId) {
+  if (USE_MOCK) return mockDelay(mockFeedLion(bookId));
+  return unwrap(apiClient.post("/ai/lion/feed", { bookId }));
 }
 
 // 🚧 백엔드 미구현. 독서 노트 기능 자체가 없다.

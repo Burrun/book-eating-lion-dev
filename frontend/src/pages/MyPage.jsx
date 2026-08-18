@@ -11,6 +11,7 @@ import LionCharacter, { getLionTier } from "../components/LionCharacter.jsx";
 import {
   fetchProfile,
   fetchFedBooks,
+  feedLion,
   fetchReadingNotes,
   askLion,
   fetchOrders,
@@ -27,9 +28,10 @@ import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
-// 프로필(GET /api/members/me)을 뺀 마이페이지의 나머지 기능은 아직 실제 API가 없다
-// (사자 EXP/RAG는 BOO-17·AI 서비스 미착수, 주문목록/쿠폰/반품/재입고/내 리뷰 목록은 계약(contracts/*.yaml)에 없음).
-// 실제 서버 모드(VITE_USE_MOCK=false)에서 존재하지 않는 엔드포인트를 호출하지 않도록 mock 모드에서만 노출한다.
+// 프로필(GET /api/members/me)과 사자 성장/먹이기(GET·POST /api/ai/lion/**)는 실API가 있어
+// mock 여부와 무관하게 항상 노출한다. 그 외 나머지(RAG 물어보기 카드, 주문목록/쿠폰/반품/
+// 재입고/내 리뷰 목록)는 아직 실제 API가 없거나(계약에 없음) 이번 스코프가 아니라, 존재하지
+// 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 const ORDER_TABS = [
@@ -106,14 +108,7 @@ export default function MyPage() {
       )}
 
       <div className="mt-6">
-        {USE_MOCK ? (
-          <LionFeedingCard exp={exp} setExp={setExp} level={level} setLevel={setLevel} />
-        ) : (
-          <ComingSoonCard
-            title="사자 성장 & 완독 도서 먹이기"
-            message="사자 레벨/EXP/완독 도서 시스템은 아직 준비 중이에요 (BOO-17)."
-          />
-        )}
+        <LionFeedingCard exp={exp} setExp={setExp} level={level} setLevel={setLevel} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -224,17 +219,16 @@ function ComingSoonCard({ title, message }) {
 // 책마다 다르지 않다 — feedable-books 응답에 exp 가 없는 이유다.
 const EXP_PER_FEED = 40;
 
-// 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다.
+// 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다. 진행바 표시(exp % 100)에만 쓴다
+// — 실제 레벨/경험치는 항상 서버 응답값을 그대로 쓰고 프론트에서 다시 계산하지 않는다.
 const EXP_PER_LEVEL = 100;
-
-// 백엔드 Lion.gainExp 와 같은 식이다: level = 1 + exp/100 (정수 나눗셈).
-const levelOf = (totalExp) => 1 + Math.floor(totalExp / EXP_PER_LEVEL);
 
 function LionFeedingCard({ exp, setExp, level, setLevel }) {
   const [books, setBooks] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const [feedAmount, setFeedAmount] = useState(0);
+  const toast = useToast();
 
   useEffect(() => {
     let ignore = false;
@@ -246,6 +240,8 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
     };
   }, []);
 
+  // 실제 exp/level/growthStage는 항상 서버(POST /api/ai/lion/feed) 응답값을 그대로 쓴다 —
+  // 프론트에서 따로 계산하면 서버 값과 어긋날 수 있다. +EXP 애니메이션 숫자만 낙관적으로 먼저 보여준다.
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over?.id !== "lion-mouth") return;
@@ -255,25 +251,26 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
     setBooks((prev) => prev.filter((b) => b.bookId !== active.id));
     setIsFeeding(true);
     setFeedAmount(EXP_PER_FEED);
-    // 누적값이라 차감하지 않는다. 레벨은 백엔드와 같은 식(Lion.gainExp)으로 계산한다 —
-    // 여기서 따로 세면 서버가 준 값과 어긋난다.
-    setExp((prev) => {
-      const next = prev + EXP_PER_FEED;
-      const nextLevel = levelOf(next);
-      if (nextLevel > levelOf(prev)) {
-        setLevel((lv) => {
-          const prevTier = getLionTier(lv);
-          const nextTier = getLionTier(nextLevel);
+
+    feedLion(book.bookId)
+      .then((status) => {
+        setExp(status.exp);
+        if (status.level > level) {
+          const prevTier = getLionTier(level);
+          const nextTier = getLionTier(status.level);
           setLevelUpInfo({
-            level: nextLevel,
+            level: status.level,
             tierChanged: prevTier.key !== nextTier.key,
             becameAdult: prevTier.key !== "adult" && nextTier.key === "adult",
           });
-          return nextLevel;
-        });
-      }
-      return next;
-    });
+        }
+        setLevel(status.level);
+      })
+      .catch(() => {
+        setBooks((prev) => [...prev, book]);
+        toast.error("먹이기에 실패했어요. 잠시 후 다시 시도해주세요.");
+      });
+
     setTimeout(() => setIsFeeding(false), 600);
   };
 

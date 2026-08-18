@@ -1,5 +1,6 @@
 package com.bookeatinglion.ai.wiki.service;
 
+import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
 import com.bookeatinglion.ai.wiki.domain.FedBook;
@@ -28,9 +29,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Transactional(readOnly = true)
 public class FeedService {
 
-    /** lions.growth_stage 는 NOT NULL 이다. 첫 라이언의 초기값. */
-    private static final String INITIAL_GROWTH_STAGE = "CUB";
-
     private final WikiBookRepository wikiBookRepository;
     private final FedBookRepository fedBookRepository;
     private final LionRepository lionRepository;
@@ -43,7 +41,7 @@ public class FeedService {
      * 같은 개념이 필드 순서만 다른 두 벌로 갈라지고, 프론트는 어느 쪽이 무엇인지 매번
      * 확인해야 한다.
      */
-    public record LionStatus(long exp, int level, String growthStage, long fedBookCount) {}
+    public record LionStatus(long exp, int level, GrowthStage growthStage, long fedBookCount) {}
 
     public record FeedableBook(Long bookId, String title, int pages) {}
 
@@ -62,7 +60,7 @@ public class FeedService {
         return lionRepository
                 .findByMemberId(memberId)
                 .map(lion -> new LionStatus(lion.getExp(), lion.getLevel(), lion.getGrowthStage(), fedBookCount))
-                .orElseGet(() -> new LionStatus(0, 1, INITIAL_GROWTH_STAGE, fedBookCount));
+                .orElseGet(() -> new LionStatus(0, 1, GrowthStage.BABY, fedBookCount));
     }
 
     /**
@@ -75,9 +73,7 @@ public class FeedService {
             throw new BookNotIngestedException(bookId);
         }
 
-        Lion lion = lionRepository
-                .findByMemberId(memberId)
-                .orElseGet(() -> lionRepository.save(new Lion(memberId, INITIAL_GROWTH_STAGE)));
+        Lion lion = lionRepository.findByMemberId(memberId).orElseGet(() -> lionRepository.save(new Lion(memberId)));
 
         boolean alreadyFed = fedBookRepository.existsById(new FedBook.Key(memberId, bookId));
         if (!alreadyFed) {

@@ -25,16 +25,44 @@ export const MOCK_BADGES = [
 // "streak" 배지의 불꽃 연출 임계값(3일 이상/7일 이상) 판단에만 쓰인다. 배지 라벨 텍스트와 맞춰둘 것.
 export const MOCK_STREAK_COUNT = 7;
 
-// GET /api/ai/lion/me 응답 형태 — LionStatus
+// GET /api/ai/lion/me, POST /api/ai/lion/feed 응답 형태 — LionStatus.
 //
 // 🔴 exp 는 누적값이다. 백엔드가 level = 1 + exp/100 으로 계산하므로 이 둘은 항상 맞아야 한다.
-// 여기서는 120 → 1 + 120/100 = 2.
-export const MOCK_LION_STATUS = {
-  exp: 120,
-  level: 2,
-  growthStage: "CUB",
-  fedBookCount: 3,
-};
+// growthStage 는 백엔드 GrowthStage.fromLevel 과 동일한 구간으로 계산한다
+// (level<=2 BABY, level<=4 CUB, 그 이상 ADULT — LionCharacter.getLionTier 와도 일치해야 한다).
+//
+// 실API 와 마찬가지로 상태가 유지되도록 모듈 스코프 mutable 값으로 관리한다(mocks/cards.ts와
+// 동일 패턴) — 예전에는 이 값이 고정 상수라 먹여도 서버(mock) 쪽 값이 바뀌지 않았다.
+function growthStageOf(level) {
+  if (level <= 2) return "BABY";
+  if (level <= 4) return "CUB";
+  return "ADULT";
+}
+
+// 120 → 이미 3권을 먹인 것으로 시작(level 2, BABY). MOCK_FED_BOOKS(아래 8권)를 다 먹이면
+// 120 + 320 = 440 → level 5(ADULT)까지 전 구간을 확인할 수 있다.
+let lionState = { exp: 120, level: 2, growthStage: growthStageOf(2), fedBookCount: 3 };
+const fedBookIds = new Set();
+
+export function mockGetLionStatus() {
+  return lionState;
+}
+
+// 계약과 동일하게 같은 책을 다시 먹여도 exp 가 중복으로 오르지 않는다(멱등).
+export function mockFeedLion(bookId) {
+  if (!fedBookIds.has(bookId)) {
+    fedBookIds.add(bookId);
+    const exp = lionState.exp + 40; // Lion.EXP_PER_FEED
+    const level = 1 + Math.floor(exp / 100); // Lion.EXP_PER_LEVEL
+    lionState = {
+      exp,
+      level,
+      growthStage: growthStageOf(level),
+      fedBookCount: lionState.fedBookCount + 1,
+    };
+  }
+  return lionState;
+}
 
 // GET /api/ai/lion/feedable-books 응답 형태 — { bookId, title, pages }
 //
