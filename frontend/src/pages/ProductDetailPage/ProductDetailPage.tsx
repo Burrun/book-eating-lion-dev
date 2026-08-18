@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getBook, getWebtoonCuts } from "../../api/books.ts";
+import { getBook, getEbookAccess, getWebtoonCuts } from "../../api/books.ts";
 import { getReviews } from "../../api/reviews.ts";
 import { getMySubscription } from "../../api/member.ts";
 import { addToCart } from "../../api/cart.js";
@@ -60,6 +60,32 @@ export default function ProductDetailPage() {
   const [draftRating, setDraftRating] = useState(5);
   const [draftText, setDraftText] = useState("");
   const [isEbookOpen, setIsEbookOpen] = useState(false);
+  const [ebookUrl, setEbookUrl] = useState<string | null>(null);
+
+  const ebookAccessMutation = useMutation({
+    mutationFn: () => getEbookAccess(id!),
+    onSuccess: (access) => {
+      if (!access.ebookAvailable || !access.presignedUrl) {
+        toast.error("아직 eBook이 준비되지 않은 도서입니다.");
+        return;
+      }
+      setEbookUrl(access.presignedUrl);
+      setIsEbookOpen(true);
+    },
+    onError: () => {
+      toast.error("eBook을 열지 못했습니다. 로그인 상태를 확인한 뒤 다시 시도해주세요.");
+    },
+  });
+
+  function handleOpenEbook() {
+    setEbookUrl(null);
+    ebookAccessMutation.mutate();
+  }
+
+  function handleCloseEbook() {
+    setIsEbookOpen(false);
+    setEbookUrl(null);
+  }
 
   // addToCart(api/cart.js)가 로그인/게스트 분기를 내부에서 이미 처리하므로 여기서는 그대로 호출만 한다.
   const addToCartMutation = useMutation({
@@ -146,10 +172,11 @@ export default function ProductDetailPage() {
             {book.ebookAvailable ? (
               <div className="flex flex-col gap-1.5">
                 <button
-                  onClick={() => setIsEbookOpen(true)}
+                  onClick={handleOpenEbook}
+                  disabled={ebookAccessMutation.isPending}
                   className="rounded-full border-2 border-forest px-6 py-2.5 font-semibold text-forest transition hover:bg-forest hover:text-paper"
                 >
-                  📱 ebook 보기
+                  {ebookAccessMutation.isPending ? "권한 확인 중..." : "📱 ebook 보기"}
                 </button>
                 {readingPercentage != null && (
                   <div className="flex flex-col gap-1">
@@ -251,8 +278,8 @@ export default function ProductDetailPage() {
 
       <EbookViewer
         isOpen={isEbookOpen}
-        onClose={() => setIsEbookOpen(false)}
-        url={book.ebookUrl}
+        onClose={handleCloseEbook}
+        url={ebookUrl}
         title={book.title}
         bookId={id}
       />

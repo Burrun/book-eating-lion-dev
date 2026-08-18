@@ -15,6 +15,7 @@ public enum BookErrorCode {
     INQUIRY_ACCESS_DENIED(HttpStatus.FORBIDDEN),
     FAQ_NOT_FOUND(HttpStatus.NOT_FOUND),
     INVALID_RECOMMENDATION_REACTION(HttpStatus.BAD_REQUEST),
+    EBOOK_ACCESS_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;

@@ -4,6 +4,7 @@ import { mockDelay } from "../mocks/delay.ts";
 import {
   mockGetBestsellers,
   mockGetBook,
+  mockGetEbookAccess,
   mockGetBooks,
   mockGetNewReleases,
   mockGetSynopsisDetail,
@@ -12,6 +13,7 @@ import {
 import type {
   ApiResponse,
   BookDetailResponse,
+  EbookAccessResponse,
   BookSummaryResponse,
   BookSynopsisDetailResponse,
   Page,
@@ -80,6 +82,15 @@ export async function getBook(bookId: number | string): Promise<Book> {
     ? await mockDelay(mockGetBook(bookId))
     : await unwrap(apiClient.get<ApiResponse<BookDetailResponse>>(`/catalog/books/${bookId}`));
   return toBook(dto);
+}
+
+// GET /api/catalog/books/{bookId}/ebook — 버튼을 누를 때 호출해 만료 시간이 짧은 URL을 받는다.
+export async function getEbookAccess(bookId: number | string): Promise<EbookAccessResponse> {
+  return USE_MOCK
+    ? await mockDelay(mockGetEbookAccess(bookId))
+    : await unwrap(
+        apiClient.get<ApiResponse<EbookAccessResponse>>(`/catalog/books/${bookId}/ebook`),
+      );
 }
 
 // GET /api/catalog/books/{bookId}/synopsis/detail — 구독 회원 전용. 줄거리는 기본 제공되고,

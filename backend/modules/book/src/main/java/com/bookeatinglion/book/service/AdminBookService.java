@@ -53,6 +53,7 @@ public class AdminBookService {
                 .coverImageUrl(request.coverImageUrl())
                 .description(request.description())
                 .detailedSynopsis(request.detailedSynopsis())
+                .epubS3Key(request.epubS3Key())
                 .saleStatus(request.saleStatus())
                 .publishedDate(request.publishedDate())
                 .salesCount(0)
@@ -82,6 +83,7 @@ public class AdminBookService {
                 request.coverImageUrl() == null ? book.getCoverImageUrl() : request.coverImageUrl(),
                 request.description() == null ? book.getDescription() : request.description(),
                 request.detailedSynopsis() == null ? book.getDetailedSynopsis() : request.detailedSynopsis(),
+                request.epubS3Key() == null ? book.getEpubS3Key() : request.epubS3Key(),
                 request.saleStatus() == null ? book.getSaleStatus() : request.saleStatus(),
                 request.publishedDate() == null ? book.getPublishedDate() : request.publishedDate());
         publishIndexUpdate(book);

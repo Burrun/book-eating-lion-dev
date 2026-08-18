@@ -380,7 +380,18 @@ function toDetail(seed: BookSeed): BookDetailResponse {
     createdAt: `${seed.publishedDate}T00:00:00`,
     updatedAt: `${seed.publishedDate}T00:00:00`,
     ebookAvailable: Boolean(seed.ebookUrl),
-    ebookUrl: seed.ebookUrl ?? null,
+  };
+}
+
+export function mockGetEbookAccess(bookId: number | string) {
+  const id = Number(bookId);
+  const seed = SEEDS.find((item) => item.id === id);
+  if (!seed) throw new Error("도서를 찾을 수 없습니다.");
+  return {
+    bookId: id,
+    ebookAvailable: Boolean(seed.ebookUrl),
+    presignedUrl: seed.ebookUrl ?? null,
+    expiresAt: null,
   };
 }
 

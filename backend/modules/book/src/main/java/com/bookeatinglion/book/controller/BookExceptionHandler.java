@@ -4,6 +4,7 @@ import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.exception.CategoryNotFoundException;
+import com.bookeatinglion.book.exception.EbookAccessUnavailableException;
 import com.bookeatinglion.book.exception.FaqNotFoundException;
 import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
 import com.bookeatinglion.book.exception.InquiryNotFoundException;
@@ -94,6 +95,12 @@ public class BookExceptionHandler {
             InvalidRecommendationReactionException e) {
         return ResponseEntity.status(BookErrorCode.INVALID_RECOMMENDATION_REACTION.getStatus())
                 .body(ApiResponse.error(BookErrorCode.INVALID_RECOMMENDATION_REACTION.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(EbookAccessUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEbookAccessUnavailable(EbookAccessUnavailableException e) {
+        return ResponseEntity.status(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.getStatus())
+                .body(ApiResponse.error(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

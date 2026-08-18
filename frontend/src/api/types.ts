@@ -46,11 +46,22 @@ export interface BookDetailResponse {
   publishedDate: string;
   createdAt: string;
   updatedAt: string;
-  // 전자책 지원 여부. GET /api/catalog/books/{bookId}/ebook 이 아직 로컬에서 확인되지 않아
-  // 임시로 상세 응답에 얹어뒀다. 실 엔드포인트 계약이 확정되면 별도 API 호출로 분리 예정
-  // (EbookViewer/ProductDetailPage는 url 문자열만 받으므로 호출부만 바꾸면 된다).
   ebookAvailable: boolean;
-  ebookUrl: string | null;
+}
+
+// GET /api/catalog/books/{bookId}/ebook
+export interface EbookAccessResponse {
+  bookId: number;
+  ebookAvailable: boolean;
+  presignedUrl: string | null;
+  expiresAt: string | null;
+}
+
+export interface ReadingProgressResponse {
+  bookId: number;
+  cfi: string;
+  percentage: number | null;
+  updatedAt: string;
 }
 
 // GET /api/catalog/books/{bookId}/synopsis/detail
