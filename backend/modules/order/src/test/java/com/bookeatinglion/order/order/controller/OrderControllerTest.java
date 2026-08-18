@@ -53,14 +53,21 @@ class OrderControllerTest {
 
     private OrderResponse orderResponse(OrderStatus status) {
         return new OrderResponse(
-                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null, null, null);
+                1L,
+                status,
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울", null, null),
+                20000,
+                List.of(),
+                null,
+                null,
+                null);
     }
 
     private OrderResponse pendingKakaoResponse() {
         return new OrderResponse(
                 1L,
                 OrderStatus.PENDING_PAYMENT,
-                new Recipient("홍길동", "010-0000-0000", "06236", "서울"),
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울", null, null),
                 20000,
                 List.of(),
                 null,

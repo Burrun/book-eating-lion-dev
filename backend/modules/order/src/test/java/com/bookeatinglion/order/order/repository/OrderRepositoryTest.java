@@ -22,7 +22,7 @@ class OrderRepositoryTest {
     private OrderRepository orderRepository;
 
     private Order order(String memberId, int totalAmount) {
-        return new Order(memberId, "홍길동", "010-0000-0000", "06236", "서울", totalAmount);
+        return new Order(memberId, "홍길동", "010-0000-0000", "06236", "서울", null, null, totalAmount);
     }
 
     @Test

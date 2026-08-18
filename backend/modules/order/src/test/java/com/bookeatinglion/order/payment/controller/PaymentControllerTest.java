@@ -47,7 +47,7 @@ class PaymentControllerTest {
         return new OrderResponse(
                 1L,
                 OrderStatus.PAID,
-                new Recipient("홍길동", "010-0000-0000", "06236", "서울"),
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울", null, null),
                 20000,
                 List.of(),
                 null,

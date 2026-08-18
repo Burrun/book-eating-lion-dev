@@ -155,11 +155,11 @@ class OrderServiceTest {
     }
 
     private Recipient recipient() {
-        return new Recipient("홍길동", "010-0000-0000", "06236", "서울시 강남구");
+        return new Recipient("홍길동", "010-0000-0000", "06236", "서울시 강남구", null, null);
     }
 
     private Order order(Long id, String memberId, int totalAmount) {
-        Order order = new Order(memberId, "홍길동", "010-0000-0000", "06236", "서울시 강남구", totalAmount);
+        Order order = new Order(memberId, "홍길동", "010-0000-0000", "06236", "서울시 강남구", null, null, totalAmount);
         ReflectionTestUtils.setField(order, "id", id);
         return order;
     }

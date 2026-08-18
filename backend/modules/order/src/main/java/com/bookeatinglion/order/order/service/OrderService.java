@@ -124,6 +124,8 @@ public class OrderService {
                     recipient.phone(),
                     recipient.postalCode(),
                     recipient.address(),
+                    recipient.addressDetail(),
+                    recipient.deliveryRequest(),
                     totalAmount));
 
             List<OrderItem> items = snapshots.stream()
