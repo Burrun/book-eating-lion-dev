@@ -24,6 +24,7 @@ data:
   # 차원·거리척도·비필터키가 어긋나면 기동 시 GetIndex 검증에서 파드가 죽는다.
   AI_VECTOR_BUCKET: "${AI_VECTOR_BUCKET}"
   AI_VECTOR_INDEX: "wiki-v1"
+  AI_RECOMMENDATION_VECTOR_INDEX: "recommendation-books-v1"
 
   # 재배포 없이 바꾸는 값들. 여기 없는 임베딩 모델·차원·거리척도는 인덱스와 짝이라
   # 일부러 뺐다 — 바꾸면 전건 재임베딩 + 인덱스 재생성이고, 임베딩 모델은 차원이 같으면

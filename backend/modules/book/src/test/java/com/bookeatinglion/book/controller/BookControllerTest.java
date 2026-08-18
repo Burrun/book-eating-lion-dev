@@ -20,6 +20,7 @@ import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.BookService;
 import com.bookeatinglion.book.service.RecentViewedBookService;
+import com.bookeatinglion.book.service.SearchHistoryService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,6 +50,9 @@ class BookControllerTest {
 
     @MockBean
     private CatalogMemberIdentity memberIdentity;
+
+    @MockBean
+    private SearchHistoryService searchHistoryService;
 
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE);

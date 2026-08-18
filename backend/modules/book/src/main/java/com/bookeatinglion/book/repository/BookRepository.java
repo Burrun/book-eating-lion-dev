@@ -40,4 +40,9 @@ public interface BookRepository extends JpaRepository<Book, Long> {
     List<Book> findBySaleStatusAndIsDeletedFalseOrderBySalesCountDesc(SaleStatus saleStatus, Pageable pageable);
 
     List<Book> findBySaleStatusAndIsDeletedFalseOrderByPublishedDateDesc(SaleStatus saleStatus, Pageable pageable);
+
+    List<Book> findBySaleStatusAndIsDeletedFalseOrderBySalesCountDescAverageRatingDesc(
+            SaleStatus saleStatus, Pageable pageable);
+
+    List<Book> findBySaleStatusAndIsDeletedFalse(SaleStatus saleStatus);
 }

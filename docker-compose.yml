@@ -78,6 +78,7 @@ services:
       # 재고 조회 대상. order 가 죽어 있어도 catalog 는 뜬다(fallback).
       SERVICES_ORDER_URL: http://order:8080
       SERVICES_MEMBER_URL: http://member:8080
+      SERVICES_AI_URL: http://ai:8080
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -149,6 +150,13 @@ services:
       # 같은 클러스터의 다른 스키마다. 격리는 ai_svc 계정 권한이 만든다.
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bookdb?currentSchema=ai_db
       REDIS_HOST: redis
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_BEDROCK_REGION: ${AWS_BEDROCK_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AI_VECTOR_BUCKET: ${AI_VECTOR_BUCKET:-final-team3-wiki-vectors-prod}
+      AI_RECOMMENDATION_VECTOR_INDEX: ${AI_RECOMMENDATION_VECTOR_INDEX:-recommendation-books-v1}
   frontend:
     build:
       context: ./frontend

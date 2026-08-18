@@ -11,4 +11,6 @@ public interface RecentViewedBookRepository extends JpaRepository<RecentViewedBo
     Optional<RecentViewedBook> findByMemberIdAndBook_BookId(String memberId, Long bookId);
 
     List<RecentViewedBook> findByMemberIdOrderByViewedAtDesc(String memberId, Pageable pageable);
+
+    List<RecentViewedBook> findByMemberId(String memberId);
 }

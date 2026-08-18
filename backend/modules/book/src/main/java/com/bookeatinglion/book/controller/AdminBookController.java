@@ -58,4 +58,9 @@ public class AdminBookController {
         adminBookService.delete(bookId);
         return ApiResponse.success(null);
     }
+
+    @PostMapping("/recommendation-index/rebuild")
+    public ApiResponse<Integer> rebuildRecommendationIndex() {
+        return ApiResponse.success(adminBookService.reindexRecommendations());
+    }
 }

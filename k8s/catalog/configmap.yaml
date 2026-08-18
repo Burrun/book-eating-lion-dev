@@ -14,6 +14,7 @@ data:
 
   # 서비스 간 동기 통신 주소. Eureka 없이 K8s Service DNS 가 해결한다(§4).
   SERVICES_ORDER_URL: "http://order-service.lion-app.svc.cluster.local:8080"
+  SERVICES_AI_URL: "http://ai-rag.lion-app.svc.cluster.local:8080"
 
   REDIS_HOST: "${REDIS_HOST}"
 
