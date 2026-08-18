@@ -6,6 +6,7 @@ import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -40,7 +41,8 @@ public class ReviewPermissionStreamConfig {
 
     @Bean
     public StreamSubscriptionLifecycle reviewPermissionSubscription(
-            StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
+            @Qualifier("reviewPermissionContainer")
+                    StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             StringRedisTemplate redisTemplate,
             ReviewPermissionConsumer consumer) {
         return new StreamSubscriptionLifecycle(container, redisTemplate, consumer);
