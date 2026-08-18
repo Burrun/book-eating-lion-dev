@@ -77,6 +77,16 @@ export default function ProductDetailPage() {
     },
   });
 
+  function handleOpenEbook() {
+    setEbookUrl(null);
+    ebookAccessMutation.mutate();
+  }
+
+  function handleCloseEbook() {
+    setIsEbookOpen(false);
+    setEbookUrl(null);
+  }
+
   // addToCart(api/cart.js)가 로그인/게스트 분기를 내부에서 이미 처리하므로 여기서는 그대로 호출만 한다.
   const addToCartMutation = useMutation({
     mutationFn: () => addToCart(Number(id), 1),
@@ -162,7 +172,7 @@ export default function ProductDetailPage() {
             {book.ebookAvailable ? (
               <div className="flex flex-col gap-1.5">
                 <button
-                  onClick={() => ebookAccessMutation.mutate()}
+                  onClick={handleOpenEbook}
                   disabled={ebookAccessMutation.isPending}
                   className="rounded-full border-2 border-forest px-6 py-2.5 font-semibold text-forest transition hover:bg-forest hover:text-paper"
                 >
@@ -268,7 +278,7 @@ export default function ProductDetailPage() {
 
       <EbookViewer
         isOpen={isEbookOpen}
-        onClose={() => setIsEbookOpen(false)}
+        onClose={handleCloseEbook}
         url={ebookUrl}
         title={book.title}
         bookId={id}

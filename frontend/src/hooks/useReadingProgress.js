@@ -14,20 +14,21 @@ function readProgress(bookId) {
     if (typeof parsed?.cfi !== "string") return null;
     // percentage는 구버전 데이터엔 없을 수 있다 (optional).
     const percentage = typeof parsed?.percentage === "number" ? parsed.percentage : null;
-    return { cfi: parsed.cfi, percentage };
+    const updatedAt = typeof parsed?.updatedAt === "string" ? parsed.updatedAt : null;
+    return { cfi: parsed.cfi, percentage, updatedAt };
   } catch {
     return null;
   }
 }
 
-function writeProgress(bookId, cfi, percentage) {
+function writeProgress(bookId, cfi, percentage, updatedAt = new Date().toISOString()) {
   try {
     localStorage.setItem(
       `${STORAGE_KEY_PREFIX}${bookId}`,
       JSON.stringify({
         cfi,
         percentage: typeof percentage === "number" ? percentage : null,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
       }),
     );
   } catch {
@@ -60,7 +61,21 @@ export function useReadingProgress(bookId) {
     unwrap(apiClient.get(`/catalog/books/${bookId}/reading-progress`))
       .then((serverProgress) => {
         if (cancelled || !serverProgress) return;
-        writeProgress(bookId, serverProgress.cfi, serverProgress.percentage);
+        const localProgress = readProgress(bookId);
+        const serverUpdatedAt = Date.parse(serverProgress.updatedAt ?? "");
+        const localUpdatedAt = Date.parse(localProgress?.updatedAt ?? "");
+        const serverIsNewer =
+          !localProgress ||
+          (Number.isFinite(serverUpdatedAt) &&
+            (!Number.isFinite(localUpdatedAt) || serverUpdatedAt > localUpdatedAt));
+        if (!serverIsNewer) return;
+
+        writeProgress(
+          bookId,
+          serverProgress.cfi,
+          serverProgress.percentage,
+          serverProgress.updatedAt,
+        );
         setProgress(serverProgress);
       })
       .catch(() => {
@@ -83,7 +98,11 @@ export function useReadingProgress(bookId) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         writeProgress(bookId, cfi, percentage);
-        setProgress({ cfi, percentage: typeof percentage === "number" ? percentage : null });
+        setProgress({
+          cfi,
+          percentage: typeof percentage === "number" ? percentage : null,
+          updatedAt: new Date().toISOString(),
+        });
         if (!USE_MOCK && isLoggedIn()) {
           unwrap(
             apiClient.put(`/catalog/books/${bookId}/reading-progress`, { cfi, percentage }),

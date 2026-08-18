@@ -35,10 +35,20 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
   const [location, setLocation] = useState(initialCfi);
   const [isIndexing, setIsIndexing] = useState(false);
   const epubBookRef = useRef(null);
+  const initialCfiBookRef = useRef(null);
+  const hasUserNavigatedRef = useRef(false);
 
   useEffect(() => {
-    if (initialCfi) setLocation(initialCfi);
-  }, [initialCfi]);
+    hasUserNavigatedRef.current = false;
+    initialCfiBookRef.current = null;
+    setLocation(null);
+  }, [bookId]);
+
+  useEffect(() => {
+    if (initialCfiBookRef.current === bookId || hasUserNavigatedRef.current || !initialCfi) return;
+    setLocation(initialCfi);
+    initialCfiBookRef.current = bookId;
+  }, [bookId, initialCfi]);
 
   // react-reader/epub.js locations(=페이지 인덱스)를 진행률 계산에 쓴다. 책마다 한 번만
   // generate()하면 되므로 localStorage에 캐싱해서 재방문 시 load()로 복원한다.
@@ -120,6 +130,7 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
           title={title}
           location={location}
           locationChanged={(cfi) => {
+            hasUserNavigatedRef.current = true;
             setLocation(cfi);
             const raw = epubBookRef.current?.locations?.percentageFromCfi(cfi);
             const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;
