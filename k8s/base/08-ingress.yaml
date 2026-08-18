@@ -6,6 +6,9 @@
 # ALB Ingress 의 경로 라우팅으로 충분하고, 게이트웨이를 추가하면 SPOF 만 하나 늘기 때문이다(§4).
 #
 # 규칙은 위에서부터 매칭된다. 더 구체적인 경로를 먼저 둘 것.
+#
+# nginx/default.conf 와 반드시 같은 규칙이어야 한다(둘 다 전체 컨트롤러를 전수 스캔해
+# 대조했다) — 한쪽만 고치면 "로컬에선 되는데 클러스터에선 404"(또는 그 반대)가 난다.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -26,13 +29,6 @@ spec:
           # --- ai-service: 경로로 Deployment 가 갈린다 (판단 ④) ---
           # 서비스는 1개지만 Deployment 는 2개이고, Service 도 워크로드별로 나눠
           # 각각 다른 Pod 집합을 가리킨다. 부하가 서로 섞이지 않는 지점이다.
-          - path: /api/ai/ask
-            pathType: Prefix
-            backend:
-              service:
-                name: ai-rag
-                port:
-                  number: 8080
           - path: /api/ai/lion
             pathType: Prefix
             backend:
@@ -41,6 +37,17 @@ spec:
                 port:
                   number: 8080
           - path: /api/ai/bot
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-bot
+                port:
+                  number: 8080
+          # 1:1 상담 채팅 WebSocket. 티켓 발급(/api/ai/bot/chat/ticket)과 같은
+          # 워크로드(ai-bot)로 보낸다 — 상담 채팅 기능 하나를 두 Pod 집합에
+          # 걸치지 않기 위해서다. ingress-nginx 는 별도 어노테이션 없이도
+          # WebSocket 업그레이드를 그대로 프록시한다.
+          - path: /ws/ai/chat
             pathType: Prefix
             backend:
               service:
@@ -102,30 +109,13 @@ spec:
                   number: 8080
 
           # --- catalog-service ---
-          # 찜/최근본상품이 /api/members/me/* 가 아닌 이유가 여기 있다.
-          # 같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 된다.
-          - path: /api/books
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/reviews
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/wishlist
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/recent-books
+          # 도서/리뷰/찜/최근본상품/카테고리/FAQ/상품문의/추천/이어읽기/관리자 API
+          # 전부 컨트롤러가 /api/catalog/** 아래 있다(전수 스캔 결과 예외 없음) —
+          # 서비스 접두사 하나로 라우팅한다. 예전엔 /api/books, /api/reviews,
+          # /api/wishlist, /api/recent-books 를 개별 path 로 뒀었는데, 지금 컨트롤러
+          # 경로(/api/catalog/books 등)와 더 이상 맞지 않는 죽은 규칙이었다 — 실제로
+          # 매칭되는 요청이 없었다(프론트엔드도 이미 /api/catalog/* 로 호출 중).
+          - path: /api/catalog
             pathType: Prefix
             backend:
               service:
@@ -135,3 +125,5 @@ spec:
 
 # /internal/** 은 여기에 없다. 의도적이다 — 서비스 간 전용 경로라
 # 외부에서 도달할 수 없어야 한다(09-networkpolicy.yaml 이 2차 방어선).
+# 전수 스캔 기준 해당 경로: /internal/cards/**(member), /internal/members/**(member),
+# /internal/inventory/**(order), /internal/ai/recommendations/**(ai).
