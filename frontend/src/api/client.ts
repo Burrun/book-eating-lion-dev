@@ -6,7 +6,12 @@ export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
 });
 
-// BOO-23 로그인 연동: authStorage(localStorage)에 저장된 토큰을 매 요청마다 자동으로 실어 보낸다.
+// 인증은 이 인터셉터 하나로 끝난다. authStorage(localStorage)에 저장된 토큰을
+// 매 요청에 실어 보내고, 백엔드는 JWT 의 sub 클레임으로 회원을 식별한다.
+//
+// 예전에는 X-Member-Id 헤더로 사용자를 넘겼으나 지금은 어느 서비스도 그 헤더를 읽지
+// 않는다 — catalog 는 CatalogMemberIdentity, 나머지는 SecurityUtils.currentMemberSub()
+// 가 모두 jwt.getSubject() 를 쓴다.
 apiClient.interceptors.request.use((config) => {
   const tokens = readTokens();
   if (tokens?.accessToken) {
@@ -14,19 +19,6 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
-
-// 백엔드는 아직 로그인 연동 전이라 X-Member-Id 헤더로 사용자를 식별한다.
-// (리뷰 작성/삭제, 찜 추가/삭제, /members/me/* 에서 요구)
-// JWT(Cognito) 로그인이 프론트에 붙으면 accessToken 쪽으로 대체한다.
-export function setMemberId(memberId: number | null) {
-  if (memberId === null) delete apiClient.defaults.headers.common["X-Member-Id"];
-  else apiClient.defaults.headers.common["X-Member-Id"] = String(memberId);
-}
-
-export function setAccessToken(token: string | null) {
-  if (token === null) delete apiClient.defaults.headers.common["Authorization"];
-  else apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-}
 
 // ApiResponse<T> 껍데기를 벗겨 data만 반환한다.
 // success: false (HTTP 200이어도 논리적으로 실패한 응답)면 error 정보로 예외를 던져

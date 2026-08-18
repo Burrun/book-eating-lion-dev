@@ -36,6 +36,8 @@ class MemberServiceTest {
 
         assertThat(response.email()).isEqualTo("lion@bookeating.com");
         assertThat(response.name()).isEqualTo("책먹는사자");
+        // id 는 DB PK 가 아니라 Cognito sub 여야 한다.
+        assertThat(response.id()).isEqualTo("sub-1");
     }
 
     @Test

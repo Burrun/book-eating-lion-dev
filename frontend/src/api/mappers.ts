@@ -52,18 +52,20 @@ export function toBook(dto: BookDetailResponse): Book {
     rating: DEFAULT_RATING, // 백엔드에 평점 없음
     reviewCount: DEFAULT_REVIEW_COUNT, // 리뷰 목록 API의 totalElements로 별도 주입
     shippingNote: DEFAULT_SHIPPING_NOTE, // 백엔드에 배송 정책 없음
-    synopsis: dto.description, // 무료 회원용 줄거리
+    synopsis: dto.description ?? "", // 무료 회원용 줄거리. 백엔드에서 null 가능
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다
     reviews: [], // 별도 API(/books/{id}/reviews)에서 toReview로 채운다
-    ebookAvailable: dto.ebookAvailable,
-    ebookUrl: dto.ebookUrl,
+    // 백엔드에 전자책 필드가 없다 — 실 API 모드에서는 항상 이 기본값이다(types.ts 참고).
+    ebookAvailable: dto.ebookAvailable ?? false,
+    ebookUrl: dto.ebookUrl ?? null,
   };
 }
 
 // 백엔드는 웹툰 컷 배열이 아니라 줄거리 텍스트 하나만 준다.
 // 컷 분할 규칙이 정해지기 전까지 문단 단위로 나눠 임시 매핑한다.
 export function toWebtoonCuts(dto: BookSynopsisDetailResponse): WebtoonCut[] {
-  return dto.detailedSynopsis
+  // detailedSynopsis 는 nullable 이다. 아직 안 채운 책이면 컷이 없다.
+  return (dto.detailedSynopsis ?? "")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)

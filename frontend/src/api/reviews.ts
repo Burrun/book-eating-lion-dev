@@ -23,7 +23,8 @@ export async function getReviews(
   return toPaged(page, toReview);
 }
 
-// POST /api/catalog/books/{bookId}/reviews — 리뷰 작성 (X-Member-Id 필요)
+// POST /api/catalog/books/{bookId}/reviews — 리뷰 작성 (로그인 필요)
+// 구매 확정 시 발급된 review_permissions 가 있어야 통과한다.
 export async function createReview(bookId: number | string, body: ReviewRequest): Promise<Review> {
   return toReview(
     await unwrap(
@@ -32,7 +33,7 @@ export async function createReview(bookId: number | string, body: ReviewRequest)
   );
 }
 
-// DELETE /api/catalog/reviews/{reviewId} — 리뷰 삭제 (작성자 본인만, X-Member-Id 필요)
+// DELETE /api/catalog/reviews/{reviewId} — 리뷰 삭제 (작성자 본인만, 로그인 필요)
 export async function deleteReview(reviewId: number | string): Promise<void> {
   await unwrap(apiClient.delete<ApiResponse<void>>(`/catalog/reviews/${reviewId}`));
 }

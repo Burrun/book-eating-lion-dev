@@ -17,6 +17,35 @@ servers:
     description: 클러스터 내부
 
 paths:
+  /api/auth/signup:
+    post:
+      summary: 회원가입
+      description: Cognito 사용자 풀 등록과 members 행 생성이 함께 일어난다.
+      operationId: signup
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 8 }
+                name: { type: string }
+      responses:
+        "200":
+          description: 가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupEnvelope"
+        "400":
+          description: 입력값 오류 또는 비밀번호 정책 위반
+        "409":
+          description: 이미 가입된 이메일
+
   /api/auth/login:
     post:
       summary: 로그인
@@ -42,6 +71,30 @@ paths:
         "401":
           description: 인증 실패
 
+  /api/auth/refresh:
+    post:
+      summary: 액세스 토큰 재발급
+      operationId: refresh
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: 재발급 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenEnvelope"
+        "401":
+          description: 리프레시 토큰 만료 또는 무효
+
   /api/members/me:
     get:
       summary: 내 정보
@@ -52,6 +105,34 @@ paths:
       responses:
         "200":
           description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberEnvelope"
+    patch:
+      summary: 내 정보 수정
+      description: null 인 필드는 변경하지 않는다.
+      operationId: updateMe
+      tags: [members]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, nullable: true }
+                phoneNumber: { type: string, nullable: true }
+                gender:
+                  type: string
+                  nullable: true
+                  enum: [MALE, FEMALE]
+                birthDate: { type: string, format: date, nullable: true }
+      responses:
+        "200":
+          description: 수정 성공
           content:
             application/json:
               schema:
@@ -297,7 +378,25 @@ components:
           properties:
             accessToken: { type: string }
             refreshToken: { type: string }
+            tokenType: { type: string, example: Bearer }
             expiresIn: { type: integer, example: 3600 }
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    SignupEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          type: object
+          required: [memberId, email, name]
+          properties:
+            # Cognito sub (PR #36).
+            memberId: { type: string, format: uuid }
+            email: { type: string, format: email }
+            name: { type: string }
         error:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true
@@ -313,17 +412,26 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true
 
+    # MemberResponse.java 와 1:1. 등급(grade)·포인트(point)·닉네임(nickname)은
+    # 등급제/포인트제 폐지(76c7362)로 사라졌다.
     Member:
       type: object
+      required: [id, email, name, role]
       properties:
-        id: { type: integer, format: int64 }
+        # Cognito sub. PK 가 숫자에서 sub 로 바뀌었다(PR #36).
+        # 다른 서비스가 memberId 로 받는 값과 같은 것이어야 한다.
+        id: { type: string, format: uuid }
         email: { type: string, format: email }
         name: { type: string }
-        nickname: { type: string }
-        grade:
+        phoneNumber: { type: string, nullable: true }
+        gender:
           type: string
-          enum: [BASIC, PREMIUM]
-        point: { type: integer }
+          nullable: true
+          enum: [MALE, FEMALE]
+        birthDate: { type: string, format: date, nullable: true }
+        role:
+          type: string
+          enum: [USER, ADMIN]
 
     Address:
       type: object
@@ -370,7 +478,11 @@ components:
         monthlyLimit:
           type: integer
           minimum: 1000
-          default: 1000000
+          nullable: true
+          # 생략하면 서버가 1,000,000 을 넣는다(CardService.DEFAULT_MONTHLY_LIMIT).
+          # `default:` 로 적지 않는 이유는 코드 생성기가 그걸 "항상 존재함"으로 읽어
+          # 요청 바디에서 필수 필드가 되기 때문이다 — 실제로는 생략 가능하다.
+          example: 1000000
 
     ChangeCardStatusRequest:
       type: object
@@ -382,6 +494,8 @@ components:
 
     Card:
       type: object
+      required:
+        [cardId, maskedCardNumber, cardStatus, monthlyLimit, currentUsage, issuedDate, expiryDate]
       properties:
         cardId:
           type: integer
