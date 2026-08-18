@@ -15,6 +15,7 @@ interface ChatMessageListProps {
   chatState: ChatRoomState;
   onQuickReply: (text: string) => void;
   onReconnect: () => void;
+  onCancelWaiting: () => void;
 }
 
 export default function ChatMessageList({
@@ -23,6 +24,7 @@ export default function ChatMessageList({
   chatState,
   onQuickReply,
   onReconnect,
+  onCancelWaiting,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +45,16 @@ export default function ChatMessageList({
           className="mb-3 w-full shrink-0 rounded-lg bg-[var(--color-coral)]/10 px-3 py-2 text-xs font-medium text-[var(--color-coral)] transition-colors hover:bg-[var(--color-coral)]/20"
         >
           연결이 끊어졌어요 · 다시 연결하기
+        </button>
+      )}
+
+      {chatState === "WAITING" && connectionStatus === "CONNECTED" && (
+        <button
+          type="button"
+          onClick={onCancelWaiting}
+          className="mb-3 w-full shrink-0 rounded-lg bg-[var(--color-honey)]/15 px-3 py-2 text-xs font-medium text-[var(--color-forest)] transition-colors hover:bg-[var(--color-honey)]/25"
+        >
+          상담사를 기다리는 중이에요 · 대기 취소하고 봇과 계속 대화
         </button>
       )}
 

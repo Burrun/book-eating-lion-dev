@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageCircle, X } from "lucide-react";
-import { useAuth } from "../../context/AuthContext.jsx";
+import { MessageCircle, RotateCcw, X } from "lucide-react";
 import { useWebSocketChat } from "../../hooks/useWebSocketChat.ts";
 import ChatHeader from "./ChatHeader.tsx";
 import ChatMessageList from "./ChatMessageList.tsx";
@@ -10,12 +8,19 @@ import ChatInputBar from "./ChatInputBar.tsx";
 
 // 사이트 전역에 뜨는 1:1 실시간 상담 위젯. 패널이 열려 있을 때만 소켓을 연결한다.
 export default function ChatContainer() {
-  const { isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState("");
 
-  const { connectionStatus, chatState, messages, sendMessage, escalate, closeChat, reconnect } =
-    useWebSocketChat({ enabled: isOpen && isAuthenticated });
+  const {
+    connectionStatus,
+    chatState,
+    messages,
+    sendMessage,
+    escalate,
+    closeChat,
+    restartChat,
+    reconnect,
+  } = useWebSocketChat({ enabled: isOpen });
 
   function handleSend() {
     if (!draft.trim()) return;
@@ -24,8 +29,8 @@ export default function ChatContainer() {
   }
 
   // WAITING 구간엔 ASK(봇 전용)도 SAY(LIVE 전용)도 서버가 받아주지 않는다 — 입력을 막아둔다.
-  const inputDisabled =
-    connectionStatus !== "CONNECTED" || chatState === "CLOSED" || chatState === "WAITING";
+  // CLOSED는 입력창 자체를 "새 대화 시작" CTA로 바꿔치기하므로 여기서 더 막을 필요가 없다.
+  const inputDisabled = connectionStatus !== "CONNECTED" || chatState === "WAITING";
 
   return (
     <div className="fixed right-5 bottom-5 z-[90] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
@@ -40,38 +45,40 @@ export default function ChatContainer() {
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="flex h-[min(640px,calc(100vh-7rem))] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl bg-[var(--color-paper)] shadow-[0_24px_48px_rgba(27,59,54,0.25)]"
           >
-            {!isAuthenticated ? (
-              <LoginPrompt onNavigate={() => setIsOpen(false)} />
+            <ChatHeader
+              connectionStatus={connectionStatus}
+              chatState={chatState}
+              onEscalate={escalate}
+              onEndChat={closeChat}
+              onClose={() => setIsOpen(false)}
+            />
+            <ChatMessageList
+              messages={messages}
+              connectionStatus={connectionStatus}
+              chatState={chatState}
+              onQuickReply={sendMessage}
+              onReconnect={reconnect}
+              onCancelWaiting={restartChat}
+            />
+            {chatState === "CLOSED" ? (
+              <div className="shrink-0 border-t border-[var(--color-forest)]/10 bg-[var(--color-paper)] p-3">
+                <button
+                  type="button"
+                  onClick={restartChat}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[var(--color-forest)] px-4 py-2.5 text-sm font-semibold text-[var(--color-paper)] transition hover:bg-[var(--color-forest-light)]"
+                >
+                  <RotateCcw size={15} />
+                  AI 사자봇과 새 대화 시작
+                </button>
+              </div>
             ) : (
-              <>
-                <ChatHeader
-                  connectionStatus={connectionStatus}
-                  chatState={chatState}
-                  onEscalate={escalate}
-                  onEndChat={closeChat}
-                  onClose={() => setIsOpen(false)}
-                />
-                <ChatMessageList
-                  messages={messages}
-                  connectionStatus={connectionStatus}
-                  chatState={chatState}
-                  onQuickReply={sendMessage}
-                  onReconnect={reconnect}
-                />
-                <ChatInputBar
-                  value={draft}
-                  onChange={setDraft}
-                  onSend={handleSend}
-                  disabled={inputDisabled}
-                  placeholder={
-                    chatState === "CLOSED"
-                      ? "상담이 종료됐어요"
-                      : chatState === "WAITING"
-                        ? "상담사를 연결하는 중이에요..."
-                        : "메시지를 입력하세요"
-                  }
-                />
-              </>
+              <ChatInputBar
+                value={draft}
+                onChange={setDraft}
+                onSend={handleSend}
+                disabled={inputDisabled}
+                placeholder={chatState === "WAITING" ? "상담사를 연결하는 중이에요..." : "메시지를 입력하세요"}
+              />
             )}
           </motion.div>
         )}
@@ -86,24 +93,6 @@ export default function ChatContainer() {
       >
         {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
       </motion.button>
-    </div>
-  );
-}
-
-function LoginPrompt({ onNavigate }: { onNavigate: () => void }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-      <span className="text-4xl">🦁</span>
-      <p className="text-sm font-medium text-[var(--color-ink)]">
-        실시간 상담은 로그인 후 이용할 수 있어요
-      </p>
-      <Link
-        to="/login"
-        onClick={onNavigate}
-        className="rounded-full bg-[var(--color-forest)] px-5 py-2 text-sm font-semibold text-[var(--color-paper)] transition hover:bg-[var(--color-forest-light)]"
-      >
-        로그인하러 가기
-      </Link>
     </div>
   );
 }
