@@ -17,6 +17,8 @@ const backendProxy = {
   "/api/reviews": { target: "http://localhost:8081", changeOrigin: true },
   "/api/wishlist": { target: "http://localhost:8081", changeOrigin: true },
   "/api/recent-books": { target: "http://localhost:8081", changeOrigin: true },
+  // /ws/ai/chat — 1:1 상담 WebSocket. ai-api(8084)가 /api/ai/** 와 함께 처리한다.
+  "/ws/ai": { target: "ws://localhost:8084", ws: true, changeOrigin: true },
 };
 
 export default defineConfig({

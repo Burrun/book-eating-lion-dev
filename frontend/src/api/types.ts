@@ -184,6 +184,13 @@ export interface ChangeCartItemQuantityRequest {
 }
 // DELETE /api/cart/{cartItemId} — 204 No Content (응답 바디 없음, 별도 타입 없음)
 
+// --- AI 상담 (Chat) ---
+// POST /api/ai/bot/chat/ticket — /ws/ai/chat 접속용 1회성 교환권
+export interface ChatTicketResponse {
+  ticket: string;
+  expiresInSeconds: number;
+}
+
 // --- 주문 (Order) ---
 // 이번 스코프는 주문 생성 + 카드/무통장 결제만. KAKAOPAY도 같은 enum 값을 쓰지만
 // 결제 승인(POST /api/payments/kakao/approve)은 별도 작업으로 미룬다.
