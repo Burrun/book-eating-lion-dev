@@ -9,6 +9,7 @@ import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getMyCards } from "../api/cards.ts";
 import { getMyAddresses } from "../api/addresses.ts";
+import { fetchCoupons } from "../api/mypage.js";
 import { createOrder } from "../api/orders.js";
 import { openDaumPostcode } from "../utils/daumPostcode.js";
 
@@ -73,8 +74,11 @@ export default function Checkout() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [cards, setCards] = useState(null);
   const [addresses, setAddresses] = useState(null);
+  const [coupons, setCoupons] = useState(null);
   // null이면 "새 배송지 입력" 모드. 값이 있으면 그 id의 저장된 배송지를 쓰는 중이다.
   const [selectedAddressId, setSelectedAddressId] = useState(null);
+  // null이면 쿠폰 미사용.
+  const [selectedCouponId, setSelectedCouponId] = useState(null);
 
   // Cart.jsx에서 "주문/결제하기" 클릭 시 선택된 상품 목록을 state로 넘겨준다.
   // 새로고침 등으로 state 없이 직접 들어오면 아래 렌더링에서 안내 후 장바구니로 돌려보낸다.
@@ -94,14 +98,17 @@ export default function Checkout() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getMyCards(), getMyAddresses()]).then(([cardsData, addressesData]) => {
-      if (ignore) return;
-      setCards(cardsData);
-      setAddresses(addressesData);
-      // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
-      const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
-      if (preselected) applyAddress(preselected);
-    });
+    Promise.all([getMyCards(), getMyAddresses(), fetchCoupons()]).then(
+      ([cardsData, addressesData, couponsData]) => {
+        if (ignore) return;
+        setCards(cardsData);
+        setAddresses(addressesData);
+        setCoupons(couponsData);
+        // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
+        const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
+        if (preselected) applyAddress(preselected);
+      },
+    );
     return () => {
       ignore = true;
     };
@@ -125,7 +132,7 @@ export default function Checkout() {
     );
   }
 
-  if (cards === null || addresses === null) {
+  if (cards === null || addresses === null || coupons === null) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
@@ -140,7 +147,11 @@ export default function Checkout() {
     subtotal >= FREE_SHIPPING_THRESHOLD
       ? 0
       : Math.max(...checkoutItems.map((item) => item.shippingFee ?? 3000));
-  const finalTotal = subtotal + shippingFee;
+
+  const selectedCoupon = coupons.find((c) => c.memberCouponId === selectedCouponId) ?? null;
+  // 백엔드(OrderService.createOrder)도 할인을 상품 소계에서만 빼고 배송비는 건드리지 않는다.
+  const couponDiscount = selectedCoupon ? Math.min(selectedCoupon.discountAmount, subtotal) : 0;
+  const finalTotal = Math.max(subtotal - couponDiscount, 0) + shippingFee;
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === paymentMethod);
 
@@ -215,8 +226,7 @@ export default function Checkout() {
     try {
       const order = await createOrder({
         items: checkoutItems.map((item) => ({ bookId: item.bookId, quantity: item.quantity })),
-        // 이번 스코프는 쿠폰 선택 UI를 만들지 않아 항상 null로 보낸다.
-        memberCouponId: null,
+        memberCouponId: selectedCouponId ? Number(selectedCouponId) : null,
         recipient: {
           name: form.receiver,
           phone: form.phone,
@@ -401,6 +411,57 @@ export default function Checkout() {
             </div>
           </section>
 
+          {/* 쿠폰 */}
+          {coupons.length > 0 && (
+            <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+              <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">쿠폰</h2>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCouponId(null)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-3 text-sm font-medium transition-colors ${
+                    selectedCouponId === null
+                      ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10 text-[var(--color-forest)]"
+                      : "border-[var(--color-forest)]/20 text-[var(--color-ink)] opacity-60 hover:border-[var(--color-honey)]/50"
+                  }`}
+                >
+                  쿠폰 사용 안 함
+                </button>
+                {coupons.map((coupon) => {
+                  const isChosen = selectedCouponId === coupon.memberCouponId;
+                  const isEligible = subtotal >= coupon.minimumOrderAmount;
+                  return (
+                    <button
+                      key={coupon.memberCouponId}
+                      type="button"
+                      disabled={!isEligible}
+                      onClick={() => setSelectedCouponId(coupon.memberCouponId)}
+                      className={`flex flex-col gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                        !isEligible
+                          ? "cursor-not-allowed border-[var(--color-forest)]/10 bg-[var(--color-forest)]/5 opacity-40"
+                          : isChosen
+                            ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                            : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-[var(--color-ink)]">
+                        {coupon.couponName}
+                      </span>
+                      <span className="text-xs text-[var(--color-coral)]">
+                        {coupon.discountAmount.toLocaleString()}원 할인
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-50">
+                        {isEligible
+                          ? `~${coupon.expiresAt?.slice(0, 10)}까지`
+                          : `최소주문금액 ${coupon.minimumOrderAmount.toLocaleString()}원`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* 결제수단 */}
           <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
             <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">결제 수단</h2>
@@ -540,6 +601,11 @@ export default function Checkout() {
 
             <dl className="mt-4 space-y-2.5 text-sm">
               <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
+              <Row
+                label="쿠폰 할인"
+                value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
+                tone={couponDiscount > 0 ? "coral" : undefined}
+              />
               <Row
                 label="배송비"
                 value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}
