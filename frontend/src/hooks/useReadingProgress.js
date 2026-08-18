@@ -6,34 +6,65 @@ const STORAGE_KEY_PREFIX = "reading-progress:";
 const SAVE_DEBOUNCE_MS = 500;
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
+function shouldSyncWithServer() {
+  return !USE_MOCK && isLoggedIn();
+}
+
+function createProgress({ cfi, percentage, updatedAt = null }) {
+  return {
+    cfi,
+    percentage: typeof percentage === "number" ? percentage : null,
+    updatedAt: typeof updatedAt === "string" ? updatedAt : null,
+  };
+}
+
+function createLocalProgress(cfi, percentage) {
+  return createProgress({ cfi, percentage, updatedAt: new Date().toISOString() });
+}
+
+function pickNewerProgress(localProgress, serverProgress) {
+  if (!serverProgress) return localProgress;
+
+  const normalizedServer = createProgress(serverProgress);
+  const serverUpdatedAt = Date.parse(normalizedServer.updatedAt ?? "");
+  const localUpdatedAt = Date.parse(localProgress?.updatedAt ?? "");
+  const serverIsNewer =
+    !localProgress ||
+    (Number.isFinite(serverUpdatedAt) &&
+      (!Number.isFinite(localUpdatedAt) || serverUpdatedAt > localUpdatedAt));
+
+  return serverIsNewer ? normalizedServer : localProgress;
+}
+
 function readProgress(bookId) {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${bookId}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.cfi !== "string") return null;
-    // percentage는 구버전 데이터엔 없을 수 있다 (optional).
-    const percentage = typeof parsed?.percentage === "number" ? parsed.percentage : null;
-    const updatedAt = typeof parsed?.updatedAt === "string" ? parsed.updatedAt : null;
-    return { cfi: parsed.cfi, percentage, updatedAt };
+    // percentage와 updatedAt은 구버전 데이터엔 없을 수 있다 (optional).
+    return createProgress(parsed);
   } catch {
     return null;
   }
 }
 
-function writeProgress(bookId, cfi, percentage, updatedAt = new Date().toISOString()) {
+function writeProgress(bookId, progress) {
   try {
-    localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}${bookId}`,
-      JSON.stringify({
-        cfi,
-        percentage: typeof percentage === "number" ? percentage : null,
-        updatedAt,
-      }),
-    );
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}${bookId}`, JSON.stringify(progress));
   } catch {
     // 용량 초과, 파싱 에러, 프라이빗 모드 등은 조용히 무시한다.
   }
+}
+
+async function syncServerProgress(bookId) {
+  const serverProgress = await unwrap(apiClient.get(`/catalog/books/${bookId}/reading-progress`));
+  const localProgress = readProgress(bookId);
+  const newerProgress = pickNewerProgress(localProgress, serverProgress);
+  if (!newerProgress || newerProgress === localProgress) return null;
+
+  writeProgress(bookId, newerProgress);
+  return newerProgress;
 }
 
 /**
@@ -56,27 +87,11 @@ export function useReadingProgress(bookId) {
   }, [bookId]);
 
   useEffect(() => {
-    if (!bookId || USE_MOCK || !isLoggedIn()) return;
+    if (!bookId || !shouldSyncWithServer()) return;
     let cancelled = false;
-    unwrap(apiClient.get(`/catalog/books/${bookId}/reading-progress`))
-      .then((serverProgress) => {
-        if (cancelled || !serverProgress) return;
-        const localProgress = readProgress(bookId);
-        const serverUpdatedAt = Date.parse(serverProgress.updatedAt ?? "");
-        const localUpdatedAt = Date.parse(localProgress?.updatedAt ?? "");
-        const serverIsNewer =
-          !localProgress ||
-          (Number.isFinite(serverUpdatedAt) &&
-            (!Number.isFinite(localUpdatedAt) || serverUpdatedAt > localUpdatedAt));
-        if (!serverIsNewer) return;
-
-        writeProgress(
-          bookId,
-          serverProgress.cfi,
-          serverProgress.percentage,
-          serverProgress.updatedAt,
-        );
-        setProgress(serverProgress);
+    syncServerProgress(bookId)
+      .then((newerProgress) => {
+        if (!cancelled && newerProgress) setProgress(newerProgress);
       })
       .catch(() => {
         // 네트워크 장애 시 로컬 캐시로 계속 읽을 수 있게 둔다.
@@ -97,15 +112,15 @@ export function useReadingProgress(bookId) {
       if (!bookId || !cfi) return;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        writeProgress(bookId, cfi, percentage);
-        setProgress({
-          cfi,
-          percentage: typeof percentage === "number" ? percentage : null,
-          updatedAt: new Date().toISOString(),
-        });
-        if (!USE_MOCK && isLoggedIn()) {
+        const nextProgress = createLocalProgress(cfi, percentage);
+        writeProgress(bookId, nextProgress);
+        setProgress(nextProgress);
+        if (shouldSyncWithServer()) {
           unwrap(
-            apiClient.put(`/catalog/books/${bookId}/reading-progress`, { cfi, percentage }),
+            apiClient.put(`/catalog/books/${bookId}/reading-progress`, {
+              cfi: nextProgress.cfi,
+              percentage: nextProgress.percentage,
+            }),
           ).catch(() => {
             // 서버 저장 실패에도 현재 독서 세션과 로컬 복원은 유지한다.
           });

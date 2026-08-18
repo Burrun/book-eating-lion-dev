@@ -36,18 +36,24 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
   const [isIndexing, setIsIndexing] = useState(false);
   const epubBookRef = useRef(null);
   const initialCfiBookRef = useRef(null);
+  const lastAppliedInitialCfiRef = useRef(null);
   const hasUserNavigatedRef = useRef(false);
 
   useEffect(() => {
     hasUserNavigatedRef.current = false;
     initialCfiBookRef.current = null;
+    lastAppliedInitialCfiRef.current = null;
     setLocation(null);
   }, [bookId]);
 
   useEffect(() => {
-    if (initialCfiBookRef.current === bookId || hasUserNavigatedRef.current || !initialCfi) return;
+    if (hasUserNavigatedRef.current || !initialCfi) return;
+    if (initialCfiBookRef.current === bookId && lastAppliedInitialCfiRef.current === initialCfi) {
+      return;
+    }
     setLocation(initialCfi);
     initialCfiBookRef.current = bookId;
+    lastAppliedInitialCfiRef.current = initialCfi;
   }, [bookId, initialCfi]);
 
   // react-reader/epub.js locations(=페이지 인덱스)를 진행률 계산에 쓴다. 책마다 한 번만
