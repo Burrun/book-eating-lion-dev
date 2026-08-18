@@ -75,6 +75,31 @@ export interface ReviewRequest {
   content: string;
 }
 
+// GET /api/catalog/recommend/queue
+export interface RecommendationCardResponse {
+  bookId: number;
+  title: string;
+  author: string;
+  category: string;
+  price: number;
+  coverImageUrl: string | null;
+  score: number;
+  recommendationReason: string;
+}
+
+export interface RecommendationQueueResponse {
+  queueId: string;
+  cards: RecommendationCardResponse[];
+}
+
+export type RecommendationAction = "LIKE" | "SKIP";
+
+export interface RecommendationReactionRequest {
+  queueId: string;
+  bookId: number;
+  action: RecommendationAction;
+}
+
 // --- 회원 (Member) ---
 export type Role = "USER" | "ADMIN";
 export type Gender = "MALE" | "FEMALE";

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useAnimation, useMotionValue, useTransform, type PanInfo } from "framer-motion";
 import type { SwipeDeckItem } from "../../types/book.ts";
 
@@ -11,24 +11,36 @@ interface SwipeCardProps {
   book: SwipeDeckItem;
   isTop: boolean;
   forcedSwipe: SwipeDirection | null;
-  onSwiped: () => void;
+  onSwipe: (direction: SwipeDirection) => Promise<void>;
 }
 
-function SwipeCard({ book, isTop, forcedSwipe, onSwiped }: SwipeCardProps) {
+function SwipeCard({ book, isTop, forcedSwipe, onSwipe }: SwipeCardProps) {
   const controls = useAnimation();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 300], [-20, 20]);
+  const completing = useRef(false);
+
+  async function completeSwipe(direction: SwipeDirection) {
+    if (completing.current) return;
+    completing.current = true;
+    await controls.start({
+      x: direction === "like" ? EXIT_DISTANCE : -EXIT_DISTANCE,
+      rotate: direction === "like" ? 25 : -25,
+      opacity: 0,
+      transition: { duration: 0.3 },
+    });
+    try {
+      await onSwipe(direction);
+    } catch {
+      await controls.start({ x: 0, rotate: 0, opacity: 1, transition: { type: "spring" } });
+    } finally {
+      completing.current = false;
+    }
+  }
 
   useEffect(() => {
     if (isTop && forcedSwipe) {
-      controls
-        .start({
-          x: forcedSwipe === "like" ? EXIT_DISTANCE : -EXIT_DISTANCE,
-          rotate: forcedSwipe === "like" ? 25 : -25,
-          opacity: 0,
-          transition: { duration: 0.3 },
-        })
-        .then(() => onSwiped());
+      void completeSwipe(forcedSwipe);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forcedSwipe, isTop]);
@@ -36,13 +48,7 @@ function SwipeCard({ book, isTop, forcedSwipe, onSwiped }: SwipeCardProps) {
   async function handleDragEnd(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
     if (Math.abs(info.offset.x) > SWIPE_THRESHOLD) {
       const direction: SwipeDirection = info.offset.x > 0 ? "like" : "skip";
-      await controls.start({
-        x: direction === "like" ? EXIT_DISTANCE : -EXIT_DISTANCE,
-        rotate: direction === "like" ? 25 : -25,
-        opacity: 0,
-        transition: { duration: 0.3 },
-      });
-      onSwiped();
+      await completeSwipe(direction);
     } else {
       controls.start({
         x: 0,
@@ -74,32 +80,24 @@ function SwipeCard({ book, isTop, forcedSwipe, onSwiped }: SwipeCardProps) {
 
 interface SwipeDeckProps {
   items: SwipeDeckItem[];
+  onReaction?: (bookId: string, direction: SwipeDirection) => Promise<void>;
 }
 
-export default function SwipeDeck({ items }: SwipeDeckProps) {
-  const [deck, setDeck] = useState(items);
+export default function SwipeDeck({ items, onReaction }: SwipeDeckProps) {
   const [forcedSwipe, setForcedSwipe] = useState<SwipeDirection | null>(null);
-  const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    if (deck.length === 0) {
-      const timer = setTimeout(() => setDismissed(true), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [deck.length]);
-
-  function handleSwiped() {
-    setDeck((d) => d.slice(1));
+  async function handleSwipe(bookId: string, direction: SwipeDirection) {
+    // 응답으로 items가 갱신되기 전에 해제해야 다음 최상단 카드가 같은 명령을 상속하지 않는다.
     setForcedSwipe(null);
+    await onReaction?.(bookId, direction);
   }
 
   function triggerSwipe(direction: SwipeDirection) {
-    if (forcedSwipe || deck.length === 0) return;
+    if (forcedSwipe || items.length === 0) return;
     setForcedSwipe(direction);
   }
 
-  if (deck.length === 0) {
-    if (dismissed) return null;
+  if (items.length === 0) {
     return (
       <div className="flex h-80 w-full max-w-sm items-center justify-center rounded-2xl border border-dashed border-forest/20 bg-white text-center text-forest/60">
         오늘의 추천을 모두 확인했어요 🦁
@@ -110,13 +108,13 @@ export default function SwipeDeck({ items }: SwipeDeckProps) {
   return (
     <div className="flex flex-col items-center gap-6">
       <div className="relative h-96 w-full max-w-sm">
-        {deck.slice(0, 2).map((book, i) => (
+        {items.slice(0, 2).map((book, i) => (
           <SwipeCard
             key={book.id}
             book={book}
             isTop={i === 0}
             forcedSwipe={i === 0 ? forcedSwipe : null}
-            onSwiped={handleSwiped}
+            onSwipe={(direction) => handleSwipe(book.id, direction)}
           />
         ))}
       </div>

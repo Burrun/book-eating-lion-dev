@@ -1,10 +1,10 @@
 import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import BookCard from "../../components/BookCard/BookCard.tsx";
-import SwipeDeck from "../../components/SwipeDeck/SwipeDeck.tsx";
+import RecommendationPanel from "../../components/SwipeDeck/RecommendationPanel.tsx";
 import { getBooks, searchBooks } from "../../api/books.ts";
-// 카테고리 목록과 추천 덱은 대응하는 백엔드 API가 없어 목업을 그대로 쓴다.
-import { CATEGORIES, swipeDeck } from "../../mocks/books.ts";
+// 카테고리 API 연결 전까지 목록만 목업을 사용한다.
+import { CATEGORIES } from "../../mocks/books.ts";
 
 const PAGE_SIZE = 8;
 
@@ -56,7 +56,7 @@ export default function ProductListPage() {
   return (
     <>
       <div className="hidden lg:block fixed right-4 top-24 z-30 w-72">
-        <SwipeDeck items={swipeDeck} />
+        <RecommendationPanel />
       </div>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
