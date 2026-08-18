@@ -5,6 +5,7 @@ import { ToastProvider } from "./components/Toast.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { getCart } from "./api/cart.js";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import AdminRoute from "./components/AdminRoute.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import Cart from "./pages/Cart.jsx";
@@ -21,6 +22,11 @@ import KakaoPayCallback from "./pages/payment/KakaoPayCallback.jsx";
 import KakaoPaySuccess from "./pages/payment/KakaoPaySuccess.jsx";
 import KakaoPayFail from "./pages/payment/KakaoPayFail.jsx";
 import KakaoPayCancel from "./pages/payment/KakaoPayCancel.jsx";
+import AdminPage from "./pages/AdminPage/AdminPage.tsx";
+import AdminCategoriesPage from "./pages/AdminPage/AdminCategoriesPage.tsx";
+import AdminFaqPage from "./pages/AdminPage/AdminFaqPage.tsx";
+import AdminInquiriesPage from "./pages/AdminPage/AdminInquiriesPage.tsx";
+import AdminReviewsPage from "./pages/AdminPage/AdminReviewsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -124,6 +130,46 @@ export default function App() {
                     <ProtectedRoute>
                       <KakaoPayCancel />
                     </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminRoute>
+                      <AdminPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/categories"
+                  element={
+                    <AdminRoute>
+                      <AdminCategoriesPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/faqs"
+                  element={
+                    <AdminRoute>
+                      <AdminFaqPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/inquiries"
+                  element={
+                    <AdminRoute>
+                      <AdminInquiriesPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reviews"
+                  element={
+                    <AdminRoute>
+                      <AdminReviewsPage />
+                    </AdminRoute>
                   }
                 />
               </Route>

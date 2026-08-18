@@ -1,5 +1,7 @@
 import { apiClient, unwrap } from "./client.ts";
 import { toMember, toSubscription } from "./mappers.ts";
+import { mockDelay } from "../mocks/delay.ts";
+import { MOCK_PROFILE } from "../mocks/mypage.js";
 import type {
   ApiResponse,
   MemberResponse,
@@ -8,8 +10,11 @@ import type {
 } from "./types.ts";
 import type { Member, Subscription } from "../types/member.ts";
 
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
 // GET /api/members/me — 내 정보 조회 (JWT 인증 필요)
 export async function getMyProfile(): Promise<Member> {
+  if (USE_MOCK) return mockDelay(toMember(MOCK_PROFILE as MemberResponse));
   return toMember(await unwrap(apiClient.get<ApiResponse<MemberResponse>>("/members/me")));
 }
 

@@ -20,14 +20,34 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+function toApiError(body: ApiResponse<unknown> | undefined): Error {
+  const error = Object.assign(
+    new Error(body?.error?.message ?? body?.message ?? "API request failed"),
+    {
+      code: body?.error?.code,
+    },
+  );
+  return error;
+}
+
 // ApiResponse<T> 껍데기를 벗겨 data만 반환한다.
 // success: false (HTTP 200이어도 논리적으로 실패한 응답)면 error 정보로 예외를 던져
-// react-query 등 호출측이 실패로 인식하게 한다.
+// react-query 등 호출측이 실패로 인식하게 한다. 4xx/5xx(예: 403 REVIEW_PERMISSION_REQUIRED)는
+// axios가 먼저 reject하므로 별도로 잡아 같은 형태의 에러로 통일한다.
+// 두 경로 모두 error.code(ApiResponse.error 의 code)를 Error.code 에 실어 호출측이
+// 메시지 문자열을 파싱하지 않고 원인을 구분할 수 있게 한다.
 export async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
-  const res = await promise;
-  const body = res.data;
-  if (!body.success) {
-    throw new Error(body.error?.message ?? body.message ?? "API request failed");
+  try {
+    const res = await promise;
+    const body = res.data;
+    if (!body.success) {
+      throw toApiError(body);
+    }
+    return body.data;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.data) {
+      throw toApiError(err.response.data as ApiResponse<unknown>);
+    }
+    throw err;
   }
-  return body.data;
 }

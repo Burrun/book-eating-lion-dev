@@ -2,6 +2,7 @@ package com.bookeatinglion.book.dto;
 
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
+import java.math.BigDecimal;
 
 public record BookSummaryResponse(
         Long id,
@@ -10,8 +11,9 @@ public record BookSummaryResponse(
         int price,
         String coverImageUrl,
         String category,
-        SaleStatus saleStatus
-) {
+        SaleStatus saleStatus,
+        BigDecimal averageRating,
+        int reviewCount) {
     public static BookSummaryResponse from(Book book) {
         return new BookSummaryResponse(
                 book.getBookId(),
@@ -20,7 +22,8 @@ public record BookSummaryResponse(
                 book.getPrice(),
                 book.getCoverImageUrl(),
                 book.getCategory(),
-                book.getSaleStatus()
-        );
+                book.getSaleStatus(),
+                book.getAverageRating(),
+                book.getReviewCount());
     }
 }

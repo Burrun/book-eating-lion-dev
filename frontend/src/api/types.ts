@@ -52,6 +52,7 @@ export type BookDetailResponse = Catalog["BookDetail"] & {
 export type BookSynopsisDetailResponse = Catalog["BookSynopsisDetail"];
 export type ReviewResponse = Catalog["Review"];
 export type ReviewRequest = Catalog["ReviewRequest"];
+export type ReviewUpdateRequest = Catalog["ReviewUpdateRequest"];
 export type SaleStatus = NonNullable<Catalog["BookSummary"]["saleStatus"]>;
 
 // PUT/GET /api/catalog/books/{bookId}/reading-progress — 기록 없으면 data: null
@@ -66,6 +67,20 @@ export interface ReadingProgressRequest {
   cfi: string;
   percentage?: number;
 }
+
+// --- 카테고리 (Category, 관리자) ---
+export type CategoryResponse = Catalog["Category"];
+export type CategoryCreateRequest = Catalog["CategoryCreateRequest"];
+export type CategoryUpdateRequest = Catalog["CategoryUpdateRequest"];
+
+// --- FAQ (관리자) ---
+export type FaqResponse = Catalog["FaqResponse"];
+export type FaqWriteRequest = Catalog["FaqWriteRequest"];
+
+// --- 상품문의 (Inquiry, 관리자) ---
+export type InquiryResponse = Catalog["InquiryResponse"];
+export type InquiryAnswerRequest = Catalog["InquiryAnswerRequest"];
+export type InquiryStatus = NonNullable<Catalog["InquiryResponse"]["status"]>;
 
 // --- 회원 (Member) ---
 export type MemberResponse = MemberSchemas["Member"];

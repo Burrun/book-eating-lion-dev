@@ -12,6 +12,7 @@ import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,8 @@ class MemberBookQueryControllerTest {
     private CatalogMemberIdentity memberIdentity;
 
     private BookSummaryResponse summary(Long id, String title) {
-        return new BookSummaryResponse(id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE);
+        return new BookSummaryResponse(
+                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0);
     }
 
     @Test

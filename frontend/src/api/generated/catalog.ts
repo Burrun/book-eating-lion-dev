@@ -619,6 +619,17 @@ export interface components {
             category: string;
             /** @enum {string} */
             saleStatus: "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
+            /**
+             * Format: double
+             * @description 리뷰 평점 평균. 리뷰가 없으면 0.
+             * @example 4.5
+             */
+            averageRating: number;
+            /**
+             * @description 리뷰 수. 리뷰 작성/수정/삭제 시마다 재계산된다.
+             * @example 12
+             */
+            reviewCount: number;
         };
         BookDetail: components["schemas"]["BookSummary"] & {
             publisher: string;
@@ -668,12 +679,67 @@ export interface components {
         InquiryAnswerRequest: {
             answer: string;
         };
+        InquiryResponse: {
+            /** Format: int64 */
+            inquiryId: number;
+            /** Format: int64 */
+            bookId: number;
+            /** @description Cognito sub */
+            memberId: string;
+            title: string;
+            content: string;
+            privateInquiry: boolean;
+            /** @enum {string} */
+            status: "WAITING" | "ANSWERED";
+            answer?: string | null;
+            /** @description 답변한 관리자의 Cognito sub. */
+            answeredBy?: string | null;
+            /** Format: date-time */
+            answeredAt?: string | null;
+            deleted: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        InquiryEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["InquiryResponse"];
+        };
+        InquiryPageEnvelope: {
+            success?: boolean;
+            data?: {
+                content?: components["schemas"]["InquiryResponse"][];
+                totalElements?: number;
+            };
+        };
         FaqWriteRequest: {
             category: string;
             question: string;
             answer: string;
             sortOrder: number;
             active: boolean;
+        };
+        FaqResponse: {
+            /** Format: int64 */
+            faqId: number;
+            category: string;
+            question: string;
+            answer: string;
+            sortOrder: number;
+            active: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        FaqEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["FaqResponse"];
+        };
+        FaqListEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["FaqResponse"][];
         };
         ReviewRequest: {
             rating: number;
@@ -701,13 +767,13 @@ export interface components {
         };
         Category: {
             /** Format: int64 */
-            categoryId?: number;
+            categoryId: number;
             /** @example IT/컴퓨터 */
-            categoryName?: string;
+            categoryName: string;
             /** Format: int64 */
             parentId?: number | null;
-            sortOrder?: number;
-            active?: boolean;
+            sortOrder: number;
+            active: boolean;
         };
         CategoryCreateRequest: {
             categoryName: string;
@@ -750,6 +816,10 @@ export interface components {
         CategoryListEnvelope: {
             success?: boolean;
             data?: components["schemas"]["Category"][];
+        };
+        CategoryEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["Category"];
         };
         BookSummaryListEnvelope: {
             success?: boolean;
@@ -1064,7 +1134,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryListEnvelope"];
+                };
             };
         };
     };
@@ -1086,7 +1158,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryEnvelope"];
+                };
             };
             /** @description 카테고리명 중복 */
             409: {
@@ -1113,7 +1187,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryEnvelope"];
+                };
             };
             /** @description 카테고리 없음 */
             404: {
@@ -1171,7 +1247,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["CategoryEnvelope"];
+                };
             };
             /** @description 이름 중복 또는 자기 자신을 상위 카테고리로 지정 */
             409: {
@@ -1696,7 +1774,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InquiryPageEnvelope"];
+                };
             };
         };
     };
@@ -1720,7 +1800,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InquiryEnvelope"];
+                };
             };
             /** @description 문의 없음 */
             404: {
@@ -1747,7 +1829,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FaqListEnvelope"];
+                };
             };
         };
     };
@@ -1767,7 +1851,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FaqListEnvelope"];
+                };
             };
         };
     };
@@ -1789,7 +1875,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FaqEnvelope"];
+                };
             };
         };
     };
@@ -1840,7 +1928,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["FaqEnvelope"];
+                };
             };
             /** @description FAQ 없음 */
             404: {

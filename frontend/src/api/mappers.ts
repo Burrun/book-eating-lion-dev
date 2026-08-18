@@ -19,8 +19,6 @@ import type { Member, Subscription } from "../types/member.ts";
 import type { Paged } from "../types/common.ts";
 
 // --- 임시 기본값 (백엔드 미구현 / 미합의) ---
-const DEFAULT_RATING = 0;
-const DEFAULT_REVIEW_COUNT = 0;
 const DEFAULT_SHIPPING_NOTE = "배송비 3,000원 (3만원 이상 구매시 무료배송)";
 
 /** Spring Page<T> -> UI Paged<U> */
@@ -38,7 +36,7 @@ export function toBookSummary(dto: BookSummaryResponse): BookSummary {
     id: String(dto.id),
     title: dto.title,
     price: dto.price,
-    rating: DEFAULT_RATING, // 백엔드에 평점 없음
+    rating: dto.averageRating,
     category: dto.category,
   };
 }
@@ -51,8 +49,10 @@ export function toBook(dto: BookDetailResponse): Book {
     publisher: dto.publisher,
     isbn: dto.isbn,
     price: dto.price,
-    rating: DEFAULT_RATING, // 백엔드에 평점 없음
-    reviewCount: DEFAULT_REVIEW_COUNT, // 리뷰 목록 API의 totalElements로 별도 주입
+    rating: dto.averageRating,
+    // 상세 페이지에서는 리뷰 목록 API의 totalElements로 다시 덮어써 최신값을 쓴다
+    // (ProductDetailPage.tsx 참고) — 여기 값은 그 전까지의 초기 표시용이다.
+    reviewCount: dto.reviewCount,
     shippingNote: DEFAULT_SHIPPING_NOTE, // 백엔드에 배송 정책 없음
     synopsis: dto.description ?? "", // 무료 회원용 줄거리. 백엔드에서 null 가능
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다
@@ -79,6 +79,7 @@ export function toMember(dto: MemberResponse): Member {
     id: dto.id,
     name: dto.name,
     email: dto.email,
+    role: dto.role,
   };
 }
 
@@ -117,7 +118,9 @@ export function toCard(dto: CardResponse): Card {
 export function toReview(dto: ReviewResponse): Review {
   return {
     id: String(dto.id),
-    author: `user_${dto.memberId}`, // 백엔드가 작성자 표시명을 주지 않음
+    memberId: dto.memberId,
+    // nickname은 작성 당시 스냅샷이라 없을 수도 있다(오래된 데이터 등) — 그때만 대체 표시.
+    author: dto.nickname ?? `user_${dto.memberId}`,
     rating: dto.rating,
     date: dto.createdAt.slice(0, 10),
     text: dto.content,

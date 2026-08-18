@@ -18,6 +18,8 @@ export interface WebtoonCut {
 
 export interface Review {
   id: string;
+  /** Cognito sub. 로그인한 회원의 id와 비교해 "내 리뷰"인지 판단하는 데 쓴다. */
+  memberId: string;
   author: string;
   rating: number;
   date: string;
