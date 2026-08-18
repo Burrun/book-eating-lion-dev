@@ -116,6 +116,17 @@ paths:
         "200": { description: 삭제 완료 }
         "404": { description: 도서 없음 }
 
+  /api/catalog/admin/books/recommendation-index/rebuild:
+    post:
+      summary: 추천 도서 벡터 전체 재색인 요청
+      description: 판매 중이며 삭제되지 않은 모든 도서를 Redis Stream에 발행한다. AI Service가 비동기로 임베딩·색인한다.
+      operationId: rebuildRecommendationBookIndex
+      tags: [admin-books]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: 발행 대상 도서 수 반환
+
   /api/catalog/admin/categories:
     get:
       summary: 관리자용 전체 카테고리 목록
@@ -625,6 +636,40 @@ paths:
       responses:
         "200": { description: 수정 완료 }
         "404": { description: FAQ 없음 }
+
+  /api/catalog/recommend/queue:
+    get:
+      summary: 개인화 추천 대기열 조회
+      description: 규칙 점수와 벡터 유사도를 결합하고, 검색된 행동 근거로 생성한 추천 이유를 반환한다.
+      operationId: getRecommendationQueue
+      tags: [recommendations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: refresh
+          in: query
+          description: Redis에 남은 대기열을 버리고 새 후보를 계산한다.
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecommendationQueueEnvelope" }
+
+  /api/catalog/recommend/queue/reaction:
+    post:
+      summary: 추천 카드 LIKE 또는 SKIP 기록
+      operationId: reactRecommendationCard
+      tags: [recommendations]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RecommendationReactionRequest" }
+      responses:
+        "200": { description: 반응 저장 및 현재 대기열에서 카드 제거 완료 }
+        "400": { description: 현재 대기열에 노출되지 않은 카드 }
     delete:
       summary: FAQ 비활성화
       operationId: deleteFaq
@@ -750,6 +795,40 @@ components:
       properties:
         rating: { type: integer, minimum: 1, maximum: 5 }
         content: { type: string, maxLength: 1000 }
+
+    RecommendationReactionRequest:
+      type: object
+      required: [queueId, bookId, action]
+      properties:
+        queueId: { type: string, format: uuid }
+        bookId: { type: integer, format: int64 }
+        action: { type: string, enum: [LIKE, SKIP] }
+
+    RecommendationCard:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        title: { type: string }
+        author: { type: string }
+        category: { type: string }
+        price: { type: integer }
+        coverImageUrl: { type: string }
+        score: { type: number, format: double, minimum: 0, maximum: 1 }
+        recommendationReason:
+          type: string
+          description: 검색된 사용자 행동 근거만 사용해 LLM이 생성한 추천 이유. AI 장애 시 고정 규칙 문구.
+
+    RecommendationQueueEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            queueId: { type: string, format: uuid }
+            cards:
+              type: array
+              items: { $ref: "#/components/schemas/RecommendationCard" }
 
     Category:
       type: object

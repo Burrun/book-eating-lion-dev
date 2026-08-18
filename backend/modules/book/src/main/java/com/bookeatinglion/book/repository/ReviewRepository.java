@@ -11,6 +11,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Page<Review> findByBook_BookId(Long bookId, Pageable pageable);
 
+    java.util.List<Review> findByMemberId(String memberId);
+
     @Query(
             """
             select coalesce(avg(r.rating), 0.0) as averageRating,
