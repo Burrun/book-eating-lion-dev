@@ -6,21 +6,26 @@ import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.port.EbookStoragePort;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.time.Duration;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class EbookService {
 
     private final BookRepository bookRepository;
     private final EbookStoragePort ebookStoragePort;
+    private final Duration readUrlValidity;
 
-    @Value("${ebooks.read-url-validity:PT10M}")
-    private Duration readUrlValidity;
+    public EbookService(
+            BookRepository bookRepository,
+            EbookStoragePort ebookStoragePort,
+            @Value("${ebooks.read-url-validity:PT10M}") Duration readUrlValidity) {
+        this.bookRepository = bookRepository;
+        this.ebookStoragePort = ebookStoragePort;
+        this.readUrlValidity = readUrlValidity;
+    }
 
     public EbookAccessResponse getAccess(Long bookId) {
         Book book = bookRepository

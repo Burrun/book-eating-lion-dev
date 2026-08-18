@@ -13,7 +13,16 @@ public class LocalEbookStorageAdapter implements EbookStoragePort {
 
     @Override
     public ReadUrl createReadUrl(String epubS3Key, Duration validity) {
-        String fileName = epubS3Key.substring(epubS3Key.lastIndexOf('/') + 1);
+        if (epubS3Key == null || epubS3Key.isBlank()) {
+            throw new IllegalArgumentException("epubS3Key must not be blank");
+        }
+
+        int lastSlashIndex = epubS3Key.lastIndexOf('/');
+        if (lastSlashIndex == epubS3Key.length() - 1) {
+            throw new IllegalArgumentException("epubS3Key does not contain a file name: " + epubS3Key);
+        }
+
+        String fileName = lastSlashIndex < 0 ? epubS3Key : epubS3Key.substring(lastSlashIndex + 1);
         return new ReadUrl("/ebooks/" + fileName, OffsetDateTime.now().plus(validity));
     }
 }

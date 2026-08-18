@@ -4,6 +4,7 @@ import com.bookeatinglion.book.exception.EbookAccessUnavailableException;
 import com.bookeatinglion.book.port.EbookStoragePort;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -40,7 +41,8 @@ public class S3EbookStorageAdapter implements EbookStoragePort {
                     .signatureDuration(validity)
                     .getObjectRequest(getObject)
                     .build());
-            return new ReadUrl(presigned.url().toString(), OffsetDateTime.now().plus(validity));
+            OffsetDateTime expiresAt = OffsetDateTime.ofInstant(presigned.expiration(), ZoneOffset.UTC);
+            return new ReadUrl(presigned.url().toString(), expiresAt);
         } catch (RuntimeException e) {
             log.error("eBook Presigned URL 발급 실패. bucket={}, key={}", bucketName, epubS3Key, e);
             throw new EbookAccessUnavailableException("eBook 열람 URL을 발급하지 못했습니다. 잠시 후 다시 시도해주세요.");
