@@ -40,7 +40,7 @@ class BedrockEmbeddingClientTest {
                     0.2,
                     Duration.ofSeconds(30),
                     Duration.ofSeconds(10)),
-            new AiProperties.Vector("bucket", "wiki-v1", "cosine", List.of("text")),
+            new AiProperties.Vector("bucket", "wiki-v1", "recommendation-books-v1", "cosine", List.of("text")),
             new AiProperties.Ingest("epub-bucket"),
             new AiProperties.Sqs(false, null, 20, 1, new AiProperties.Purchase(false, null)));
 
