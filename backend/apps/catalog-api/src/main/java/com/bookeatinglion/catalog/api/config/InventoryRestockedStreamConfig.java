@@ -6,6 +6,7 @@ import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -33,7 +34,9 @@ public class InventoryRestockedStreamConfig {
 
     @Bean
     InventoryRestockedSubscription inventoryRestockedSubscription(
-            StreamMessageListenerContainer<String, MapRecord<String, String, String>> inventoryRestockedContainer,
+            @Qualifier("inventoryRestockedContainer")
+                    StreamMessageListenerContainer<String, MapRecord<String, String, String>>
+                            inventoryRestockedContainer,
             StringRedisTemplate redisTemplate,
             InventoryRestockedConsumer consumer) {
         return new InventoryRestockedSubscription(inventoryRestockedContainer, redisTemplate, consumer);
