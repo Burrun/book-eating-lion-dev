@@ -127,7 +127,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${AWS_REGION}
       AWS_COGNITO_REGION: ${AWS_COGNITO_REGION:-ap-northeast-2}
-      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID:-local_dummy_pool}
+      # 비어있거나(기본값) "mock"이면 member-service 가 실제 Cognito 호출 없이 로컬 목업
+      # 인증으로 회원가입/로그인을 처리한다(CognitoAuthClient 참고). 실제 Cognito User
+      # Pool 로 테스트하려면 호스트에 AWS_COGNITO_USER_POOL_ID 를 진짜 값으로 export할 것.
+      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID:-mock}
       AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID:-local_dummy_client_id}
       AWS_COGNITO_CLIENT_SECRET: ${AWS_COGNITO_CLIENT_SECRET:-}
 
