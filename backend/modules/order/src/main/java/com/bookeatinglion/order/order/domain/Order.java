@@ -51,6 +51,12 @@ public class Order {
     @Column(name = "address", nullable = false)
     private String address;
 
+    @Column(name = "address_detail")
+    private String addressDetail;
+
+    @Column(name = "delivery_request")
+    private String deliveryRequest;
+
     @Column(name = "total_amount", nullable = false)
     private int totalAmount;
 
@@ -70,12 +76,16 @@ public class Order {
             String recipientPhone,
             String postalCode,
             String address,
+            String addressDetail,
+            String deliveryRequest,
             int totalAmount) {
         this.memberId = memberId;
         this.recipientName = recipientName;
         this.recipientPhone = recipientPhone;
         this.postalCode = postalCode;
         this.address = address;
+        this.addressDetail = addressDetail;
+        this.deliveryRequest = deliveryRequest;
         this.totalAmount = totalAmount;
         this.orderStatus = OrderStatus.PENDING_PAYMENT;
     }

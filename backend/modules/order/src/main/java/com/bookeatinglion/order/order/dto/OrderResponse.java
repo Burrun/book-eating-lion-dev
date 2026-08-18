@@ -28,7 +28,12 @@ public record OrderResponse(
                 order.getId(),
                 order.getOrderStatus(),
                 new Recipient(
-                        order.getRecipientName(), order.getRecipientPhone(), order.getPostalCode(), order.getAddress()),
+                        order.getRecipientName(),
+                        order.getRecipientPhone(),
+                        order.getPostalCode(),
+                        order.getAddress(),
+                        order.getAddressDetail(),
+                        order.getDeliveryRequest()),
                 order.getTotalAmount(),
                 items.stream().map(OrderItemView::from).toList(),
                 payment == null ? null : PaymentView.from(payment),

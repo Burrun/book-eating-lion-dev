@@ -1,5 +1,6 @@
 package com.bookeatinglion.order.order.service;
 
+import com.bookeatinglion.common.event.ReviewPermissionGranted;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
 import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
@@ -7,6 +8,8 @@ import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
 import com.bookeatinglion.order.delivery.domain.Delivery;
 import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
+import com.bookeatinglion.order.event.BookPurchasePublisher;
+import com.bookeatinglion.order.event.ReviewPermissionPublisher;
 import com.bookeatinglion.order.inventory.domain.Inventory;
 import com.bookeatinglion.order.inventory.repository.InventoryRepository;
 import com.bookeatinglion.order.lock.InventoryLockExecutor;
@@ -47,6 +50,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 재고 차감/복구는 항상 InventoryLockExecutor 를 거친다 — bookId 오름차순 락으로 데드락을 막고,
@@ -73,9 +78,11 @@ public class OrderService {
     private final InventoryLockExecutor inventoryLockExecutor;
     private final PaymentService paymentService;
     private final DeliveryRepository deliveryRepository;
+    private final ReviewPermissionPublisher reviewPermissionPublisher;
+    private final BookPurchasePublisher bookPurchasePublisher;
 
     @Transactional
-    public OrderResponse createOrder(String memberId, CreateOrderRequest request) {
+    public OrderResponse createOrder(String memberId, String nickname, CreateOrderRequest request) {
         if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD && request.cardId() == null) {
             throw new InvalidOrderRequestException("paymentMethod=CARD 이면 cardId 가 필수입니다.");
         }
@@ -117,6 +124,8 @@ public class OrderService {
                     recipient.phone(),
                     recipient.postalCode(),
                     recipient.address(),
+                    recipient.addressDetail(),
+                    recipient.deliveryRequest(),
                     totalAmount));
 
             List<OrderItem> items = snapshots.stream()
@@ -127,6 +136,7 @@ public class OrderService {
             if (request.paymentMethod() == PaymentMethod.VIRTUAL_CARD) {
                 Payment payment = paymentService.approveCard(order, request.cardId(), totalAmount);
                 order.markPaid();
+                publishPurchaseConfirmed(memberId, nickname, items);
                 if (memberCoupon != null) {
                     memberCoupon.use(LocalDateTime.now(), order.getId());
                 }
@@ -151,7 +161,7 @@ public class OrderService {
      * 사용자 결제는 실제로 이뤄지지 않는다.
      */
     @Transactional
-    public OrderResponse approveKakaoPay(String memberId, Long orderId, String pgToken) {
+    public OrderResponse approveKakaoPay(String memberId, String nickname, Long orderId, String pgToken) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
@@ -188,6 +198,7 @@ public class OrderService {
 
             paymentService.approveKakao(payment, orderId, memberId, pgToken);
             order.markPaid();
+            publishPurchaseConfirmed(memberId, nickname, items);
 
             if (memberCoupon != null) {
                 memberCoupon.use(LocalDateTime.now(), orderId);
@@ -213,6 +224,31 @@ public class OrderService {
             return;
         }
         deliveryRepository.save(Delivery.builder().orderId(orderId).build());
+    }
+
+    /**
+     * 결제 확정(order.markPaid() 직후) 후속 이벤트 발행. 리뷰 권한은 Redis Streams 로 즉시
+     * 보낸다 — catalog-service 가용성과 무관해야 하는 별개 관심사라 커밋 대기 없이 나가도 된다.
+     * 구매 확정 SQS 이벤트는 afterCommit 훅으로 미룬다 — 커밋 전에 나가면, 이후 재고 차감/카드
+     * 승인 등에서 롤백이 나도 ai-service 는 이미 검색 권한으로 적재해버려 되돌릴 수 없다.
+     */
+    private void publishPurchaseConfirmed(String memberId, String nickname, List<OrderItem> items) {
+        String grantedAt = LocalDateTime.now().toString();
+        for (OrderItem item : items) {
+            reviewPermissionPublisher.publish(
+                    new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+                }
+            });
+        } else {
+            items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+        }
     }
 
     public Page<OrderSummaryResponse> getOrders(String memberId, Pageable pageable) {
