@@ -32,7 +32,10 @@ spring:
 app:
   cognito:
     region: ${AWS_COGNITO_REGION:ap-northeast-2}
-    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+    # 값을 비워두거나(기본값) "mock"으로 두면 CognitoAuthClient 가 실제 AWS 호출 없이
+    # 로컬 목업 인증(회원가입/로그인/재발급)으로 우회한다. 실제 Cognito User Pool 을
+    # 붙이려면 이 값을 진짜 user-pool-id 로 덮어써야 한다.
+    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:mock}
     client-id: ${AWS_COGNITO_CLIENT_ID:local_dummy_client_id}
     client-secret: ${AWS_COGNITO_CLIENT_SECRET:}
 
