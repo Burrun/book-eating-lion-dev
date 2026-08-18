@@ -253,6 +253,61 @@ paths:
         "404":
           description: 존재하지 않는 카드
 
+  /api/members/me/subscription:
+    get:
+      summary: 내 구독 상태 조회
+      description: "구독 이력이 없으면 오류가 아니라 정상 상태다 — data: null 로 200 을 반환한다."
+      operationId: getMySubscription
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "조회 성공 (구독 이력이 없으면 data: null)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+    post:
+      summary: 구독 시작
+      description: |
+        결제 미연동 스코프 — 본인 호출로 즉시 활성화한다. 이미 활성 구독이 있으면 409.
+        결제 연동 시 이 자리에 검증이 추가될 예정이다.
+      operationId: subscribeMe
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "201":
+          description: 구독 시작 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "409":
+          description: 이미 구독 중
+    delete:
+      summary: 구독 해지
+      operationId: cancelMySubscription
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 해지 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: 활성 구독 없음
+
   /internal/cards/{cardId}/deduct:
     post:
       summary: 가상카드 한도 차감
@@ -316,6 +371,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CardOperationResult"
+
+  /internal/members/{memberId}/subscription-status:
+    get:
+      summary: 내부 구독 상태 조회
+      description: |
+        클러스터 내부 전용이며 Ingress에 노출하지 않는다. eBook 무제한 열람/프리미엄 RAG
+        질의응답/웹툰 요약 접근권 검증 등 다른 서비스(catalog 등)가 참조할 예정이다.
+        ApiResponse 로 감싸지 않고 SubscriptionStatusResponse 를 그대로 반환한다.
+      tags: [internal-members]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, description: Cognito sub }
+      responses:
+        "200":
+          description: 조회 성공(구독 없으면 subscribed=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatusResponse"
 
   /internal/members/{memberId}/notification-profile:
     get:
@@ -543,4 +619,70 @@ components:
             $ref: "#/components/schemas/Card"
         error:
           $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    SubscribeRequest:
+      type: object
+      required: [planType]
+      properties:
+        planType:
+          type: string
+          enum: [MONTHLY, YEARLY]
+
+    # SubscriptionResponse.java 와 1:1. 결제 상세(금액/수단/승인번호)는 여기 없다 — 결제 미연동
+    # 스코프이고, 결제 상세는 order_db.payments 의 관심사다.
+    Subscription:
+      type: object
+      required: [subscriptionId, planType, status, startedAt, expiresAt]
+      properties:
+        subscriptionId:
+          type: integer
+          format: int64
+        planType:
+          type: string
+          enum: [MONTHLY, YEARLY]
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, EXPIRED]
+        startedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SubscriptionEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          nullable: true
+          description: 구독 이력이 없으면 null.
+          allOf:
+            - $ref: "#/components/schemas/Subscription"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    # SubscriptionStatusResponse.java 와 1:1. /internal/** 전용이라 Envelope 로 감싸지 않는다.
+    SubscriptionStatusResponse:
+      type: object
+      required: [memberId, subscribed]
+      properties:
+        memberId:
+          type: string
+        subscribed:
+          type: boolean
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, EXPIRED]
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
           nullable: true

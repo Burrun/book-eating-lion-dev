@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBook, getWebtoonCuts } from "../../api/books.ts";
 import { getReviews } from "../../api/reviews.ts";
-import { getMySubscription } from "../../api/member.ts";
+import { getMySubscription, subscribe } from "../../api/member.ts";
 import { addToCart } from "../../api/cart.js";
 import { useToast } from "../../components/Toast.jsx";
 import EbookViewer from "../../components/EbookViewer.jsx";
@@ -70,6 +70,18 @@ export default function ProductDetailPage() {
     },
     onError: () => {
       toast.error("장바구니에 담지 못했습니다. 잠시 후 다시 시도해주세요.");
+    },
+  });
+
+  // 결제 미연동 스코프: 본인 호출로 즉시 활성화한다(MONTHLY 고정). 결제 연동 시 플랜 선택 UI로 교체.
+  const subscribeMutation = useMutation({
+    mutationFn: () => subscribe("MONTHLY"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
+      toast.success("구독이 시작되었습니다");
+    },
+    onError: () => {
+      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
     },
   });
 
@@ -196,8 +208,12 @@ export default function ProductDetailPage() {
               <p className="text-sm font-semibold text-forest">
                 🎨 구독 회원이 되면 이 책의 웹툰 요약 컷을 볼 수 있어요
               </p>
-              <button className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light">
-                구독하기 &gt;
+              <button
+                onClick={() => subscribeMutation.mutate()}
+                disabled={subscribeMutation.isPending}
+                className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+              >
+                {subscribeMutation.isPending ? "구독 처리 중..." : "구독하기 >"}
               </button>
             </div>
           </>

@@ -78,6 +78,13 @@ export type CardIssueRequest = MemberSchemas["IssueCardRequest"];
 export type CardUpdateRequest = MemberSchemas["ChangeCardStatusRequest"];
 export type CardStatus = NonNullable<MemberSchemas["Card"]["cardStatus"]>;
 
+// --- 정기구독 (Subscription) ---
+// GET/POST/DELETE /api/members/me/subscription. 구독 이력이 없으면 data: null.
+export type SubscriptionResponse = MemberSchemas["Subscription"];
+export type SubscribeRequest = MemberSchemas["SubscribeRequest"];
+export type SubscriptionStatus = NonNullable<MemberSchemas["Subscription"]["status"]>;
+export type PlanType = NonNullable<MemberSchemas["Subscription"]["planType"]>;
+
 // --- 장바구니 (Cart) ---
 export type CartItemView = Order["CartItemView"];
 export type CartResponse = Order["CartResponse"];
@@ -91,16 +98,3 @@ export type CreateOrderRequest = Order["CreateOrderRequest"];
 export type OrderResponse = Order["OrderResponse"];
 export type PaymentMethod = NonNullable<Order["CreateOrderRequest"]["paymentMethod"]>;
 export type OrderStatus = NonNullable<Order["OrderResponse"]["orderStatus"]>;
-
-// --- 계약에 없는 도메인 ---
-// 구독: 백엔드에 엔드포인트가 없다(GET /api/members/me/subscription 미구현).
-// mock 전용이며, 실 API 가 생기면 계약에서 생성된 타입으로 교체할 것.
-export type SubscriptionStatus = "ACTIVE" | "CANCELLED";
-
-export interface SubscriptionResponse {
-  status: SubscriptionStatus;
-  planName: string;
-  monthlyPrice: number;
-  nextDeliveryDate: string | null;
-  cancelledAt: string | null;
-}

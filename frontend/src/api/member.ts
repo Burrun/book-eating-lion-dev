@@ -1,6 +1,11 @@
 import { apiClient, unwrap } from "./client.ts";
 import { toMember, toSubscription } from "./mappers.ts";
-import type { ApiResponse, MemberResponse, SubscriptionResponse } from "./types.ts";
+import type {
+  ApiResponse,
+  MemberResponse,
+  SubscribeRequest,
+  SubscriptionResponse,
+} from "./types.ts";
 import type { Member, Subscription } from "../types/member.ts";
 
 // GET /api/members/me — 내 정보 조회 (JWT 인증 필요)
@@ -14,5 +19,22 @@ export async function getMySubscription(): Promise<Subscription> {
     await unwrap(
       apiClient.get<ApiResponse<SubscriptionResponse | null>>("/members/me/subscription"),
     ),
+  );
+}
+
+// POST /api/members/me/subscription — 구독 시작 (JWT 인증 필요).
+// 결제 미연동 스코프: 본인 호출로 즉시 활성화된다. 이미 활성 구독이 있으면 409.
+export async function subscribe(planType: SubscribeRequest["planType"]): Promise<Subscription> {
+  return toSubscription(
+    await unwrap(
+      apiClient.post<ApiResponse<SubscriptionResponse>>("/members/me/subscription", { planType }),
+    ),
+  );
+}
+
+// DELETE /api/members/me/subscription — 구독 해지 (JWT 인증 필요)
+export async function cancelSubscription(): Promise<Subscription> {
+  return toSubscription(
+    await unwrap(apiClient.delete<ApiResponse<SubscriptionResponse>>("/members/me/subscription")),
   );
 }
