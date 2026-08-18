@@ -259,6 +259,32 @@ paths:
         "403":
           description: 구매 확정 이력 없음 (REVIEW_PERMISSION_REQUIRED)
 
+  /api/catalog/books/{bookId}/ebook:
+    get:
+      summary: 로그인 회원 eBook 열람 URL 발급
+      description: |
+        eBook 미지원 도서는 ebookAvailable=false를 반환한다.
+        지원 도서는 로그인 사용자에게 짧은 유효기간의 S3 Presigned URL을 발급한다.
+        Presigned URL은 DB에 저장하지 않는다.
+      operationId: getEbookAccess
+      tags: [ebooks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: eBook 지원 여부와 열람 URL 반환
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EbookAccessEnvelope"
+        "404": { description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND) }
+        "503": { description: 열람 URL 발급 실패 (EBOOK_ACCESS_UNAVAILABLE) }
+
   /api/catalog/books/{bookId}/reading-progress:
     put:
       summary: 전자책 이어읽기 위치 저장
@@ -712,6 +738,9 @@ components:
               description: order-service 조합값. -1 은 재고 조회 실패(품절 0 과 구분).
               example: 100
             description: { type: string }
+            ebookAvailable:
+              type: boolean
+              description: EPUB 객체 키 등록 여부
             publishedDate: { type: string, format: date }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
@@ -864,6 +893,11 @@ components:
         coverImageUrl: { type: string, maxLength: 500 }
         description: { type: string }
         detailedSynopsis: { type: string }
+        epubS3Key:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: 비공개 S3 버킷 내 EPUB 객체 키. URL은 저장하지 않는다.
         saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
         publishedDate: { type: string, format: date }
 
@@ -880,6 +914,11 @@ components:
         coverImageUrl: { type: string, maxLength: 500 }
         description: { type: string }
         detailedSynopsis: { type: string }
+        epubS3Key:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: null이면 유지, 빈 문자열이면 eBook 연결 해제
         saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
         publishedDate: { type: string, format: date }
 
@@ -919,6 +958,28 @@ components:
         success: { type: boolean }
         data:
           $ref: "#/components/schemas/BookDetail"
+
+    EbookAccess:
+      type: object
+      required: [bookId, ebookAvailable]
+      properties:
+        bookId: { type: integer, format: int64 }
+        ebookAvailable: { type: boolean }
+        presignedUrl:
+          type: string
+          nullable: true
+          description: eBook 미지원이면 null. 운영에서는 만료되는 S3 Presigned URL.
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    EbookAccessEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/EbookAccess"
 
     ReviewEnvelope:
       type: object

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiClient, unwrap } from "../api/client.ts";
+import { isLoggedIn } from "../api/authStorage.js";
 
 const STORAGE_KEY_PREFIX = "reading-progress:";
 const SAVE_DEBOUNCE_MS = 500;
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 function readProgress(bookId) {
   try {
@@ -34,8 +37,8 @@ function writeProgress(bookId, cfi, percentage) {
 
 /**
  * 전자책 이어읽기 위치(+ 진행률)를 저장/복원한다.
- * 지금은 localStorage에만 저장하지만, 서버 API가 준비되면
- * readProgress/writeProgress 내부만 API 호출로 바꾸면 된다 (인터페이스는 유지).
+ * 로그인 사용자는 서버 API를 기준으로 동기화하고 localStorage는 즉시 복원용 캐시로 사용한다.
+ * 목업/비로그인 상태에서는 기존처럼 localStorage만 사용한다.
  */
 export function useReadingProgress(bookId) {
   // lazy init: 마운트 시 동기적으로 읽어 이후 EbookViewer의 open 이펙트가
@@ -52,6 +55,23 @@ export function useReadingProgress(bookId) {
   }, [bookId]);
 
   useEffect(() => {
+    if (!bookId || USE_MOCK || !isLoggedIn()) return;
+    let cancelled = false;
+    unwrap(apiClient.get(`/catalog/books/${bookId}/reading-progress`))
+      .then((serverProgress) => {
+        if (cancelled || !serverProgress) return;
+        writeProgress(bookId, serverProgress.cfi, serverProgress.percentage);
+        setProgress(serverProgress);
+      })
+      .catch(() => {
+        // 네트워크 장애 시 로컬 캐시로 계속 읽을 수 있게 둔다.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
+
+  useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
@@ -63,6 +83,14 @@ export function useReadingProgress(bookId) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         writeProgress(bookId, cfi, percentage);
+        setProgress({ cfi, percentage: typeof percentage === "number" ? percentage : null });
+        if (!USE_MOCK && isLoggedIn()) {
+          unwrap(
+            apiClient.put(`/catalog/books/${bookId}/reading-progress`, { cfi, percentage }),
+          ).catch(() => {
+            // 서버 저장 실패에도 현재 독서 세션과 로컬 복원은 유지한다.
+          });
+        }
       }, SAVE_DEBOUNCE_MS);
     },
     [bookId],
