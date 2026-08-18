@@ -10,6 +10,7 @@ import com.bookeatinglion.book.port.InventoryPort;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +50,10 @@ public class BookService {
         return BookDetailResponse.from(book, stock);
     }
 
+    // 현재 이 메서드의 조회 조건은 limit 뿐이라 key = #limit 만으로 결과를 완전히 특정한다.
+    // 이후 카테고리/로케일 등 결과에 영향을 주는 파라미터가 추가되면 key 도 반드시 그만큼
+    // 확장해야 한다 — 안 그러면 서로 다른 조회 결과가 같은 캐시 엔트리에서 섞인다.
+    @Cacheable(cacheNames = "bestsellers", key = "#limit")
     public List<BookSummaryResponse> getBestsellers(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         return bookRepository
