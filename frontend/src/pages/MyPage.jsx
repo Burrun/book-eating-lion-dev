@@ -20,6 +20,10 @@ import {
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
+// badges/streakCount는 member(GET /api/members/me)도 ai(GET /api/ai/lion/me)도 갖고 있지
+// 않다 — 대응 API가 아직 없는 mock 전용 데이터라(mocks/mypage.js 참고) api 레이어를 거치지
+// 않고 여기서 직접 가져와 mock 모드일 때만 profile에 붙인다.
+import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
@@ -75,7 +79,13 @@ export default function MyPage() {
   useEffect(() => {
     let ignore = false;
     fetchProfile().then((data) => {
-      if (!ignore) setProfile(data);
+      if (ignore) return;
+      // 프로필(member)과 배지(mock 전용, 대응 API 없음)는 소유처가 달라 따로 부르고
+      // 컴포넌트에서 합친다. 실API 모드에서는 badges/streakCount를 붙이지 않는다 —
+      // ProfileCard도 {USE_MOCK && ...}로 감싸져 있어 실모드에서는 렌더링되지 않는다.
+      setProfile(
+        USE_MOCK ? { ...data, badges: MOCK_BADGES, streakCount: MOCK_STREAK_COUNT } : data,
+      );
     });
     fetchLionStatus().then((lion) => {
       if (ignore) return;
@@ -141,7 +151,7 @@ function ProfileCard({ profile, level }) {
       </div>
       {USE_MOCK && (
         <div className="mt-4 flex flex-wrap gap-2">
-          {profile.badges.map((badge) => {
+          {(profile.badges ?? []).map((badge) => {
             if (badge.type === "streak") {
               return (
                 <StreakBadge

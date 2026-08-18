@@ -9,7 +9,6 @@ import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getMyCards } from "../api/cards.ts";
 import { getMyAddresses } from "../api/addresses.ts";
-import { removeFromCart } from "../api/cart.js";
 import { createOrder } from "../api/orders.js";
 import { openDaumPostcode } from "../utils/daumPostcode.js";
 
@@ -31,7 +30,8 @@ const CARD_STATUS_LABEL = {
 
 const PAYMENT_METHODS = [
   {
-    id: "KAKAOPAY",
+    // 백엔드 PaymentMethod enum: KAKAO_PAY.
+    id: "KAKAO_PAY",
     label: "카카오페이",
     description: "카카오 계정으로 간편결제",
     icon: Wallet,
@@ -44,10 +44,12 @@ const PAYMENT_METHODS = [
     icon: CreditCard,
   },
   {
+    // 백엔드 PaymentMethod enum에 없다 — 선택 자체를 막아둔다(disabled).
     id: "BANK_TRANSFER",
     label: "무통장입금",
-    description: "입금 확인 후 배송 시작",
+    description: "준비 중인 결제수단입니다",
     icon: Landmark,
+    disabled: true,
   },
 ];
 
@@ -165,12 +167,6 @@ export default function Checkout() {
       toast.error("결제 수단을 선택해주세요.");
       return;
     }
-    if (paymentMethod === "KAKAOPAY") {
-      // TODO: 카카오페이 주문 생성 + 결제 승인(POST /api/payments/kakao/approve) 연동은 별도 작업.
-      // 지금은 콜백 페이지 흐름만 미리 확인할 수 있도록 success 콜백으로 바로 이동한다(실제 결제 없음, 데모용).
-      navigate("/payment/kakao/success?pg_token=demo-pg-token");
-      return;
-    }
     if (paymentMethod === "VIRTUAL_CARD") {
       const chosenCard = cards?.find((card) => card.id === selectedCardId);
       if (!chosenCard) {
@@ -209,29 +205,39 @@ export default function Checkout() {
     }));
   };
 
-  // 주문 생성(POST /api/orders) + 구매한 장바구니 항목 정리. 카카오페이는 validateAndOpenConfirm에서
-  // 이미 걸러지므로 여기 도달하는 건 VIRTUAL_CARD/BANK_TRANSFER뿐이다.
+  // 주문 생성(POST /api/orders). VIRTUAL_CARD는 이 호출 안에서 결제까지 끝나 orderStatus=PAID로
+  // 응답하고(장바구니도 서버가 이미 비운다), KAKAO_PAY는 결제 준비(Ready)만 끝나
+  // orderStatus=PENDING_PAYMENT + nextRedirectUrl로 응답한다 — 그 URL로 브라우저를 통째로
+  // 리다이렉트시켜야 카카오 결제 페이지가 뜬다. 실제 승인(approve)은 카카오가 다시 우리
+  // /payments/kakao/callback 으로 리다이렉트해줄 때 그 페이지에서 이뤄진다.
   const handleConfirmPayment = async () => {
     setIsPlacingOrder(true);
     try {
-      await createOrder({
+      const order = await createOrder({
         items: checkoutItems.map((item) => ({ bookId: item.bookId, quantity: item.quantity })),
         // 이번 스코프는 쿠폰 선택 UI를 만들지 않아 항상 null로 보낸다.
         memberCouponId: null,
         recipient: {
-          recipientName: form.receiver,
-          phoneNumber: form.phone,
-          zipcode: form.zipcode,
-          address: form.address,
-          detailAddress: form.addressDetail,
-          deliveryRequest: form.request,
+          name: form.receiver,
+          phone: form.phone,
+          postalCode: form.zipcode,
+          // 백엔드 Recipient에 상세주소 전용 필드가 없어 주소에 합쳐 보낸다.
+          address: form.addressDetail ? `${form.address} ${form.addressDetail}` : form.address,
         },
         paymentMethod,
         cardId: paymentMethod === "VIRTUAL_CARD" ? Number(selectedCardId) : null,
       });
 
-      // 주문한 상품은 더 이상 장바구니에 남아있으면 안 되므로 정리하고 헤더 뱃지를 갱신한다.
-      await Promise.all(checkoutItems.map((item) => removeFromCart(item.id)));
+      if (paymentMethod === "KAKAO_PAY") {
+        if (!order.nextRedirectUrl) {
+          throw new Error("카카오페이 결제 페이지 URL을 받지 못했습니다.");
+        }
+        window.location.href = order.nextRedirectUrl;
+        return;
+      }
+
+      // VIRTUAL_CARD는 createOrder 안에서 이미 서버가 장바구니를 비웠으므로 다시 지우지 않고
+      // 캐시만 무효화한다(중복 삭제를 시도하면 이미 없는 아이템이라 404로 실패한다).
       queryClient.invalidateQueries({ queryKey: ["cart"] });
 
       setIsConfirmOpen(false);
@@ -411,9 +417,9 @@ export default function Checkout() {
                       borderColor: isSelected ? "var(--color-honey)" : "rgba(27,59,54,0.15)",
                     }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
-                    className={`relative flex cursor-pointer flex-col gap-2 rounded-2xl border-2 bg-white p-4 ${
-                      isSelected ? "shadow-[0_10px_24px_rgba(242,169,59,0.25)]" : "shadow-sm"
-                    }`}
+                    className={`relative flex flex-col gap-2 rounded-2xl border-2 bg-white p-4 ${
+                      method.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
+                    } ${isSelected ? "shadow-[0_10px_24px_rgba(242,169,59,0.25)]" : "shadow-sm"}`}
                   >
                     <input
                       type="radio"
@@ -421,6 +427,7 @@ export default function Checkout() {
                       name="paymentMethod"
                       value={method.id}
                       checked={isSelected}
+                      disabled={method.disabled}
                       onChange={() => setPaymentMethod(method.id)}
                       className="sr-only"
                     />
@@ -433,8 +440,13 @@ export default function Checkout() {
                     >
                       <Icon size={17} />
                     </span>
-                    <span className="text-sm font-medium text-[var(--color-ink)]">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink)]">
                       {method.label}
+                      {method.disabled && (
+                        <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--color-forest)]">
+                          준비 중
+                        </span>
+                      )}
                     </span>
                     <span className="text-sm text-[var(--color-ink)] opacity-60">
                       {method.description}
