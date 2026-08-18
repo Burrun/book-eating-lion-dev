@@ -10,6 +10,7 @@ import com.bookeatinglion.book.port.InventoryPort;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +50,9 @@ public class BookService {
         return BookDetailResponse.from(book, stock);
     }
 
+    // limit(=페이지 크기) 단위로 캐시 키가 갈린다 — 베스트셀러 API 는 페이지네이션이 없고
+    // limit 값이 곧 조회 단위라, 요청받는 limit 조합마다 별도 캐시 엔트리가 생긴다.
+    @Cacheable(cacheNames = "bestsellers", key = "#limit")
     public List<BookSummaryResponse> getBestsellers(int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         return bookRepository
