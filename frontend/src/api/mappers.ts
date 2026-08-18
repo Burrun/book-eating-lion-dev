@@ -2,6 +2,7 @@
 // 백엔드에 아직 없거나 팀 합의가 안 된 필드는 아래 임시 기본값을 쓴다.
 // 상세 내역은 docs/frontend-backend-field-mapping.md 참고.
 import type {
+  AddressResponse,
   BookDetailResponse,
   BookSummaryResponse,
   BookSynopsisDetailResponse,
@@ -11,6 +12,7 @@ import type {
   ReviewResponse,
   SubscriptionResponse,
 } from "./types.ts";
+import type { Address } from "../types/address.ts";
 import type { Book, BookSummary, Review, WebtoonCut } from "../types/book.ts";
 import type { Card } from "../types/card.ts";
 import type { Member, Subscription } from "../types/member.ts";
@@ -83,6 +85,18 @@ export function toMember(dto: MemberResponse): Member {
 // 구독 이력이 없으면 dto가 null(=비구독)이다.
 export function toSubscription(dto: SubscriptionResponse | null): Subscription {
   return { isActive: dto?.status === "ACTIVE" };
+}
+
+export function toAddress(dto: AddressResponse): Address {
+  return {
+    id: String(dto.id),
+    recipientName: dto.recipientName,
+    phoneNumber: dto.phoneNumber,
+    zipcode: dto.zipcode,
+    address: dto.address,
+    detailAddress: dto.detailAddress ?? null,
+    isDefault: dto.isDefault,
+  };
 }
 
 export function toCard(dto: CardResponse): Card {

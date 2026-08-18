@@ -152,17 +152,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean }
-                  message: { type: string }
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Address"
-                  error:
-                    $ref: "#/components/schemas/ErrorDetail"
-                    nullable: true
+                $ref: "#/components/schemas/AddressListEnvelope"
     post:
       summary: 배송지 등록
       operationId: createAddress
@@ -178,6 +168,61 @@ paths:
       responses:
         "201":
           description: 등록 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+
+  /api/members/me/addresses/{addressId}:
+    patch:
+      summary: 배송지 수정
+      description: |
+        null 인 필드는 변경하지 않는다(부분 수정). isDefault 를 true 로 주면 기존 기본
+        배송지를 자동 해제한다 — 등록(POST) 때와 동일한 규칙이다.
+      operationId: updateAddress
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressUpdateRequest"
+      responses:
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+        "403":
+          description: 본인 소유가 아닌 배송지
+        "404":
+          description: 존재하지 않는 배송지
+    delete:
+      summary: 배송지 삭제
+      operationId: deleteAddress
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "204":
+          description: 삭제 완료
+        "403":
+          description: 본인 소유가 아닌 배송지
+        "404":
+          description: 존재하지 않는 배송지
 
   /api/cards:
     post:
@@ -511,13 +556,14 @@ components:
 
     Address:
       type: object
+      required: [id, recipientName, phoneNumber, zipcode, address, isDefault]
       properties:
         id: { type: integer, format: int64 }
         recipientName: { type: string }
         phoneNumber: { type: string }
         zipcode: { type: string }
         address: { type: string }
-        detailAddress: { type: string }
+        detailAddress: { type: string, nullable: true }
         isDefault: { type: boolean }
 
     AddressCreateRequest:
@@ -530,6 +576,43 @@ components:
         address: { type: string }
         detailAddress: { type: string }
         isDefault: { type: boolean, default: false }
+
+    # 전부 optional — PATCH 부분수정. null(생략)인 필드는 변경하지 않는다.
+    # isDefault 는 3중 상태(생략=변경 안 함/true/false)가 의미상 필요해 default: 를 적지 않는다
+    # (IssueCardRequest.monthlyLimit 과 동일한 이유 — default 를 적으면 생성기가 필수 필드로 읽는다).
+    AddressUpdateRequest:
+      type: object
+      properties:
+        recipientName: { type: string }
+        phoneNumber: { type: string }
+        zipcode: { type: string }
+        address: { type: string }
+        detailAddress: { type: string }
+        isDefault: { type: boolean, nullable: true }
+
+    AddressEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          $ref: "#/components/schemas/Address"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    AddressListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Address"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CardOperationRequest:
       type: object

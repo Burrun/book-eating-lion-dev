@@ -100,6 +100,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/members/me/addresses/{addressId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** 배송지 삭제 */
+    delete: operations["deleteAddress"];
+    options?: never;
+    head?: never;
+    /**
+     * 배송지 수정
+     * @description null 인 필드는 변경하지 않는다(부분 수정). isDefault 를 true 로 주면 기존 기본
+     *     배송지를 자동 해제한다 — 등록(POST) 때와 동일한 규칙이다.
+     */
+    patch: operations["updateAddress"];
+    trace?: never;
+  };
   "/api/cards": {
     parameters: {
       query?: never;
@@ -389,13 +411,13 @@ export interface components {
     };
     Address: {
       /** Format: int64 */
-      id?: number;
-      recipientName?: string;
-      phoneNumber?: string;
-      zipcode?: string;
-      address?: string;
-      detailAddress?: string;
-      isDefault?: boolean;
+      id: number;
+      recipientName: string;
+      phoneNumber: string;
+      zipcode: string;
+      address: string;
+      detailAddress?: string | null;
+      isDefault: boolean;
     };
     AddressCreateRequest: {
       recipientName: string;
@@ -405,6 +427,26 @@ export interface components {
       detailAddress?: string;
       /** @default false */
       isDefault: boolean;
+    };
+    AddressUpdateRequest: {
+      recipientName?: string;
+      phoneNumber?: string;
+      zipcode?: string;
+      address?: string;
+      detailAddress?: string;
+      isDefault?: boolean | null;
+    };
+    AddressEnvelope: {
+      success?: boolean;
+      message?: string;
+      data?: components["schemas"]["Address"];
+      error?: components["schemas"]["ErrorDetail"];
+    };
+    AddressListEnvelope: {
+      success?: boolean;
+      message?: string;
+      data?: components["schemas"]["Address"][];
+      error?: components["schemas"]["ErrorDetail"];
     };
     CardOperationRequest: {
       amount: number;
@@ -669,12 +711,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            success?: boolean;
-            message?: string;
-            data?: components["schemas"]["Address"][];
-            error?: components["schemas"]["ErrorDetail"];
-          };
+          "application/json": components["schemas"]["AddressListEnvelope"];
         };
       };
     };
@@ -694,6 +731,82 @@ export interface operations {
     responses: {
       /** @description 등록 완료 */
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AddressEnvelope"];
+        };
+      };
+    };
+  };
+  deleteAddress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        addressId: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 삭제 완료 */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 본인 소유가 아닌 배송지 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 존재하지 않는 배송지 */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateAddress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        addressId: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AddressUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description 수정 완료 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AddressEnvelope"];
+        };
+      };
+      /** @description 본인 소유가 아닌 배송지 */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 존재하지 않는 배송지 */
+      404: {
         headers: {
           [name: string]: unknown;
         };

@@ -34,6 +34,7 @@ const ORDER_TABS = [
   { id: "returns", label: "취소/교환/반품/환불" },
   { id: "restock", label: "재입고 알림 신청" },
   { id: "cards", label: "카드 관리" },
+  { id: "addresses", label: "배송지 관리" },
 ];
 
 const ORDER_STATUS_META = {
@@ -637,17 +638,24 @@ function OrdersSection() {
   const requestedTab = searchParams.get("tab");
   const activeTab = ORDER_TABS.some((t) => t.id === requestedTab) ? requestedTab : "orders";
 
-  // 카드 관리는 이 안에 임베드하지 않고 기존 /cards 라우트를 그대로 쓴다
-  // (CardsPage는 자체 <main>과 섹션 레이아웃을 가진 독립 페이지라 탭 패널에 끼워 넣기엔 구조가 맞지 않는다).
+  // 카드/배송지 관리는 이 안에 임베드하지 않고 기존 독립 라우트를 그대로 쓴다
+  // (CardsPage/AddressesPage는 자체 <main>과 섹션 레이아웃을 가진 독립 페이지라 탭 패널에
+  // 끼워 넣기엔 구조가 맞지 않는다).
   useEffect(() => {
     if (activeTab === "cards") {
       navigate("/cards", { replace: true });
+    } else if (activeTab === "addresses") {
+      navigate("/addresses", { replace: true });
     }
   }, [activeTab, navigate]);
 
   const setTab = (id) => {
     if (id === "cards") {
       navigate("/cards");
+      return;
+    }
+    if (id === "addresses") {
+      navigate("/addresses");
       return;
     }
     setSearchParams((prev) => {

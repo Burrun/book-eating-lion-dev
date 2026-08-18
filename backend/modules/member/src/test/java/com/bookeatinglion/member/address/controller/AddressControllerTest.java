@@ -2,9 +2,13 @@ package com.bookeatinglion.member.address.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +16,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bookeatinglion.member.MemberModuleTestApplication;
 import com.bookeatinglion.member.address.dto.AddressCreateRequest;
 import com.bookeatinglion.member.address.dto.AddressResponse;
+import com.bookeatinglion.member.address.dto.AddressUpdateRequest;
+import com.bookeatinglion.member.address.exception.AddressNotFoundException;
+import com.bookeatinglion.member.address.exception.UnauthorizedAddressAccessException;
 import com.bookeatinglion.member.address.service.AddressService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -88,5 +95,62 @@ class AddressControllerTest {
                         .content(objectMapper.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 배송지_수정은_200과_데이터를_반환한다() throws Exception {
+        AddressUpdateRequest request = new AddressUpdateRequest("김철수", null, null, null, null, null);
+        when(addressService.updateAddress(eq(SUB), eq(1L), any())).thenReturn(addressResponse());
+
+        mockMvc.perform(patch("/api/members/me/addresses/1")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.recipientName").value("홍길동"));
+    }
+
+    @Test
+    void 타인의_배송지_수정은_403을_반환한다() throws Exception {
+        AddressUpdateRequest request = new AddressUpdateRequest("김철수", null, null, null, null, null);
+        when(addressService.updateAddress(eq(SUB), eq(1L), any()))
+                .thenThrow(new UnauthorizedAddressAccessException(1L));
+
+        mockMvc.perform(patch("/api/members/me/addresses/1")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 존재하지_않는_배송지_수정은_404를_반환한다() throws Exception {
+        AddressUpdateRequest request = new AddressUpdateRequest("김철수", null, null, null, null, null);
+        when(addressService.updateAddress(eq(SUB), eq(999L), any())).thenThrow(new AddressNotFoundException(999L));
+
+        mockMvc.perform(patch("/api/members/me/addresses/999")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void 배송지_삭제는_204를_반환한다() throws Exception {
+        mockMvc.perform(delete("/api/members/me/addresses/1").with(jwt().jwt(jwt -> jwt.subject(SUB))))
+                .andExpect(status().isNoContent());
+
+        verify(addressService).deleteAddress(SUB, 1L);
+    }
+
+    @Test
+    void 타인의_배송지_삭제는_403을_반환한다() throws Exception {
+        doThrow(new UnauthorizedAddressAccessException(1L)).when(addressService).deleteAddress(SUB, 1L);
+
+        mockMvc.perform(delete("/api/members/me/addresses/1").with(jwt().jwt(jwt -> jwt.subject(SUB))))
+                .andExpect(status().isForbidden());
     }
 }

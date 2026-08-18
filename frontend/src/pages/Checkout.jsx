@@ -8,8 +8,10 @@ import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getMyCards } from "../api/cards.ts";
+import { getMyAddresses } from "../api/addresses.ts";
 import { removeFromCart } from "../api/cart.js";
 import { createOrder } from "../api/orders.js";
+import { openDaumPostcode } from "../utils/daumPostcode.js";
 
 const FREE_SHIPPING_THRESHOLD = 30000;
 
@@ -49,17 +51,6 @@ const PAYMENT_METHODS = [
   },
 ];
 
-function loadDaumPostcodeScript() {
-  return new Promise((resolve, reject) => {
-    if (window.daum?.Postcode) return resolve();
-    const script = document.createElement("script");
-    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
-
 export default function Checkout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,16 +70,35 @@ export default function Checkout() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [cards, setCards] = useState(null);
+  const [addresses, setAddresses] = useState(null);
+  // null이면 "새 배송지 입력" 모드. 값이 있으면 그 id의 저장된 배송지를 쓰는 중이다.
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
 
   // Cart.jsx에서 "주문/결제하기" 클릭 시 선택된 상품 목록을 state로 넘겨준다.
   // 새로고침 등으로 state 없이 직접 들어오면 아래 렌더링에서 안내 후 장바구니로 돌려보낸다.
   const checkoutItems = location.state?.items ?? null;
 
+  const applyAddress = (savedAddress) => {
+    setSelectedAddressId(savedAddress.id);
+    setForm((prev) => ({
+      ...prev,
+      receiver: savedAddress.recipientName,
+      phone: savedAddress.phoneNumber,
+      zipcode: savedAddress.zipcode,
+      address: savedAddress.address,
+      addressDetail: savedAddress.detailAddress ?? "",
+    }));
+  };
+
   useEffect(() => {
     let ignore = false;
-    getMyCards().then((cardsData) => {
+    Promise.all([getMyCards(), getMyAddresses()]).then(([cardsData, addressesData]) => {
       if (ignore) return;
       setCards(cardsData);
+      setAddresses(addressesData);
+      // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
+      const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
+      if (preselected) applyAddress(preselected);
     });
     return () => {
       ignore = true;
@@ -113,7 +123,7 @@ export default function Checkout() {
     );
   }
 
-  if (cards === null) {
+  if (cards === null || addresses === null) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
@@ -177,20 +187,26 @@ export default function Checkout() {
 
   const handleSearchAddress = async () => {
     try {
-      await loadDaumPostcodeScript();
-      new window.daum.Postcode({
-        oncomplete: (data) => {
-          setForm((prev) => ({
-            ...prev,
-            zipcode: data.zonecode,
-            address: data.roadAddress || data.jibunAddress,
-          }));
-          addressDetailRef.current?.focus();
-        },
-      }).open();
+      await openDaumPostcode(({ zipcode, address }) => {
+        setForm((prev) => ({ ...prev, zipcode, address }));
+        addressDetailRef.current?.focus();
+      });
     } catch {
       toast.error("우편번호 검색을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
     }
+  };
+
+  // 저장된 배송지 대신 새 배송지를 입력하는 모드로 전환한다.
+  const handleUseNewAddress = () => {
+    setSelectedAddressId(null);
+    setForm((prev) => ({
+      ...prev,
+      receiver: "",
+      phone: "",
+      zipcode: "",
+      address: "",
+      addressDetail: "",
+    }));
   };
 
   // 주문 생성(POST /api/orders) + 구매한 장바구니 항목 정리. 카카오페이는 validateAndOpenConfirm에서
@@ -237,7 +253,62 @@ export default function Checkout() {
         <div className="flex flex-col gap-6">
           {/* 배송지 입력 */}
           <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-            <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">배송지 정보</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-lg text-[var(--color-forest)]">배송지 정보</h2>
+              <Link
+                to="/addresses"
+                className="text-xs font-medium text-[var(--color-coral)] hover:underline"
+              >
+                배송지 관리
+              </Link>
+            </div>
+
+            {addresses.length > 0 && (
+              <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {addresses.map((savedAddress) => {
+                  const isChosen = selectedAddressId === savedAddress.id;
+                  return (
+                    <button
+                      key={savedAddress.id}
+                      type="button"
+                      onClick={() => applyAddress(savedAddress)}
+                      className={`flex flex-col gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                        isChosen
+                          ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                          : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink)]">
+                        {savedAddress.recipientName}
+                        {savedAddress.isDefault && (
+                          <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)]">
+                            기본
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-60">
+                        {savedAddress.address} {savedAddress.detailAddress}
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-50">
+                        {savedAddress.phoneNumber}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={handleUseNewAddress}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-3 text-sm font-medium transition-colors ${
+                    selectedAddressId === null
+                      ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10 text-[var(--color-forest)]"
+                      : "border-[var(--color-forest)]/20 text-[var(--color-ink)] opacity-60 hover:border-[var(--color-honey)]/50"
+                  }`}
+                >
+                  + 새 배송지 입력
+                </button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="받는 분">
@@ -245,8 +316,9 @@ export default function Checkout() {
                     type="text"
                     value={form.receiver}
                     onChange={updateField("receiver")}
+                    readOnly={selectedAddressId !== null}
                     placeholder="이름"
-                    className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                    className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                   />
                 </Field>
                 <Field label="연락처">
@@ -255,9 +327,10 @@ export default function Checkout() {
                     inputMode="numeric"
                     value={form.phone}
                     onChange={handlePhoneChange}
+                    readOnly={selectedAddressId !== null}
                     placeholder="010-0000-0000"
                     maxLength={13}
-                    className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                    className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                   />
                 </Field>
               </div>
@@ -276,6 +349,7 @@ export default function Checkout() {
                     variant="secondary"
                     shimmer={false}
                     onClick={handleSearchAddress}
+                    disabled={selectedAddressId !== null}
                     className="shrink-0"
                   >
                     <Search size={15} className="mr-1" />
@@ -300,8 +374,9 @@ export default function Checkout() {
                   type="text"
                   value={form.addressDetail}
                   onChange={updateField("addressDetail")}
+                  readOnly={selectedAddressId !== null}
                   placeholder="동/호수 등 상세 주소"
-                  className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                  className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                 />
               </Field>
 

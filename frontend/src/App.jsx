@@ -16,6 +16,7 @@ import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
 import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
 import WishlistPage from "./pages/WishlistPage/WishlistPage.tsx";
 import CardsPage from "./pages/CardsPage/CardsPage.tsx";
+import AddressesPage from "./pages/AddressesPage/AddressesPage.tsx";
 import KakaoPaySuccess from "./pages/payment/KakaoPaySuccess.jsx";
 import KakaoPayFail from "./pages/payment/KakaoPayFail.jsx";
 import KakaoPayCancel from "./pages/payment/KakaoPayCancel.jsx";
@@ -81,6 +82,14 @@ export default function App() {
                   element={
                     <ProtectedRoute>
                       <CardsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/addresses"
+                  element={
+                    <ProtectedRoute>
+                      <AddressesPage />
                     </ProtectedRoute>
                   }
                 />

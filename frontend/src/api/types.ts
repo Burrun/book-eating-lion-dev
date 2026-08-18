@@ -72,6 +72,11 @@ export type MemberResponse = MemberSchemas["Member"];
 export type Role = NonNullable<MemberSchemas["Member"]["role"]>;
 export type Gender = NonNullable<MemberSchemas["Member"]["gender"]>;
 
+// --- 배송지 (Address) ---
+export type AddressResponse = MemberSchemas["Address"];
+export type AddressCreateRequest = MemberSchemas["AddressCreateRequest"];
+export type AddressUpdateRequest = MemberSchemas["AddressUpdateRequest"];
+
 // --- 가상 카드 (Card) ---
 export type CardResponse = MemberSchemas["Card"];
 export type CardIssueRequest = MemberSchemas["IssueCardRequest"];
