@@ -77,7 +77,9 @@ export default function ChatContainer() {
                 onChange={setDraft}
                 onSend={handleSend}
                 disabled={inputDisabled}
-                placeholder={chatState === "WAITING" ? "상담사를 연결하는 중이에요..." : "메시지를 입력하세요"}
+                placeholder={
+                  chatState === "WAITING" ? "상담사를 연결하는 중이에요..." : "메시지를 입력하세요"
+                }
               />
             )}
           </motion.div>

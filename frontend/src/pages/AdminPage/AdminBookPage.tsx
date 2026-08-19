@@ -273,7 +273,9 @@ function BookForm({
       setValues((prev) => ({ ...prev, epubS3Key }));
       setEpubFileName(file.name);
     } catch {
-      toast.error("EPUB 업로드에 실패했습니다. 로컬 환경에서는 S3 저장소 모드가 아니면 지원되지 않습니다.");
+      toast.error(
+        "EPUB 업로드에 실패했습니다. 로컬 환경에서는 S3 저장소 모드가 아니면 지원되지 않습니다.",
+      );
     } finally {
       setIsUploading(false);
       e.target.value = "";

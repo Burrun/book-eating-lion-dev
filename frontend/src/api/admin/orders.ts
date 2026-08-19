@@ -38,6 +38,8 @@ export async function updateOrderDeliveryStatus(
     return mockDelay(updated);
   }
   return unwrap(
-    apiClient.patch<ApiResponse<DeliveryResponse>>(`/orders/admin/${orderId}/delivery-status`, { status }),
+    apiClient.patch<ApiResponse<DeliveryResponse>>(`/orders/admin/${orderId}/delivery-status`, {
+      status,
+    }),
   );
 }

@@ -94,7 +94,15 @@ let orders = [
     address: "서울시 강남구",
     orderStatus: "PAID",
     totalAmount: 38700,
-    items: [{ orderItemId: 1, bookId: 1, bookTitle: "자바 ORM 표준 JPA 프로그래밍", quantity: 1, unitPrice: 38700 }],
+    items: [
+      {
+        orderItemId: 1,
+        bookId: 1,
+        bookTitle: "자바 ORM 표준 JPA 프로그래밍",
+        quantity: 1,
+        unitPrice: 38700,
+      },
+    ],
     payment: {
       paymentId: 2001,
       paymentMethod: "VIRTUAL_CARD",
@@ -114,7 +122,15 @@ let orders = [
     address: "서울시 강남구",
     orderStatus: "RETURN_REQUESTED",
     totalAmount: 29000,
-    items: [{ orderItemId: 2, bookId: 2, bookTitle: "클린 코드 (Clean Code)", quantity: 1, unitPrice: 29000 }],
+    items: [
+      {
+        orderItemId: 2,
+        bookId: 2,
+        bookTitle: "클린 코드 (Clean Code)",
+        quantity: 1,
+        unitPrice: 29000,
+      },
+    ],
     payment: {
       paymentId: 2002,
       paymentMethod: "KAKAO_PAY",
@@ -134,7 +150,15 @@ let orders = [
     address: "서울시 강남구",
     orderStatus: "CANCELLED",
     totalAmount: 32000,
-    items: [{ orderItemId: 3, bookId: 3, bookTitle: "스프링 부트 실전 활용", quantity: 1, unitPrice: 32000 }],
+    items: [
+      {
+        orderItemId: 3,
+        bookId: 3,
+        bookTitle: "스프링 부트 실전 활용",
+        quantity: 1,
+        unitPrice: 32000,
+      },
+    ],
     payment: {
       paymentId: 2003,
       paymentMethod: "VIRTUAL_CARD",
@@ -154,7 +178,9 @@ let orders = [
     address: "서울시 강남구",
     orderStatus: "PENDING_PAYMENT",
     totalAmount: 19800,
-    items: [{ orderItemId: 4, bookId: 4, bookTitle: "이펙티브 자바", quantity: 1, unitPrice: 19800 }],
+    items: [
+      { orderItemId: 4, bookId: 4, bookTitle: "이펙티브 자바", quantity: 1, unitPrice: 19800 },
+    ],
     payment: {
       paymentId: 2004,
       paymentMethod: "KAKAO_PAY",
@@ -170,9 +196,31 @@ let orders = [
 // orderId=PENDING_PAYMENT(2004)인 주문은 결제 확정 전이라 배송 레코드가 없다 —
 // 실 API(OrderService.createDelivery)와 같은 규칙이다.
 let deliveries = [
-  { id: 1, orderId: 2001, courierCompany: "CJ대한통운", trackingNumber: "123456789", deliveryStatus: "SHIPPED", createdAt: "2026-07-29T10:00:00", updatedAt: "2026-07-30T09:00:00" },
-  { id: 2, orderId: 2002, courierCompany: "우체국택배", trackingNumber: "987654321", deliveryStatus: "DELIVERED", createdAt: "2026-07-20T10:00:00", updatedAt: "2026-07-22T14:00:00" },
-  { id: 3, orderId: 2003, deliveryStatus: "PENDING", createdAt: "2026-07-15T10:00:00", updatedAt: "2026-07-15T10:00:00" },
+  {
+    id: 1,
+    orderId: 2001,
+    courierCompany: "CJ대한통운",
+    trackingNumber: "123456789",
+    deliveryStatus: "SHIPPED",
+    createdAt: "2026-07-29T10:00:00",
+    updatedAt: "2026-07-30T09:00:00",
+  },
+  {
+    id: 2,
+    orderId: 2002,
+    courierCompany: "우체국택배",
+    trackingNumber: "987654321",
+    deliveryStatus: "DELIVERED",
+    createdAt: "2026-07-20T10:00:00",
+    updatedAt: "2026-07-22T14:00:00",
+  },
+  {
+    id: 3,
+    orderId: 2003,
+    deliveryStatus: "PENDING",
+    createdAt: "2026-07-15T10:00:00",
+    updatedAt: "2026-07-15T10:00:00",
+  },
 ];
 
 function toSummary(order) {

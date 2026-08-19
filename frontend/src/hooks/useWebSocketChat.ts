@@ -32,7 +32,9 @@ function wrapNativeSocket(ws: WebSocket): ChatTransport {
 
 function resolveWsUrl(ticket: string): string {
   const configured = import.meta.env.VITE_WS_BASE_URL as string | undefined;
-  const base = configured ?? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+  const base =
+    configured ??
+    `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
   // 백엔드 계약(backend/contracts/ai-v1.yaml /ws/ai/chat): 티켓은 query parameter로 전달한다.
   // WebSocket 핸드셰이크는 커스텀 헤더를 못 붙이므로 URL 파라미터가 유일한 실용적 방법이다.
   return `${base}/ws/ai/chat?ticket=${encodeURIComponent(ticket)}`;
@@ -153,7 +155,9 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
       // 대기하는 동안 이 시도가 disconnect()나 더 최신 connect()로 무효화됐을 수 있다.
       if (epochRef.current !== myEpoch) return;
 
-      const transport = USE_MOCK ? createMockChatSocket() : wrapNativeSocket(new WebSocket(resolveWsUrl(ticket)));
+      const transport = USE_MOCK
+        ? createMockChatSocket()
+        : wrapNativeSocket(new WebSocket(resolveWsUrl(ticket)));
       transportRef.current = transport;
 
       transport.onopen = () => {
@@ -198,10 +202,17 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
     (text: string) => {
       const trimmed = text.trim();
       // WAITING 구간엔 ASK(BOT 전용)도 SAY(LIVE 전용)도 서버가 받아주지 않는다.
-      if (!trimmed || connectionStatus !== "CONNECTED" || chatState === "CLOSED" || chatState === "WAITING") {
+      if (
+        !trimmed ||
+        connectionStatus !== "CONNECTED" ||
+        chatState === "CLOSED" ||
+        chatState === "WAITING"
+      ) {
         return;
       }
-      sendFrame(chatState === "LIVE" ? { type: "SAY", text: trimmed } : { type: "ASK", text: trimmed });
+      sendFrame(
+        chatState === "LIVE" ? { type: "SAY", text: trimmed } : { type: "ASK", text: trimmed },
+      );
     },
     [chatState, connectionStatus, sendFrame],
   );

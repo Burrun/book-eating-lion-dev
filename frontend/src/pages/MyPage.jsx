@@ -58,12 +58,18 @@ const ORDER_STATUS_META = {
     className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
   },
   PAID: { label: "결제 완료", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  CANCELLED: { label: "주문취소", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  CANCELLED: {
+    label: "주문취소",
+    className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
+  },
   RETURN_REQUESTED: {
     label: "반품/교환 접수됨",
     className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
   },
-  REFUNDED: { label: "환불 완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
+  REFUNDED: {
+    label: "환불 완료",
+    className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
+  },
 };
 
 const DELIVERY_STATUS_LABEL = {
@@ -969,13 +975,16 @@ function OrdersTab() {
               <div>
                 <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">결제</p>
                 <p className="text-[var(--color-ink)] opacity-70">
-                  {detailOrder.payment.paymentMethod} · {detailOrder.payment.amount.toLocaleString()}원
+                  {detailOrder.payment.paymentMethod} ·{" "}
+                  {detailOrder.payment.amount.toLocaleString()}원
                 </p>
               </div>
             )}
             {detailOrder.returnReason && (
               <div>
-                <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">반품/교환 사유</p>
+                <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">
+                  반품/교환 사유
+                </p>
                 <p className="text-[var(--color-ink)] opacity-70">{detailOrder.returnReason}</p>
               </div>
             )}
@@ -1050,7 +1059,11 @@ function OrdersTab() {
             >
               닫기
             </Button>
-            <Button variant="primary" onClick={handleReturn} disabled={busyOrderId === returnTarget}>
+            <Button
+              variant="primary"
+              onClick={handleReturn}
+              disabled={busyOrderId === returnTarget}
+            >
               신청
             </Button>
           </>

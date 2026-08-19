@@ -1,4 +1,7 @@
-import type { SubscriptionBannerResponse, SubscriptionBannerWriteRequest } from "../../api/types.ts";
+import type {
+  SubscriptionBannerResponse,
+  SubscriptionBannerWriteRequest,
+} from "../../api/types.ts";
 
 let banners: SubscriptionBannerResponse[] = [
   {
@@ -23,7 +26,9 @@ export function mockGetAdminBanners(): SubscriptionBannerResponse[] {
   return [...banners].sort((a, b) => a.sortOrder - b.sortOrder || a.bannerId - b.bannerId);
 }
 
-export function mockGetAdminBanner(bannerId: number | string): SubscriptionBannerResponse | undefined {
+export function mockGetAdminBanner(
+  bannerId: number | string,
+): SubscriptionBannerResponse | undefined {
   return banners.find((b) => String(b.bannerId) === String(bannerId));
 }
 
@@ -54,5 +59,7 @@ export function mockUpdateBanner(
 }
 
 export function mockDeactivateBanner(bannerId: number | string): void {
-  banners = banners.map((b) => (String(b.bannerId) === String(bannerId) ? { ...b, active: false } : b));
+  banners = banners.map((b) =>
+    String(b.bannerId) === String(bannerId) ? { ...b, active: false } : b,
+  );
 }

@@ -1,4 +1,9 @@
-import type { AdminOrderSummaryResponse, DeliveryResponse, DeliveryStatus, OrderStatus } from "../../api/types.ts";
+import type {
+  AdminOrderSummaryResponse,
+  DeliveryResponse,
+  DeliveryStatus,
+  OrderStatus,
+} from "../../api/types.ts";
 import type { Page } from "../../api/types.ts";
 
 const NEXT_STATUS: Record<DeliveryStatus, DeliveryStatus | null> = {
@@ -44,9 +49,31 @@ let orders: AdminOrderSummaryResponse[] = [
 ];
 
 let deliveries: DeliveryResponse[] = [
-  { id: 1, orderId: 101, deliveryStatus: "PENDING", createdAt: "2026-08-15T10:00:00", updatedAt: "2026-08-15T10:00:00" },
-  { id: 2, orderId: 102, courierCompany: "CJ대한통운", trackingNumber: "123456789", deliveryStatus: "SHIPPED", createdAt: "2026-08-14T09:00:00", updatedAt: "2026-08-16T11:00:00" },
-  { id: 3, orderId: 103, courierCompany: "우체국택배", trackingNumber: "987654321", deliveryStatus: "DELIVERED", createdAt: "2026-08-10T09:00:00", updatedAt: "2026-08-13T15:00:00" },
+  {
+    id: 1,
+    orderId: 101,
+    deliveryStatus: "PENDING",
+    createdAt: "2026-08-15T10:00:00",
+    updatedAt: "2026-08-15T10:00:00",
+  },
+  {
+    id: 2,
+    orderId: 102,
+    courierCompany: "CJ대한통운",
+    trackingNumber: "123456789",
+    deliveryStatus: "SHIPPED",
+    createdAt: "2026-08-14T09:00:00",
+    updatedAt: "2026-08-16T11:00:00",
+  },
+  {
+    id: 3,
+    orderId: 103,
+    courierCompany: "우체국택배",
+    trackingNumber: "987654321",
+    deliveryStatus: "DELIVERED",
+    createdAt: "2026-08-10T09:00:00",
+    updatedAt: "2026-08-13T15:00:00",
+  },
 ];
 
 export function mockGetAdminOrders(params: {
@@ -89,7 +116,9 @@ export function mockUpdateDeliveryStatus(
     updated = { ...d, deliveryStatus: status, updatedAt: new Date().toISOString() };
     return updated;
   });
-  orders = orders.map((o) => (o.orderId === Number(orderId) ? { ...o, deliveryStatus: status } : o));
+  orders = orders.map((o) =>
+    o.orderId === Number(orderId) ? { ...o, deliveryStatus: status } : o,
+  );
 
   return updated;
 }

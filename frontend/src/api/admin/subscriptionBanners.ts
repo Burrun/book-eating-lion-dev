@@ -7,7 +7,11 @@ import {
   mockGetAdminBanners,
   mockUpdateBanner,
 } from "../../mocks/admin/subscriptionBanners.ts";
-import type { ApiResponse, SubscriptionBannerResponse, SubscriptionBannerWriteRequest } from "../types.ts";
+import type {
+  ApiResponse,
+  SubscriptionBannerResponse,
+  SubscriptionBannerWriteRequest,
+} from "../types.ts";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
@@ -20,14 +24,18 @@ export async function getAdminBanners(): Promise<SubscriptionBannerResponse[]> {
 }
 
 // GET /api/catalog/admin/subscription-banners/{bannerId} — 배너 상세 조회
-export async function getAdminBanner(bannerId: number | string): Promise<SubscriptionBannerResponse> {
+export async function getAdminBanner(
+  bannerId: number | string,
+): Promise<SubscriptionBannerResponse> {
   if (USE_MOCK) {
     const banner = mockGetAdminBanner(bannerId);
     if (!banner) throw new Error("배너를 찾을 수 없습니다.");
     return mockDelay(banner);
   }
   return unwrap(
-    apiClient.get<ApiResponse<SubscriptionBannerResponse>>(`/catalog/admin/subscription-banners/${bannerId}`),
+    apiClient.get<ApiResponse<SubscriptionBannerResponse>>(
+      `/catalog/admin/subscription-banners/${bannerId}`,
+    ),
   );
 }
 
@@ -37,7 +45,10 @@ export async function createBanner(
 ): Promise<SubscriptionBannerResponse> {
   if (USE_MOCK) return mockDelay(mockCreateBanner(body));
   return unwrap(
-    apiClient.post<ApiResponse<SubscriptionBannerResponse>>("/catalog/admin/subscription-banners", body),
+    apiClient.post<ApiResponse<SubscriptionBannerResponse>>(
+      "/catalog/admin/subscription-banners",
+      body,
+    ),
   );
 }
 

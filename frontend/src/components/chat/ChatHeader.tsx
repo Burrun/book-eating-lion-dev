@@ -48,7 +48,9 @@ export default function ChatHeader({
         <div className="mt-0.5 flex items-center gap-1.5">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[connectionStatus]}`} />
           <p className="truncate text-xs text-[var(--color-paper)]/70">
-            {connectionStatus === "CONNECTED" ? STATE_LABEL[chatState] : STATUS_LABEL[connectionStatus]}
+            {connectionStatus === "CONNECTED"
+              ? STATE_LABEL[chatState]
+              : STATUS_LABEL[connectionStatus]}
           </p>
         </div>
       </div>

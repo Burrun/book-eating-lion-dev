@@ -48,8 +48,7 @@ export default function AdminOrdersPage() {
     isError,
   } = useQuery({
     queryKey,
-    queryFn: () =>
-      getAdminOrders({ status: statusFilter || undefined, page, size: PAGE_SIZE }),
+    queryFn: () => getAdminOrders({ status: statusFilter || undefined, page, size: PAGE_SIZE }),
   });
 
   const advance = useMutation({
@@ -186,7 +185,9 @@ function OrderRow({ order, onAdvance, isBusy }: OrderRowProps) {
           <span className="text-[11px] text-[var(--color-ink)] opacity-40">결제 확정 전</span>
         )}
       </td>
-      <td className="py-3 pr-3 text-[var(--color-ink)] opacity-80">{order.totalAmount.toLocaleString()}원</td>
+      <td className="py-3 pr-3 text-[var(--color-ink)] opacity-80">
+        {order.totalAmount.toLocaleString()}원
+      </td>
       <td className="py-3 pr-3 text-right">
         {nextStatus && (
           <button

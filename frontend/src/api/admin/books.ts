@@ -24,7 +24,9 @@ export async function getAdminBooks(
   params: { includeDeleted?: boolean; page?: number; size?: number } = {},
 ): Promise<Page<AdminBookResponse>> {
   if (USE_MOCK) return mockDelay(mockGetAdminBooks(params));
-  return unwrap(apiClient.get<ApiResponse<Page<AdminBookResponse>>>("/catalog/admin/books", { params }));
+  return unwrap(
+    apiClient.get<ApiResponse<Page<AdminBookResponse>>>("/catalog/admin/books", { params }),
+  );
 }
 
 // GET /api/catalog/admin/books/{bookId} — 도서 상세
@@ -54,7 +56,9 @@ export async function updateBook(
     if (!updated) throw new Error("도서를 찾을 수 없습니다.");
     return mockDelay(updated);
   }
-  return unwrap(apiClient.patch<ApiResponse<AdminBookResponse>>(`/catalog/admin/books/${bookId}`, body));
+  return unwrap(
+    apiClient.patch<ApiResponse<AdminBookResponse>>(`/catalog/admin/books/${bookId}`, body),
+  );
 }
 
 // DELETE /api/catalog/admin/books/{bookId} — 소프트 삭제

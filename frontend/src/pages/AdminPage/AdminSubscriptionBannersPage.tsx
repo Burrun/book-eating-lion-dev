@@ -93,7 +93,9 @@ export default function AdminSubscriptionBannersPage() {
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
       <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-        <h1 className="font-display mb-1 text-xl text-[var(--color-forest)]">📣 정기구독 배너 관리</h1>
+        <h1 className="font-display mb-1 text-xl text-[var(--color-forest)]">
+          📣 정기구독 배너 관리
+        </h1>
         <p className="mb-4 text-sm text-[var(--color-ink)] opacity-60">
           홈 화면에 노출할 정기구독 홍보 배너를 등록/수정/비활성화합니다. 실제 홈 화면 노출은 별도
           작업입니다 — 여기서는 콘텐츠만 관리합니다. 삭제 API는 없습니다 — 활성 스위치를 끄거나
@@ -348,7 +350,8 @@ function BannerItem({ banner, onEdit, onDeactivate, isBusy }: BannerItemProps) {
         <p className="text-sm text-[var(--color-ink)] opacity-60">이동: {banner.linkUrl}</p>
       )}
       <p className="text-sm text-[var(--color-ink)] opacity-50">
-        {banner.startAt.slice(0, 16).replace("T", " ")} ~ {banner.endAt.slice(0, 16).replace("T", " ")}
+        {banner.startAt.slice(0, 16).replace("T", " ")} ~{" "}
+        {banner.endAt.slice(0, 16).replace("T", " ")}
         {" · 순서 "}
         {banner.sortOrder}
       </p>
