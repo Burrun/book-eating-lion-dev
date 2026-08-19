@@ -7,6 +7,7 @@ import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
 import com.bookeatinglion.order.delivery.domain.Delivery;
+import com.bookeatinglion.order.delivery.domain.DeliveryStatus;
 import com.bookeatinglion.order.delivery.repository.DeliveryRepository;
 import com.bookeatinglion.order.event.BookPurchasePublisher;
 import com.bookeatinglion.order.event.ReviewPermissionPublisher;
@@ -16,6 +17,7 @@ import com.bookeatinglion.order.lock.InventoryLockExecutor;
 import com.bookeatinglion.order.order.domain.Order;
 import com.bookeatinglion.order.order.domain.OrderItem;
 import com.bookeatinglion.order.order.domain.OrderStatus;
+import com.bookeatinglion.order.order.dto.AdminOrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.CreateOrderRequest;
 import com.bookeatinglion.order.order.dto.OrderItemRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
@@ -253,6 +255,19 @@ public class OrderService {
 
     public Page<OrderSummaryResponse> getOrders(String memberId, Pageable pageable) {
         return orderRepository.findByMemberId(memberId, pageable).map(OrderSummaryResponse::from);
+    }
+
+    /** 관리자용 전체 주문 목록. statusFilter 가 null 이면 상태 무관 전체 조회. */
+    public Page<AdminOrderSummaryResponse> getAdminOrders(OrderStatus statusFilter, Pageable pageable) {
+        Page<Order> orders = statusFilter == null
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findByOrderStatus(statusFilter, pageable);
+
+        List<Long> orderIds = orders.map(Order::getId).getContent();
+        Map<Long, DeliveryStatus> deliveryStatusByOrderId = deliveryRepository.findByOrderIdIn(orderIds).stream()
+                .collect(Collectors.toMap(Delivery::getOrderId, Delivery::getDeliveryStatus));
+
+        return orders.map(order -> AdminOrderSummaryResponse.of(order, deliveryStatusByOrderId.get(order.getId())));
     }
 
     public OrderResponse getOrder(String memberId, Long orderId) {

@@ -17,6 +17,10 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-Member-Id"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+    # 상담 채팅(/ws/ai). 기본 60초면 대화가 잠시 멈춘 사이 소켓이 끊긴다.
+    # 서버 Ping 주기가 20초이므로 그보다 충분히 길어야 한다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:
@@ -26,13 +30,6 @@ spec:
           # --- ai-service: 경로로 Deployment 가 갈린다 (판단 ④) ---
           # 서비스는 1개지만 Deployment 는 2개이고, Service 도 워크로드별로 나눠
           # 각각 다른 Pod 집합을 가리킨다. 부하가 서로 섞이지 않는 지점이다.
-          - path: /api/ai/ask
-            pathType: Prefix
-            backend:
-              service:
-                name: ai-rag
-                port:
-                  number: 8080
           - path: /api/ai/lion
             pathType: Prefix
             backend:
@@ -41,6 +38,14 @@ spec:
                 port:
                   number: 8080
           - path: /api/ai/bot
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-bot
+                port:
+                  number: 8080
+          # 상담 채팅 WebSocket. 봇 Deployment 가 소켓을 들고 있다.
+          - path: /ws/ai
             pathType: Prefix
             backend:
               service:
@@ -104,28 +109,10 @@ spec:
           # --- catalog-service ---
           # 찜/최근본상품이 /api/members/me/* 가 아닌 이유가 여기 있다.
           # 같은 접두사를 두 서비스가 나눠 가지면 라우팅이 경로 길이에 의존하게 된다.
-          - path: /api/books
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/reviews
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/wishlist
-            pathType: Prefix
-            backend:
-              service:
-                name: catalog-service
-                port:
-                  number: 8080
-          - path: /api/recent-books
+          #
+          # 외부 API 는 /api/catalog 하나로 모인다. 컨트롤러가 전부 그 접두사를 쓴다
+          # (BookController, ReviewController, WishlistController, ...).
+          - path: /api/catalog
             pathType: Prefix
             backend:
               service:

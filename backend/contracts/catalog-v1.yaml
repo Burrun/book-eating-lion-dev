@@ -32,6 +32,10 @@ paths:
         - name: size
           in: query
           schema: { type: integer, default: 20 }
+        - name: sort
+          in: query
+          description: Spring Pageable 정렬. 예 `publishedAt,desc`
+          schema: { type: string }
       responses:
         "200":
           description: 조회 성공
@@ -39,6 +43,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookSummaryPageEnvelope"
+
+  /api/catalog/books/search:
+    get:
+      summary: 도서 검색
+      operationId: searchBooks
+      tags: [books]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookSummaryPageEnvelope"
+
+  /api/catalog/books/bestsellers:
+    get:
+      summary: 베스트셀러 목록
+      operationId: getBestsellers
+      tags: [books]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookSummaryListEnvelope"
+
+  /api/catalog/books/new-releases:
+    get:
+      summary: 신간 목록
+      operationId: getNewReleases
+      tags: [books]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookSummaryListEnvelope"
 
   /api/catalog/categories:
     get:
@@ -64,7 +126,11 @@ paths:
           in: query
           schema: { type: boolean, default: false }
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookPageEnvelope" }
     post:
       summary: 도서 등록
       operationId: createBook
@@ -76,8 +142,35 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AdminBookCreateRequest" }
       responses:
-        "201": { description: 등록 완료 }
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "409": { description: ISBN 중복 }
+
+  /api/catalog/admin/books/epub-upload-url:
+    post:
+      summary: EPUB 업로드용 Presigned URL 발급
+      description: |
+        도서 등록/수정 전에 먼저 호출한다. 응답의 uploadUrl로 브라우저가 S3에 직접 PUT 업로드하고,
+        epubS3Key를 도서 등록/수정 요청(AdminBookCreateRequest/AdminBookUpdateRequest)에 그대로
+        넘긴다. EBOOK_STORAGE=local(로컬 기본값)에서는 지원하지 않는다(503).
+      operationId: issueEpubUploadUrl
+      tags: [admin-books]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EpubUploadUrlRequest" }
+      responses:
+        "200":
+          description: 발급 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpubUploadUrlEnvelope" }
+        "503": { description: 로컬 저장소 모드거나 S3 발급 실패 }
 
   /api/catalog/admin/books/{bookId}:
     parameters:
@@ -91,7 +184,11 @@ paths:
       tags: [admin-books]
       security: [{ bearerAuth: [] }]
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "404": { description: 도서 없음 }
     patch:
       summary: 도서 정보 부분 수정
@@ -104,7 +201,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AdminBookUpdateRequest" }
       responses:
-        "200": { description: 수정 완료 }
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "404": { description: 도서 또는 카테고리 없음 }
         "409": { description: ISBN 중복 또는 비활성 카테고리 }
     delete:
@@ -134,7 +235,11 @@ paths:
       tags: [admin-categories]
       security: [{ bearerAuth: [] }]
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryListEnvelope" }
     post:
       summary: 카테고리 등록
       operationId: createCategory
@@ -146,7 +251,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CategoryCreateRequest" }
       responses:
-        "201": { description: 등록 완료 }
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
         "409": { description: 카테고리명 중복 }
 
   /api/catalog/admin/categories/{categoryId}:
@@ -161,7 +270,11 @@ paths:
       tags: [admin-categories]
       security: [{ bearerAuth: [] }]
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
         "404": { description: 카테고리 없음 }
     patch:
       summary: 카테고리 수정
@@ -174,7 +287,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CategoryUpdateRequest" }
       responses:
-        "200": { description: 수정 완료 }
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CategoryEnvelope" }
         "409": { description: 이름 중복 또는 자기 자신을 상위 카테고리로 지정 }
     delete:
       summary: 카테고리 비활성화
@@ -206,6 +323,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookDetailEnvelope"
+        "404":
+          description: 도서 없음
+
+  /api/catalog/books/{bookId}/synopsis/detail:
+    get:
+      summary: 상세 줄거리
+      description: |
+        줄거리는 도서 상세에 기본 제공되고, 이 경로는 구독 회원용 상세 줄거리다.
+      operationId: getSynopsisDetail
+      tags: [books]
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookSynopsisDetailEnvelope"
         "404":
           description: 도서 없음
 
@@ -291,8 +430,8 @@ paths:
       description: |
         회원×도서 단위 upsert. 이력은 남기지 않고 최신 위치/퍼센트만 유지한다.
 
-        wishlist/reviews 와 달리 X-Member-Id 헤더를 쓰지 않는다 — JWT `sub` 클레임(memberSub)으로
-        회원을 식별하는 최신 방식(member-service Card 도메인과 동일)을 카탈로그 모듈에서 처음 적용했다.
+        회원 식별은 JWT `sub` 클레임이다(`CatalogMemberIdentity`). 이 서비스의 다른 인증 경로도
+        모두 같다 — `X-Member-Id` 헤더를 읽는 코드는 리포 전체에 없다.
       operationId: saveReadingProgress
       tags: [reading-progress]
       security:
@@ -584,7 +723,11 @@ paths:
           in: query
           schema: { type: string, enum: [WAITING, ANSWERED] }
       responses:
-        "200": { description: 삭제·비밀 문의를 포함한 조회 성공 }
+        "200":
+          description: 삭제·비밀 문의를 포함한 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InquiryPageEnvelope" }
 
   /api/catalog/admin/inquiries/{inquiryId}/answer:
     patch:
@@ -603,7 +746,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/InquiryAnswerRequest" }
       responses:
-        "200": { description: 답변 완료 }
+        "200":
+          description: 답변 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InquiryEnvelope" }
         "404": { description: 문의 없음 }
 
   /api/catalog/faqs:
@@ -616,7 +763,11 @@ paths:
           in: query
           schema: { type: string }
       responses:
-        "200": { description: 정렬 순서에 따른 조회 성공 }
+        "200":
+          description: 정렬 순서에 따른 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FaqListEnvelope" }
 
   /api/catalog/admin/faqs:
     get:
@@ -629,7 +780,11 @@ paths:
           in: query
           schema: { type: string }
       responses:
-        "200": { description: 비활성 FAQ를 포함한 조회 성공 }
+        "200":
+          description: 비활성 FAQ를 포함한 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FaqListEnvelope" }
     post:
       summary: FAQ 등록
       operationId: createFaq
@@ -641,7 +796,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/FaqWriteRequest" }
       responses:
-        "201": { description: 등록 완료 }
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FaqEnvelope" }
 
   /api/catalog/admin/faqs/{faqId}:
     parameters:
@@ -660,8 +819,100 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/FaqWriteRequest" }
       responses:
-        "200": { description: 수정 완료 }
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FaqEnvelope" }
         "404": { description: FAQ 없음 }
+
+  /api/catalog/subscription-banners:
+    get:
+      summary: 홈 화면용 노출 중인 정기구독 배너 목록
+      description: active=true 이면서 현재 시각이 startAt~endAt 안에 든 배너만, sortOrder 순으로 반환한다.
+      operationId: getSubscriptionBanners
+      tags: [subscription-banners]
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionBannerListEnvelope" }
+
+  /api/catalog/admin/subscription-banners:
+    get:
+      summary: 관리자용 전체 정기구독 배너 목록
+      description: 기간이 지났거나 비활성인 것도 포함해 sortOrder 순으로 전부 반환한다.
+      operationId: getAdminSubscriptionBanners
+      tags: [admin-subscription-banners]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionBannerListEnvelope" }
+    post:
+      summary: 정기구독 배너 등록
+      operationId: createSubscriptionBanner
+      tags: [admin-subscription-banners]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubscriptionBannerWriteRequest" }
+      responses:
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionBannerEnvelope" }
+
+  /api/catalog/admin/subscription-banners/{bannerId}:
+    parameters:
+      - name: bannerId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      summary: 정기구독 배너 상세 조회
+      operationId: getAdminSubscriptionBanner
+      tags: [admin-subscription-banners]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionBannerEnvelope" }
+        "404": { description: 배너 없음 }
+    patch:
+      summary: 정기구독 배너 수정
+      operationId: updateSubscriptionBanner
+      tags: [admin-subscription-banners]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubscriptionBannerWriteRequest" }
+      responses:
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SubscriptionBannerEnvelope" }
+        "404": { description: 배너 없음 }
+    delete:
+      summary: 정기구독 배너 비활성화
+      description: 하드 삭제가 아니라 active=false 로 바꾼다(Category/Faq와 동일한 소프트 삭제 규칙).
+      operationId: deleteSubscriptionBanner
+      tags: [admin-subscription-banners]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: 비활성화 완료 }
+        "404": { description: 배너 없음 }
 
   /api/catalog/recommend/queue:
     get:
@@ -715,21 +966,32 @@ components:
   schemas:
     BookSummary:
       type: object
+      required: [id, title, author, price, category, saleStatus, averageRating, reviewCount]
       properties:
         id: { type: integer, format: int64 }
         title: { type: string, example: 클라우드 엔지니어링 교재 }
         author: { type: string, example: 북이팅라이언 }
         price: { type: integer, example: 25000 }
-        coverImageUrl: { type: string }
+        coverImageUrl: { type: string, nullable: true }
         category: { type: string, example: IT/컴퓨터 }
         saleStatus:
           type: string
           enum: [ON_SALE, STOPPED, OUT_OF_STOCK]
+        averageRating:
+          type: number
+          format: double
+          description: 리뷰 평점 평균. 리뷰가 없으면 0.
+          example: 4.5
+        reviewCount:
+          type: integer
+          description: 리뷰 수. 리뷰 작성/수정/삭제 시마다 재계산된다.
+          example: 12
 
     BookDetail:
       allOf:
         - $ref: "#/components/schemas/BookSummary"
         - type: object
+          required: [publisher, isbn, stockQuantity, ebookAvailable, createdAt, updatedAt]
           properties:
             publisher: { type: string }
             isbn: { type: string }
@@ -737,16 +999,28 @@ components:
               type: integer
               description: order-service 조합값. -1 은 재고 조회 실패(품절 0 과 구분).
               example: 100
-            description: { type: string }
+            description: { type: string, nullable: true }
             ebookAvailable:
               type: boolean
-              description: EPUB 객체 키 등록 여부
-            publishedDate: { type: string, format: date }
+              description: EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라
+                null 이 될 수 없다.
+            publishedDate: { type: string, format: date, nullable: true }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
 
+    BookSynopsisDetail:
+      type: object
+      required: [bookId, title]
+      properties:
+        bookId: { type: integer, format: int64 }
+        title: { type: string }
+        detailedSynopsis:
+          type: string
+          nullable: true
+
     Review:
       type: object
+      required: [id, bookId, memberId, rating, content, createdAt]
       properties:
         id: { type: integer, format: int64 }
         bookId: { type: integer, format: int64 }
@@ -775,6 +1049,50 @@ components:
       properties:
         answer: { type: string, maxLength: 4000 }
 
+    InquiryResponse:
+      type: object
+      required:
+        [inquiryId, bookId, memberId, title, content, privateInquiry, status, deleted, createdAt, updatedAt]
+      properties:
+        inquiryId: { type: integer, format: int64 }
+        bookId: { type: integer, format: int64 }
+        memberId: { type: string, description: Cognito sub }
+        title: { type: string }
+        content: { type: string }
+        privateInquiry: { type: boolean }
+        status:
+          type: string
+          enum: [WAITING, ANSWERED]
+        answer: { type: string, nullable: true }
+        answeredBy:
+          type: string
+          nullable: true
+          description: 답변한 관리자의 Cognito sub.
+        answeredAt: { type: string, format: date-time, nullable: true }
+        deleted: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    InquiryEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/InquiryResponse"
+
+    InquiryPageEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/InquiryResponse"
+            totalElements: { type: integer }
+
     FaqWriteRequest:
       type: object
       required: [category, question, answer, sortOrder, active]
@@ -784,6 +1102,82 @@ components:
         answer: { type: string, maxLength: 4000 }
         sortOrder: { type: integer, minimum: 0 }
         active: { type: boolean }
+
+    FaqResponse:
+      type: object
+      required: [faqId, category, question, answer, sortOrder, active, createdAt, updatedAt]
+      properties:
+        faqId: { type: integer, format: int64 }
+        category: { type: string }
+        question: { type: string }
+        answer: { type: string }
+        sortOrder: { type: integer }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    FaqEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/FaqResponse"
+
+    FaqListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaqResponse"
+
+    SubscriptionBannerWriteRequest:
+      type: object
+      required: [imageUrl, title, startAt, endAt, sortOrder, active]
+      properties:
+        imageUrl: { type: string, maxLength: 500 }
+        title: { type: string, maxLength: 200 }
+        linkUrl:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: 배너 클릭 시 이동할 경로. 없으면 클릭해도 아무 데도 안 간다.
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        sortOrder: { type: integer, minimum: 0 }
+        active: { type: boolean }
+
+    SubscriptionBannerResponse:
+      type: object
+      required: [bannerId, imageUrl, title, startAt, endAt, sortOrder, active, createdAt, updatedAt]
+      properties:
+        bannerId: { type: integer, format: int64 }
+        imageUrl: { type: string }
+        title: { type: string }
+        linkUrl: { type: string, nullable: true }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        sortOrder: { type: integer }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SubscriptionBannerEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/SubscriptionBannerResponse"
+
+    SubscriptionBannerListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionBannerResponse"
 
     ReviewRequest:
       type: object
@@ -861,6 +1255,7 @@ components:
 
     Category:
       type: object
+      required: [categoryId, categoryName, sortOrder, active]
       properties:
         categoryId: { type: integer, format: int64 }
         categoryName: { type: string, example: IT/컴퓨터 }
@@ -922,6 +1317,94 @@ components:
         saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
         publishedDate: { type: string, format: date }
 
+    AdminBookResponse:
+      type: object
+      required:
+        [
+          bookId,
+          title,
+          author,
+          publisher,
+          isbn,
+          category,
+          price,
+          ebookAvailable,
+          saleStatus,
+          salesCount,
+          averageRating,
+          reviewCount,
+          deleted,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        bookId: { type: integer, format: int64 }
+        title: { type: string }
+        author: { type: string }
+        publisher: { type: string }
+        isbn: { type: string }
+        category: { type: string }
+        price: { type: integer }
+        coverImageUrl: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        detailedSynopsis: { type: string, nullable: true }
+        ebookAvailable: { type: boolean }
+        epubS3Key: { type: string, nullable: true }
+        saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
+        publishedDate: { type: string, format: date, nullable: true }
+        salesCount: { type: integer }
+        averageRating: { type: number, format: double }
+        reviewCount: { type: integer }
+        deleted: { type: boolean }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminBookEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/AdminBookResponse"
+
+    AdminBookPageEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminBookResponse"
+            totalElements: { type: integer }
+
+    EpubUploadUrlRequest:
+      type: object
+      required: [fileName]
+      properties:
+        fileName: { type: string, maxLength: 255 }
+
+    EpubUploadUrlResponse:
+      type: object
+      required: [uploadUrl, epubS3Key, expiresAt]
+      properties:
+        uploadUrl:
+          type: string
+          description: 이 URL로 EPUB 파일 바이트를 그대로 PUT 하면 업로드가 끝난다.
+        epubS3Key:
+          type: string
+          description: 도서 등록/수정 요청의 epubS3Key로 그대로 넘긴다.
+        expiresAt: { type: string, format: date-time }
+
+    EpubUploadUrlEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/EpubUploadUrlResponse"
+
     CategoryListEnvelope:
       type: object
       properties:
@@ -929,6 +1412,13 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/Category" }
+
+    CategoryEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/Category"
 
     BookSummaryListEnvelope:
       type: object
@@ -980,6 +1470,13 @@ components:
         success: { type: boolean }
         data:
           $ref: "#/components/schemas/EbookAccess"
+
+    BookSynopsisDetailEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/BookSynopsisDetail"
 
     ReviewEnvelope:
       type: object

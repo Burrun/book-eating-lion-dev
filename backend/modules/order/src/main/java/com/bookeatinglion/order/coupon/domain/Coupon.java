@@ -50,4 +50,13 @@ public class Coupon {
     public boolean isExpired(LocalDateTime now) {
         return !expiresAt.isAfter(now);
     }
+
+    // couponCode 는 발급 식별자라 여기서 바꾸지 않는다. 종료는 expiresAt 을 과거로 넣는 것으로
+    // 처리한다(별도 active 컬럼이 없고, member_coupons FK가 ON DELETE RESTRICT라 하드 삭제도 못 한다).
+    public void update(String couponName, int discountAmount, int minimumOrderAmount, LocalDateTime expiresAt) {
+        this.couponName = couponName;
+        this.discountAmount = discountAmount;
+        this.minimumOrderAmount = minimumOrderAmount;
+        this.expiresAt = expiresAt;
+    }
 }

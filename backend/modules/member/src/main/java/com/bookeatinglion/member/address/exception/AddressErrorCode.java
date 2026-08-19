@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 public enum AddressErrorCode {
     ADDRESS_NOT_FOUND(HttpStatus.NOT_FOUND),
+    UNAUTHORIZED_ADDRESS_ACCESS(HttpStatus.FORBIDDEN),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;

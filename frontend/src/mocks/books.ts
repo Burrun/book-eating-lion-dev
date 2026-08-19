@@ -4,8 +4,10 @@
 // api/books.ts 가 매퍼(toBookSummary/toBook/toWebtoonCuts)로 처리한다.
 // 목업 모드에서도 실 API와 완전히 같은 경로를 타므로 매퍼 버그가 여기서 드러난다.
 //
-// 그 결과 백엔드에 없는 필드는 목업에서도 매퍼의 임시 기본값을 따른다.
-// (rating=0, reviewCount=0, shippingNote=고정 문구 — docs/frontend-backend-field-mapping.md 참고)
+// 그 결과 백엔드에 없는 필드(shippingNote 등)는 목업에서도 매퍼의 임시 기본값을 따른다.
+// averageRating/reviewCount는 실제로는 리뷰 작성/수정/삭제 때마다 서버가 재계산해 주는
+// 값이지만, 이 씨드 데이터엔 리뷰가 연결되어 있지 않아 0으로 고정한다(mock 모드 한계 —
+// 실API 모드에서는 ProductDetailPage.tsx에서 실제로 갱신되는 값이 표시된다).
 import type {
   BookDetailResponse,
   BookSummaryResponse,
@@ -360,6 +362,8 @@ function toSummary(seed: BookSeed): BookSummaryResponse {
     coverImageUrl: null,
     category: seed.category,
     saleStatus: "ON_SALE",
+    averageRating: 0,
+    reviewCount: 0,
   };
 }
 
@@ -377,6 +381,8 @@ function toDetail(seed: BookSeed): BookDetailResponse {
     description: seed.description,
     saleStatus: "ON_SALE",
     publishedDate: seed.publishedDate,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: `${seed.publishedDate}T00:00:00`,
     updatedAt: `${seed.publishedDate}T00:00:00`,
     ebookAvailable: Boolean(seed.ebookUrl),

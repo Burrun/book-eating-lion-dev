@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBook, getEbookAccess, getWebtoonCuts } from "../../api/books.ts";
-import { getReviews } from "../../api/reviews.ts";
-import { getMySubscription } from "../../api/member.ts";
+import { createReview, deleteReview, getReviews, updateReview } from "../../api/reviews.ts";
+import { getMyProfile, getMySubscription, subscribe } from "../../api/member.ts";
 import { addToCart } from "../../api/cart.js";
 import { useToast } from "../../components/Toast.jsx";
 import EbookViewer from "../../components/EbookViewer.jsx";
 import { useReadingProgress } from "../../hooks/useReadingProgress.js";
-import type { Review } from "../../types/book.ts";
+
+const REVIEW_CONTENT_MAX_LENGTH = 1000;
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -55,10 +56,15 @@ export default function ProductDetailPage() {
     enabled: Boolean(id),
   });
 
-  // 작성한 리뷰는 아직 서버로 보내지 않으므로 조회 결과 위에 얹어서 보여준다.
-  const [addedReviews, setAddedReviews] = useState<Review[]>([]);
+  // 리뷰 목록에서 "내 리뷰"에만 수정/삭제 버튼을 보여주기 위해 내 memberId(Cognito sub)가 필요하다.
+  const { data: myProfile } = useQuery({ queryKey: ["myProfile"], queryFn: getMyProfile });
+
   const [draftRating, setDraftRating] = useState(5);
   const [draftText, setDraftText] = useState("");
+  // null이면 새 리뷰 작성 폼, 값이 있으면 그 리뷰를 인라인으로 수정 중.
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editText, setEditText] = useState("");
   const [isEbookOpen, setIsEbookOpen] = useState(false);
   const [ebookUrl, setEbookUrl] = useState<string | null>(null);
 
@@ -99,20 +105,96 @@ export default function ProductDetailPage() {
     },
   });
 
+  // 결제 미연동 스코프: 본인 호출로 즉시 활성화한다(MONTHLY 고정). 결제 연동 시 플랜 선택 UI로 교체.
+  const subscribeMutation = useMutation({
+    mutationFn: () => subscribe("MONTHLY"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
+      toast.success("구독이 시작되었습니다");
+    },
+    onError: () => {
+      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    },
+  });
+
+  function invalidateReviews() {
+    queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+    // averageRating/reviewCount는 BookDetailResponse에도 있어(초기 표시용) 책 상세도 같이 갱신한다.
+    queryClient.invalidateQueries({ queryKey: ["book", id] });
+  }
+
+  // 구매 확정 이력(review_permissions)이 없으면 서버가 403 REVIEW_PERMISSION_REQUIRED를
+  // 던진다 — 사전에 알 방법이 없는 조건이라(계약에 "작성 가능 여부" API가 없음) 제출 후
+  // 이 코드로만 구분해서 안내한다.
+  const createReviewMutation = useMutation({
+    mutationFn: () => createReview(id!, { rating: draftRating, content: draftText.trim() }),
+    onSuccess: () => {
+      invalidateReviews();
+      setDraftText("");
+      setDraftRating(5);
+      toast.success("리뷰가 등록되었습니다");
+    },
+    onError: (err: unknown) => {
+      const code = (err as { code?: string } | null)?.code;
+      toast.error(
+        code === "REVIEW_PERMISSION_REQUIRED"
+          ? "구매 확정 후 리뷰를 작성할 수 있어요"
+          : "리뷰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      );
+    },
+  });
+
+  const updateReviewMutation = useMutation({
+    mutationFn: ({
+      reviewId,
+      rating,
+      content,
+    }: {
+      reviewId: string;
+      rating: number;
+      content: string;
+    }) => updateReview(reviewId, { rating, content }),
+    onSuccess: () => {
+      invalidateReviews();
+      setEditingReviewId(null);
+      toast.success("리뷰가 수정되었습니다");
+    },
+    onError: () => {
+      toast.error("리뷰 수정에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    },
+  });
+
+  const deleteReviewMutation = useMutation({
+    mutationFn: (reviewId: string) => deleteReview(reviewId),
+    onSuccess: () => {
+      invalidateReviews();
+      toast.success("리뷰가 삭제되었습니다");
+    },
+    onError: () => {
+      toast.error("리뷰 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    },
+  });
+
   function handleSubmitReview() {
-    if (!draftText.trim()) return;
-    setAddedReviews((prev) => [
-      {
-        id: `local-${Date.now()}`,
-        author: "나",
-        rating: draftRating,
-        date: new Date().toISOString().slice(0, 10),
-        text: draftText.trim(),
-      },
-      ...prev,
-    ]);
-    setDraftText("");
-    setDraftRating(5);
+    if (!draftText.trim()) {
+      toast.error("한줄평을 입력해주세요.");
+      return;
+    }
+    createReviewMutation.mutate();
+  }
+
+  function startEditingReview(reviewId: string, rating: number, text: string) {
+    setEditingReviewId(reviewId);
+    setEditRating(rating);
+    setEditText(text);
+  }
+
+  function handleSaveEdit(reviewId: string) {
+    if (!editText.trim()) {
+      toast.error("한줄평을 입력해주세요.");
+      return;
+    }
+    updateReviewMutation.mutate({ reviewId, rating: editRating, content: editText.trim() });
   }
 
   if (isPending) {
@@ -139,8 +221,9 @@ export default function ProductDetailPage() {
     );
   }
 
-  const reviews = [...addedReviews, ...(reviewPage?.items ?? [])];
-  // 백엔드 상세 응답에 리뷰 수가 없어 매퍼가 0으로 채운다. 리뷰 목록의 totalElements 로 대체한다.
+  const reviews = reviewPage?.items ?? [];
+  // 리뷰 목록 API의 totalElements가 book.reviewCount보다 최신이다(리뷰 목록은 이 페이지에서
+  // 작성/수정/삭제 직후 즉시 무효화되지만, book 상세는 상황에 따라 갱신이 한 박자 늦을 수 있다).
   const reviewCount = reviewPage?.totalElements ?? book.reviewCount;
 
   return (
@@ -223,8 +306,12 @@ export default function ProductDetailPage() {
               <p className="text-sm font-semibold text-forest">
                 🎨 구독 회원이 되면 이 책의 웹툰 요약 컷을 볼 수 있어요
               </p>
-              <button className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light">
-                구독하기 &gt;
+              <button
+                onClick={() => subscribeMutation.mutate()}
+                disabled={subscribeMutation.isPending}
+                className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+              >
+                {subscribeMutation.isPending ? "구독 처리 중..." : "구독하기 >"}
               </button>
             </div>
           </>
@@ -252,27 +339,95 @@ export default function ProductDetailPage() {
               type="text"
               value={draftText}
               onChange={(e) => setDraftText(e.target.value)}
+              maxLength={REVIEW_CONTENT_MAX_LENGTH}
               placeholder="한줄평을 입력하세요..."
               className="flex-1 rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
             />
             <button
               onClick={handleSubmitReview}
-              className="shrink-0 rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light"
+              disabled={createReviewMutation.isPending}
+              className="shrink-0 rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
             >
-              등록하기
+              {createReviewMutation.isPending ? "등록 중..." : "등록하기"}
             </button>
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
-          {reviews.map((review) => (
-            <div key={review.id} className="rounded-xl bg-paper p-4">
-              <p className="text-sm font-semibold">
-                {review.author} {"⭐".repeat(review.rating)} | {review.date}
-              </p>
-              <p className="mt-1 text-sm text-forest/80">{review.text}</p>
-            </div>
-          ))}
+          {reviews.map((review) => {
+            const isMine = Boolean(myProfile) && review.memberId === myProfile?.id;
+            const isEditing = editingReviewId === review.id;
+
+            if (isEditing) {
+              return (
+                <div key={review.id} className="flex flex-col gap-3 rounded-xl bg-paper p-4">
+                  <div className="flex gap-1 text-xl">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setEditRating(star)}
+                        aria-label={`${star}점`}
+                        className={star <= editRating ? "text-honey" : "text-forest/20"}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    maxLength={REVIEW_CONTENT_MAX_LENGTH}
+                    className="rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveEdit(review.id)}
+                      disabled={updateReviewMutation.isPending}
+                      className="rounded-lg bg-forest px-4 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+                    >
+                      {updateReviewMutation.isPending ? "저장 중..." : "저장"}
+                    </button>
+                    <button
+                      onClick={() => setEditingReviewId(null)}
+                      className="rounded-lg border border-forest/20 px-4 py-2 text-sm font-semibold text-forest/70 transition hover:bg-forest/5"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={review.id} className="rounded-xl bg-paper p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    {review.author} {"⭐".repeat(review.rating)} | {review.date}
+                  </p>
+                  {isMine && (
+                    <div className="flex shrink-0 gap-2 text-xs">
+                      <button
+                        onClick={() => startEditingReview(review.id, review.rating, review.text)}
+                        className="text-forest/60 hover:underline"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => deleteReviewMutation.mutate(review.id)}
+                        disabled={deleteReviewMutation.isPending}
+                        className="text-coral hover:underline disabled:opacity-60"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-forest/80">{review.text}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

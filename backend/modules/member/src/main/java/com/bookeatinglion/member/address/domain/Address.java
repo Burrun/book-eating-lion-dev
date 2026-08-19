@@ -63,4 +63,31 @@ public class Address extends BaseEntity {
     public void unsetDefault() {
         this.isDefault = false;
     }
+
+    public void markAsDefault() {
+        this.isDefault = true;
+    }
+
+    /** null 인 필드는 기존 값을 유지한다(Member.updateProfile 과 동일한 부분수정 관례). */
+    public void update(String recipientName, String phoneNumber, String zipcode, String address, String detailAddress) {
+        if (recipientName != null) {
+            this.recipientName = recipientName;
+        }
+        if (phoneNumber != null) {
+            this.phoneNumber = phoneNumber;
+        }
+        if (zipcode != null) {
+            this.zipcode = zipcode;
+        }
+        if (address != null) {
+            this.address = address;
+        }
+        if (detailAddress != null) {
+            this.detailAddress = detailAddress;
+        }
+    }
+
+    public boolean isOwnedBy(String memberSub) {
+        return this.memberSub.equals(memberSub);
+    }
 }

@@ -17,6 +17,35 @@ servers:
     description: 클러스터 내부
 
 paths:
+  /api/auth/signup:
+    post:
+      summary: 회원가입
+      description: Cognito 사용자 풀 등록과 members 행 생성이 함께 일어난다.
+      operationId: signup
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 8 }
+                name: { type: string }
+      responses:
+        "200":
+          description: 가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupEnvelope"
+        "400":
+          description: 입력값 오류 또는 비밀번호 정책 위반
+        "409":
+          description: 이미 가입된 이메일
+
   /api/auth/login:
     post:
       summary: 로그인
@@ -42,6 +71,30 @@ paths:
         "401":
           description: 인증 실패
 
+  /api/auth/refresh:
+    post:
+      summary: 액세스 토큰 재발급
+      operationId: refresh
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: 재발급 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenEnvelope"
+        "401":
+          description: 리프레시 토큰 만료 또는 무효
+
   /api/members/me:
     get:
       summary: 내 정보
@@ -52,6 +105,34 @@ paths:
       responses:
         "200":
           description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberEnvelope"
+    patch:
+      summary: 내 정보 수정
+      description: null 인 필드는 변경하지 않는다.
+      operationId: updateMe
+      tags: [members]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, nullable: true }
+                phoneNumber: { type: string, nullable: true }
+                gender:
+                  type: string
+                  nullable: true
+                  enum: [MALE, FEMALE]
+                birthDate: { type: string, format: date, nullable: true }
+      responses:
+        "200":
+          description: 수정 성공
           content:
             application/json:
               schema:
@@ -71,17 +152,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success: { type: boolean }
-                  message: { type: string }
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Address"
-                  error:
-                    $ref: "#/components/schemas/ErrorDetail"
-                    nullable: true
+                $ref: "#/components/schemas/AddressListEnvelope"
     post:
       summary: 배송지 등록
       operationId: createAddress
@@ -97,6 +168,61 @@ paths:
       responses:
         "201":
           description: 등록 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+
+  /api/members/me/addresses/{addressId}:
+    patch:
+      summary: 배송지 수정
+      description: |
+        null 인 필드는 변경하지 않는다(부분 수정). isDefault 를 true 로 주면 기존 기본
+        배송지를 자동 해제한다 — 등록(POST) 때와 동일한 규칙이다.
+      operationId: updateAddress
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressUpdateRequest"
+      responses:
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressEnvelope"
+        "403":
+          description: 본인 소유가 아닌 배송지
+        "404":
+          description: 존재하지 않는 배송지
+    delete:
+      summary: 배송지 삭제
+      operationId: deleteAddress
+      tags: [addresses]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "204":
+          description: 삭제 완료
+        "403":
+          description: 본인 소유가 아닌 배송지
+        "404":
+          description: 존재하지 않는 배송지
 
   /api/cards:
     post:
@@ -172,6 +298,61 @@ paths:
         "404":
           description: 존재하지 않는 카드
 
+  /api/members/me/subscription:
+    get:
+      summary: 내 구독 상태 조회
+      description: "구독 이력이 없으면 오류가 아니라 정상 상태다 — data: null 로 200 을 반환한다."
+      operationId: getMySubscription
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "조회 성공 (구독 이력이 없으면 data: null)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+    post:
+      summary: 구독 시작
+      description: |
+        결제 미연동 스코프 — 본인 호출로 즉시 활성화한다. 이미 활성 구독이 있으면 409.
+        결제 연동 시 이 자리에 검증이 추가될 예정이다.
+      operationId: subscribeMe
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "201":
+          description: 구독 시작 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "409":
+          description: 이미 구독 중
+    delete:
+      summary: 구독 해지
+      operationId: cancelMySubscription
+      tags: [subscription]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 해지 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: 활성 구독 없음
+
   /internal/cards/{cardId}/deduct:
     post:
       summary: 가상카드 한도 차감
@@ -236,6 +417,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/CardOperationResult"
 
+  /internal/members/{memberId}/subscription-status:
+    get:
+      summary: 내부 구독 상태 조회
+      description: |
+        클러스터 내부 전용이며 Ingress에 노출하지 않는다. eBook 무제한 열람/프리미엄 RAG
+        질의응답/웹툰 요약 접근권 검증 등 다른 서비스(catalog 등)가 참조할 예정이다.
+        ApiResponse 로 감싸지 않고 SubscriptionStatusResponse 를 그대로 반환한다.
+      tags: [internal-members]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, description: Cognito sub }
+      responses:
+        "200":
+          description: 조회 성공(구독 없으면 subscribed=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionStatusResponse"
+
   /internal/members/{memberId}/notification-profile:
     get:
       summary: 내부 알림 수신 프로필 조회
@@ -297,7 +499,25 @@ components:
           properties:
             accessToken: { type: string }
             refreshToken: { type: string }
+            tokenType: { type: string, example: Bearer }
             expiresIn: { type: integer, example: 3600 }
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    SignupEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          type: object
+          required: [memberId, email, name]
+          properties:
+            # Cognito sub (PR #36).
+            memberId: { type: string, format: uuid }
+            email: { type: string, format: email }
+            name: { type: string }
         error:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true
@@ -313,27 +533,37 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
           nullable: true
 
+    # MemberResponse.java 와 1:1. 등급(grade)·포인트(point)·닉네임(nickname)은
+    # 등급제/포인트제 폐지(76c7362)로 사라졌다.
     Member:
       type: object
+      required: [id, email, name, role]
       properties:
-        id: { type: integer, format: int64 }
+        # Cognito sub. PK 가 숫자에서 sub 로 바뀌었다(PR #36).
+        # 다른 서비스가 memberId 로 받는 값과 같은 것이어야 한다.
+        id: { type: string, format: uuid }
         email: { type: string, format: email }
         name: { type: string }
-        nickname: { type: string }
-        grade:
+        phoneNumber: { type: string, nullable: true }
+        gender:
           type: string
-          enum: [BASIC, PREMIUM]
-        point: { type: integer }
+          nullable: true
+          enum: [MALE, FEMALE]
+        birthDate: { type: string, format: date, nullable: true }
+        role:
+          type: string
+          enum: [USER, ADMIN]
 
     Address:
       type: object
+      required: [id, recipientName, phoneNumber, zipcode, address, isDefault]
       properties:
         id: { type: integer, format: int64 }
         recipientName: { type: string }
         phoneNumber: { type: string }
         zipcode: { type: string }
         address: { type: string }
-        detailAddress: { type: string }
+        detailAddress: { type: string, nullable: true }
         isDefault: { type: boolean }
 
     AddressCreateRequest:
@@ -346,6 +576,43 @@ components:
         address: { type: string }
         detailAddress: { type: string }
         isDefault: { type: boolean, default: false }
+
+    # 전부 optional — PATCH 부분수정. null(생략)인 필드는 변경하지 않는다.
+    # isDefault 는 3중 상태(생략=변경 안 함/true/false)가 의미상 필요해 default: 를 적지 않는다
+    # (IssueCardRequest.monthlyLimit 과 동일한 이유 — default 를 적으면 생성기가 필수 필드로 읽는다).
+    AddressUpdateRequest:
+      type: object
+      properties:
+        recipientName: { type: string }
+        phoneNumber: { type: string }
+        zipcode: { type: string }
+        address: { type: string }
+        detailAddress: { type: string }
+        isDefault: { type: boolean, nullable: true }
+
+    AddressEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          $ref: "#/components/schemas/Address"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    AddressListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Address"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
 
     CardOperationRequest:
       type: object
@@ -370,7 +637,11 @@ components:
         monthlyLimit:
           type: integer
           minimum: 1000
-          default: 1000000
+          nullable: true
+          # 생략하면 서버가 1,000,000 을 넣는다(CardService.DEFAULT_MONTHLY_LIMIT).
+          # `default:` 로 적지 않는 이유는 코드 생성기가 그걸 "항상 존재함"으로 읽어
+          # 요청 바디에서 필수 필드가 되기 때문이다 — 실제로는 생략 가능하다.
+          example: 1000000
 
     ChangeCardStatusRequest:
       type: object
@@ -382,6 +653,8 @@ components:
 
     Card:
       type: object
+      required:
+        [cardId, maskedCardNumber, cardStatus, monthlyLimit, currentUsage, issuedDate, expiryDate]
       properties:
         cardId:
           type: integer
@@ -429,4 +702,70 @@ components:
             $ref: "#/components/schemas/Card"
         error:
           $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    SubscribeRequest:
+      type: object
+      required: [planType]
+      properties:
+        planType:
+          type: string
+          enum: [MONTHLY, YEARLY]
+
+    # SubscriptionResponse.java 와 1:1. 결제 상세(금액/수단/승인번호)는 여기 없다 — 결제 미연동
+    # 스코프이고, 결제 상세는 order_db.payments 의 관심사다.
+    Subscription:
+      type: object
+      required: [subscriptionId, planType, status, startedAt, expiresAt]
+      properties:
+        subscriptionId:
+          type: integer
+          format: int64
+        planType:
+          type: string
+          enum: [MONTHLY, YEARLY]
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, EXPIRED]
+        startedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SubscriptionEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data:
+          nullable: true
+          description: 구독 이력이 없으면 null.
+          allOf:
+            - $ref: "#/components/schemas/Subscription"
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+          nullable: true
+
+    # SubscriptionStatusResponse.java 와 1:1. /internal/** 전용이라 Envelope 로 감싸지 않는다.
+    SubscriptionStatusResponse:
+      type: object
+      required: [memberId, subscribed]
+      properties:
+        memberId:
+          type: string
+        subscribed:
+          type: boolean
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, EXPIRED]
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
           nullable: true

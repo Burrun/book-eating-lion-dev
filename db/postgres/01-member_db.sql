@@ -11,9 +11,10 @@
 -- =============================================================================
 SET search_path = member_db;
 
+-- member_id 는 auto-increment 가 아니라 Cognito sub 값을 그대로 저장한다(팀 컨벤션 확정).
+-- 별도 cognito_sub 컬럼을 두지 않고 PK 자체를 sub 로 쓴다.
 CREATE TABLE members (
-    member_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    cognito_sub   VARCHAR(255) NOT NULL,
+    member_id     VARCHAR(255) PRIMARY KEY,
     name          VARCHAR(100) NOT NULL,
     nickname      VARCHAR(50)  NOT NULL,
     email         VARCHAR(255) NOT NULL,
@@ -25,7 +26,6 @@ CREATE TABLE members (
     deleted_at    TIMESTAMP NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_members_cognito_sub UNIQUE (cognito_sub),
     CONSTRAINT uk_members_nickname UNIQUE (nickname),
     CONSTRAINT uk_members_email    UNIQUE (email),
     CONSTRAINT chk_members_gender CHECK (gender IN ('MALE', 'FEMALE')),
@@ -45,14 +45,14 @@ CREATE TABLE addresses (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_addresses_member FOREIGN KEY (member_sub)
-        REFERENCES members (cognito_sub) ON DELETE CASCADE
+        REFERENCES members (member_id) ON DELETE CASCADE
 );
 
 -- MySQL 원본은 생성칼럼(is_default=1 이면 1, 아니면 NULL)에 UNIQUE 를 걸어
 -- "회원당 기본배송지 1건"을 강제했다. PostgreSQL 은 부분 인덱스로 직접 표현한다.
 CREATE UNIQUE INDEX uk_addresses_default ON addresses (member_sub) WHERE is_default;
 
--- member_id(BIGINT, members.member_id FK) 대신 member_sub(members.cognito_sub FK)로 소유권을 식별한다.
+-- member_sub 는 members.member_id(=Cognito sub)를 그대로 참조한다.
 -- addresses 테이블과 동일한 패턴 — Cognito PreTokenGeneration 의 member_id 커스텀 클레임 의존을 없애는 방향.
 CREATE TABLE cards (
     card_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -73,7 +73,7 @@ CREATE TABLE cards (
     updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_cards_token UNIQUE (card_token),
     CONSTRAINT fk_cards_member FOREIGN KEY (member_sub)
-        REFERENCES members (cognito_sub) ON DELETE CASCADE,
+        REFERENCES members (member_id) ON DELETE CASCADE,
     CONSTRAINT chk_cards_status  CHECK (card_status IN ('ACTIVE', 'SUSPENDED', 'TERMINATED')),
     CONSTRAINT chk_cards_balance CHECK (virtual_balance >= 0),
     CONSTRAINT chk_cards_expiry  CHECK (expiry_date > issued_date)
@@ -81,9 +81,15 @@ CREATE TABLE cards (
 
 CREATE UNIQUE INDEX uk_cards_default ON cards (member_sub) WHERE is_default;
 
+-- 정기구독 상태의 실제 소유 테이블은 아래 member_subscriptions 다. 이 테이블은 결제 상세
+-- (payment_amount/payment_method/payment_status 등)까지 NOT NULL 로 갖고 있어 결제 미연동
+-- 단계에서는 값을 채울 수 없다 — Member 도메인이 결제 상세를 가져야 하는지도 불분명하다
+-- (그건 order_db.payments 의 관심사다). 대응 엔티티가 없어 아무도 읽고 쓰지 않는 상태이며,
+-- 팀 설계 문서에 있던 테이블이라 조율 없이 지우지 않고 남겨둔다. 결제 연동 시 이 테이블을
+-- 그대로 쓸지, member_subscriptions 로 완전히 대체할지 재논의가 필요하다.
 CREATE TABLE premium_memberships (
     membership_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id       BIGINT NOT NULL,
+    member_id       VARCHAR(255) NOT NULL,
     card_id         BIGINT NULL,
     plan_type       VARCHAR(10) NOT NULL,
     payment_amount  BIGINT NOT NULL,
@@ -111,9 +117,36 @@ CREATE TABLE premium_memberships (
     CONSTRAINT chk_premium_period CHECK (end_at > start_at)
 );
 
+-- 정기구독(프리미엄 멤버십) 상태만 소유한다. 결제 상세(금액/수단/승인번호)는 order_db 의
+-- payments 가 갖는다 — 결제 완료 시 order 가 내부 API(/internal/members/{id}/subscription-status
+-- 는 조회용이고, 활성화는 POST /api/members/me/subscription 를 대신 호출하는 흐름)로 이 구독을
+-- 활성화하는 연동을 나중에 붙인다. 여기에 결제 컬럼을 두면 소유 서비스가 둘로 갈린다.
+--
+-- order_db.subscriptions(정기배송 구독박스, 별개 개념)와 헷갈리지 말 것.
+CREATE TABLE member_subscriptions (
+    subscription_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    member_sub      VARCHAR(255) NOT NULL,
+    plan_type       VARCHAR(10)  NOT NULL,
+    status          VARCHAR(10)  NOT NULL DEFAULT 'ACTIVE',
+    started_at      TIMESTAMP NOT NULL,
+    expires_at      TIMESTAMP NOT NULL,
+    cancelled_at    TIMESTAMP NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_member_subscriptions_member FOREIGN KEY (member_sub)
+        REFERENCES members (member_id) ON DELETE CASCADE,
+    CONSTRAINT chk_member_subscriptions_plan   CHECK (plan_type IN ('MONTHLY', 'YEARLY')),
+    CONSTRAINT chk_member_subscriptions_status CHECK (status IN ('ACTIVE', 'CANCELLED', 'EXPIRED')),
+    CONSTRAINT chk_member_subscriptions_period CHECK (expires_at > started_at)
+);
+
+-- 회원당 활성 구독은 1건. addresses/cards 의 부분 유니크 인덱스와 같은 패턴이다.
+CREATE UNIQUE INDEX uk_member_subscriptions_active
+    ON member_subscriptions (member_sub) WHERE status = 'ACTIVE';
+
 CREATE TABLE point_histories (
     point_history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id        BIGINT NOT NULL,
+    member_id        VARCHAR(255) NOT NULL,
     amount           BIGINT NOT NULL,
     ref_type         VARCHAR(20) NULL,
     -- 경계 밖(order_db.orders 등)을 가리킬 수 있으므로 FK 를 걸지 않는다. 값만 유지.
@@ -128,7 +161,7 @@ CREATE TABLE point_histories (
 
 CREATE TABLE audit_logs (
     audit_log_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    admin_id     BIGINT NOT NULL,
+    admin_id     VARCHAR(255) NOT NULL,
     action       VARCHAR(255) NOT NULL,
     target_type  VARCHAR(50) NULL,
     target_id    BIGINT NULL,

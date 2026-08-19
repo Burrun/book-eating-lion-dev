@@ -21,6 +21,7 @@ import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.BookService;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.SearchHistoryService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,7 +56,8 @@ class BookControllerTest {
     private SearchHistoryService searchHistoryService;
 
     private BookSummaryResponse summary(Long id, String title) {
-        return new BookSummaryResponse(id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE);
+        return new BookSummaryResponse(
+                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0);
     }
 
     @Test
@@ -113,6 +115,8 @@ class BookControllerTest {
                 false,
                 SaleStatus.ON_SALE,
                 LocalDate.of(2026, 1, 1),
+                BigDecimal.ZERO,
+                0,
                 LocalDateTime.now(),
                 LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
@@ -163,6 +167,8 @@ class BookControllerTest {
                 false,
                 SaleStatus.ON_SALE,
                 LocalDate.of(2026, 1, 1),
+                BigDecimal.ZERO,
+                0,
                 LocalDateTime.now(),
                 LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);
@@ -189,6 +195,8 @@ class BookControllerTest {
                 false,
                 SaleStatus.ON_SALE,
                 LocalDate.of(2026, 1, 1),
+                BigDecimal.ZERO,
+                0,
                 LocalDateTime.now(),
                 LocalDateTime.now());
         when(bookService.getBook(1L)).thenReturn(detail);

@@ -7,6 +7,7 @@ public enum CouponErrorCode {
     COUPON_EXPIRED(HttpStatus.BAD_REQUEST),
     COUPON_ALREADY_ISSUED(HttpStatus.CONFLICT),
     COUPON_ALREADY_USED(HttpStatus.CONFLICT),
+    COUPON_CODE_DUPLICATED(HttpStatus.CONFLICT),
     INVALID_REQUEST(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;

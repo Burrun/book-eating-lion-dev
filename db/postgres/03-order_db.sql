@@ -1,8 +1,7 @@
 -- =============================================================================
 -- order_db — order-service 전용
 --   inventory, orders, order_items, payments, deliveries, cart_items,
---   coupons, member_coupons, restock_notifications,
---   subscriptions, subscription_deliveries
+--   coupons, member_coupons, subscriptions, subscription_deliveries
 --
 -- 이 스키마의 핵심은 inventory 다 (Phase 0-1 / 판단 ③).
 -- 재고를 order 가 소유하므로 Redlock·재고차감·결제가 전부 단일 서비스 로컬
@@ -11,6 +10,14 @@
 -- 참고: subscriptions / subscription_deliveries 는 계획서 §2 판단 ② 표에
 -- 명시되지 않았다. 정기구독은 결제·배송이 붙는 거래 관심사이므로 order_db 로
 -- 귀속시켰다 (Phase 0-2 완료 조건 "모든 테이블이 정확히 한 스키마에 귀속").
+--
+-- member_id 는 전부 VARCHAR(255) 이고 값은 Cognito sub 다. 숫자 member_id 가 아니다.
+-- Cognito PreTokenGeneration 이 없어 JWT 에 member_id 커스텀 클레임이 들어오지
+-- 않았고, sub 로 식별하도록 전환했다. 엔티티도 String 이다(@Column length = 255).
+--
+-- subscriptions 는 아직 대응 엔티티가 없다. 정기배송(구독박스)의 소유 서비스를
+-- order 로 확정했으므로 자리는 여기 남긴다 — member_db.premium_memberships(유료 멤버십)와
+-- 별개 개념이다(docs/frontend/mypage-unimplemented.md §4).
 -- =============================================================================
 SET search_path = order_db;
 
@@ -46,7 +53,7 @@ CREATE TABLE coupons (
 
 CREATE TABLE member_coupons (
     member_coupon_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id        BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id        VARCHAR(255) NOT NULL,  -- FK 없음: member_db 경계 밖. 값은 Cognito sub 다
     coupon_id        BIGINT NOT NULL,
     is_used          BOOLEAN NOT NULL DEFAULT FALSE,
     used_at          TIMESTAMP NULL,
@@ -58,7 +65,7 @@ CREATE TABLE member_coupons (
 
 CREATE TABLE cart_items (
     cart_item_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id    BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id    VARCHAR(255) NOT NULL,  -- FK 없음: member_db 경계 밖. 값은 Cognito sub 다
     book_id      BIGINT NOT NULL,  -- FK 없음: catalog_db 경계 밖
     quantity     INT NOT NULL DEFAULT 1,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -69,7 +76,7 @@ CREATE TABLE cart_items (
 
 CREATE TABLE orders (
     order_id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id              BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    member_id              VARCHAR(255) NOT NULL,  -- FK 없음: member_db 경계 밖. 값은 Cognito sub 다
     address_id             BIGINT NULL,      -- FK 없음. 아래 배송지 칼럼이 주문 시점 스냅샷이다
     member_coupon_id       BIGINT NULL,
     recipient_name         VARCHAR(100) NOT NULL,
@@ -156,19 +163,16 @@ CREATE TABLE deliveries (
         ('READY', 'SHIPPED', 'IN_TRANSIT', 'DELIVERED'))
 );
 
-CREATE TABLE restock_notifications (
-    restock_notification_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id               BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
-    book_id                 BIGINT NOT NULL,  -- FK 없음: catalog_db 경계 밖
-    is_notified             BOOLEAN NOT NULL DEFAULT FALSE,
-    requested_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    notified_at             TIMESTAMP NULL,
-    CONSTRAINT uk_restock_member_book UNIQUE (member_id, book_id)
-);
+-- restock_notifications 는 삭제했다.
+-- 재입고 알림은 catalog_db.restock_alerts 가 이미 소유하고 있고(modules/book 의
+-- RestockAlert / RestockAlertService / GET /api/catalog/restock-alerts/me),
+-- 여기 있던 테이블은 대응 엔티티가 없어 아무도 읽고 쓰지 않았다.
+-- 같은 관심사를 두 스키마가 나눠 갖는 상태를 남기면 어느 쪽이 진짜인지 알 수 없다.
 
 CREATE TABLE subscriptions (
     subscription_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    member_id           BIGINT NOT NULL,  -- FK 없음: member_db 경계 밖
+    -- FK 없음: member_db 경계 밖. 값은 Cognito sub 다
+    member_id           VARCHAR(255) NOT NULL,
     plan_name           VARCHAR(100) NOT NULL,
     monthly_price       BIGINT NOT NULL,
     subscription_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',

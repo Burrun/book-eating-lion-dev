@@ -6,6 +6,7 @@ import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -31,12 +32,14 @@ public class InventoryRestockedStreamConfig {
         return StreamMessageListenerContainer.create(connectionFactory, options);
     }
 
+    /** 같은 타입의 컨테이너 빈이 둘이라 이름이 아니라 {@code @Qualifier} 로 고른다. */
     @Bean
     InventoryRestockedSubscription inventoryRestockedSubscription(
-            StreamMessageListenerContainer<String, MapRecord<String, String, String>> inventoryRestockedContainer,
+            @Qualifier("inventoryRestockedContainer")
+                    StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             StringRedisTemplate redisTemplate,
             InventoryRestockedConsumer consumer) {
-        return new InventoryRestockedSubscription(inventoryRestockedContainer, redisTemplate, consumer);
+        return new InventoryRestockedSubscription(container, redisTemplate, consumer);
     }
 
     static class InventoryRestockedSubscription implements InitializingBean, DisposableBean {

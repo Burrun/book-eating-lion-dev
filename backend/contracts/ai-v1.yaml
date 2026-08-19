@@ -146,7 +146,7 @@ paths:
         레벨·경험치·성장단계와 먹인 책 수.
 
         **조회는 사자를 만들지 않는다.** 아직 한 번도 먹이지 않은 사용자는 `lions` 행이
-        없고, 그때는 기본값(레벨 1 / 경험치 0 / CUB)을 돌려준다 — 행이 없는 것과 같은
+        없고, 그때는 기본값(레벨 1 / 경험치 0 / BABY)을 돌려준다 — 행이 없는 것과 같은
         의미이기 때문이다. 사자 행은 첫 `feed` 에서 생긴다.
       operationId: getMyLion
       tags: [ai-lion]
@@ -411,8 +411,11 @@ components:
             level: { type: integer, example: 2 }
             growthStage:
               type: string
-              description: lions.growth_stage. 첫 사자는 CUB 다.
-              example: CUB
+              enum: [BABY, CUB, ADULT]
+              description: |
+                lions.growth_stage. level 기준 구간(프론트 LionCharacter.getLionTier 와 동일):
+                레벨 1~2 BABY, 3~4 CUB, 5 이상 ADULT. 첫 사자(레벨 1)는 BABY 다.
+              example: BABY
             fedBookCount:
               type: integer
               format: int64

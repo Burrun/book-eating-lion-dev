@@ -6,6 +6,7 @@ import { ToastProvider } from "./components/Toast.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { getCart } from "./api/cart.js";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import AdminRoute from "./components/AdminRoute.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import Cart from "./pages/Cart.jsx";
@@ -17,9 +18,20 @@ import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
 import BestsellersPage from "./pages/BestsellersPage/BestsellersPage.tsx";
 import WishlistPage from "./pages/WishlistPage/WishlistPage.tsx";
 import CardsPage from "./pages/CardsPage/CardsPage.tsx";
+import AddressesPage from "./pages/AddressesPage/AddressesPage.tsx";
+import KakaoPayCallback from "./pages/payment/KakaoPayCallback.jsx";
 import KakaoPaySuccess from "./pages/payment/KakaoPaySuccess.jsx";
 import KakaoPayFail from "./pages/payment/KakaoPayFail.jsx";
 import KakaoPayCancel from "./pages/payment/KakaoPayCancel.jsx";
+import AdminPage from "./pages/AdminPage/AdminPage.tsx";
+import AdminCategoriesPage from "./pages/AdminPage/AdminCategoriesPage.tsx";
+import AdminFaqPage from "./pages/AdminPage/AdminFaqPage.tsx";
+import AdminInquiriesPage from "./pages/AdminPage/AdminInquiriesPage.tsx";
+import AdminReviewsPage from "./pages/AdminPage/AdminReviewsPage.tsx";
+import AdminCouponsPage from "./pages/AdminPage/AdminCouponsPage.tsx";
+import AdminOrdersPage from "./pages/AdminPage/AdminOrdersPage.tsx";
+import AdminSubscriptionBannersPage from "./pages/AdminPage/AdminSubscriptionBannersPage.tsx";
+import AdminBookPage from "./pages/AdminPage/AdminBookPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -87,6 +99,22 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/addresses"
+                  element={
+                    <ProtectedRoute>
+                      <AddressesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/payments/kakao/callback"
+                  element={
+                    <ProtectedRoute>
+                      <KakaoPayCallback />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/payment/kakao/success"
                   element={
                     <ProtectedRoute>
@@ -108,6 +136,78 @@ export default function App() {
                     <ProtectedRoute>
                       <KakaoPayCancel />
                     </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminRoute>
+                      <AdminPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/categories"
+                  element={
+                    <AdminRoute>
+                      <AdminCategoriesPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/faqs"
+                  element={
+                    <AdminRoute>
+                      <AdminFaqPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/inquiries"
+                  element={
+                    <AdminRoute>
+                      <AdminInquiriesPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reviews"
+                  element={
+                    <AdminRoute>
+                      <AdminReviewsPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/coupons"
+                  element={
+                    <AdminRoute>
+                      <AdminCouponsPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/orders"
+                  element={
+                    <AdminRoute>
+                      <AdminOrdersPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/subscription-banners"
+                  element={
+                    <AdminRoute>
+                      <AdminSubscriptionBannersPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/books"
+                  element={
+                    <AdminRoute>
+                      <AdminBookPage />
+                    </AdminRoute>
                   }
                 />
               </Route>
