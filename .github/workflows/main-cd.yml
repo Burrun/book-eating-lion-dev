@@ -109,6 +109,10 @@ jobs:
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
           AURORA_ENDPOINT: ${{ vars.AURORA_ENDPOINT }}
           AURORA_READER_ENDPOINT: ${{ vars.AURORA_READER_ENDPOINT }}
+          # 비용 절감용 임시 대안(EC2 위 Docker Postgres) 엔드포인트. k8s/base/04-db.yaml
+          # 은 아직 이 값을 쓰지 않는다 — Aurora 대신 이걸 실제로 쓰기로 정하면 그 파일의
+          # externalName 을 ${TEST_DB_ENDPOINT} 로 바꾸고 여기도 필수값 체크/VARS 에 추가할 것.
+          TEST_DB_ENDPOINT: ${{ vars.TEST_DB_ENDPOINT }}
           API_HOST: ${{ vars.API_HOST }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
           VPC_CIDR: ${{ vars.VPC_CIDR }}
@@ -118,6 +122,7 @@ jobs:
           CATALOG_DB_PASSWORD: ${{ secrets.CATALOG_DB_PASSWORD }}
           ORDER_DB_USERNAME: ${{ secrets.ORDER_DB_USERNAME }}
           ORDER_DB_PASSWORD: ${{ secrets.ORDER_DB_PASSWORD }}
+          KAKAOPAY_SECRET_KEY: ${{ secrets.KAKAOPAY_SECRET_KEY }}
           MEMBER_DB_USERNAME: ${{ secrets.MEMBER_DB_USERNAME }}
           MEMBER_DB_PASSWORD: ${{ secrets.MEMBER_DB_PASSWORD }}
           AI_DB_USERNAME: ${{ secrets.AI_DB_USERNAME }}
@@ -126,6 +131,7 @@ jobs:
           set -euo pipefail
           for v in AURORA_ENDPOINT AURORA_READER_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
+                   KAKAOPAY_SECRET_KEY \
                    MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
             if [ -z "${!v}" ]; then
               echo "::error::필수 값 $v 가 비어 있습니다. environment 의 Variables/Secrets 를 확인하세요."
@@ -133,7 +139,7 @@ jobs:
             fi
           done
 
-          VARS='$SPRING_PROFILE $AURORA_ENDPOINT $AURORA_READER_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$SPRING_PROFILE $AURORA_ENDPOINT $AURORA_READER_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -238,6 +244,7 @@ jobs:
           AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
           REDIS_HOST: ${{ vars.REDIS_HOST }}
           AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
+          SQS_PURCHASE_QUEUE_URL: ${{ vars.SQS_PURCHASE_QUEUE_URL }}
         run: |
           set -euo pipefail
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
@@ -246,7 +253,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

@@ -54,6 +54,7 @@ app:
       api-call-attempt-timeout: 10s
     vector:
       index-name: wiki-v1
+      recommendation-index-name: ${AI_RECOMMENDATION_VECTOR_INDEX:recommendation-books-v1}
       distance-metric: cosine
       # 인덱스 생성 시 선언한 값. 기동 시 GetIndex 로 대조한다.
       non-filterable-metadata-keys:

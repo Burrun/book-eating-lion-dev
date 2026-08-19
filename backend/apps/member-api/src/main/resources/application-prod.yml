@@ -38,6 +38,18 @@ spring:
   flyway:
     enabled: false
 
+  # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
+  # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
+  # 주의: 아래 app.cognito.* 는 회원가입/로그인 시 Cognito 에 명령을 보내는
+  # CognitoIdentityProviderClient(발급자) 설정이고, 이 issuer-uri 는 반대 방향 —
+  # 들어오는 요청의 Authorization 헤더 JWT 를 검증(수신자)하는 설정이다. 값 자체는
+  # 같은 Cognito User Pool 을 가리키지만 두 설정은 서로 대체할 수 없다.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
+
 app:
   cognito:
     region: ${AWS_COGNITO_REGION}

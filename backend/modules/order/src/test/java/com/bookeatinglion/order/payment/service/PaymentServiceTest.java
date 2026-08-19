@@ -47,7 +47,7 @@ class PaymentServiceTest {
     private PaymentService paymentService;
 
     private Order order() {
-        Order order = new Order(MEMBER_ID, "홍길동", "010-0000-0000", "06236", "서울", 10000);
+        Order order = new Order(MEMBER_ID, "홍길동", "010-0000-0000", "06236", "서울", null, null, 10000);
         ReflectionTestUtils.setField(order, "id", 1L);
         return order;
     }

@@ -36,6 +36,8 @@ CREATE TABLE books (
     category          VARCHAR(100) NOT NULL,
     description       TEXT NULL,
     detailed_synopsis TEXT NULL,
+    -- 비공개 S3 object key. Presigned URL은 만료되므로 저장하지 않는다.
+    epub_s3_key       VARCHAR(500) NULL,
     cover_image_url   VARCHAR(500) NULL,
     sale_status       VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
     published_date    DATE NULL,
@@ -105,6 +107,21 @@ CREATE TABLE recent_books (
     CONSTRAINT chk_recent_books_view_count CHECK (view_count > 0)
 );
 
+CREATE TABLE reading_progress (
+    reading_progress_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    member_sub          VARCHAR(255) NOT NULL, -- Cognito sub. FK 없음
+    book_id             BIGINT NOT NULL,
+    cfi                 TEXT NOT NULL,
+    percentage          INT NULL,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reading_progress_book FOREIGN KEY (book_id)
+        REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT uk_reading_progress_member_book UNIQUE (member_sub, book_id),
+    CONSTRAINT chk_reading_progress_percentage CHECK
+        (percentage IS NULL OR percentage BETWEEN 0 AND 100)
+);
+
 CREATE TABLE wishlists (
     wishlist_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     member_id   VARCHAR(255) NOT NULL,  -- Cognito sub. FK 없음: member_db 경계 밖
@@ -159,9 +176,33 @@ CREATE TABLE book_swipes (
     book_id       BIGINT NOT NULL,
     swipe_action  VARCHAR(10) NOT NULL,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_book_swipes_book FOREIGN KEY (book_id)
         REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT uk_book_swipes_member_book UNIQUE (member_id, book_id),
     CONSTRAINT chk_book_swipes_action CHECK (swipe_action IN ('LIKE', 'SKIP'))
+);
+
+CREATE TABLE search_history (
+    search_history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    member_id         VARCHAR(255) NOT NULL,
+    query_text        VARCHAR(200) NOT NULL,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE recommendation_exposures (
+    exposure_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    queue_id    UUID NOT NULL,
+    member_id   VARCHAR(255) NOT NULL,
+    book_id     BIGINT NOT NULL,
+    position    INT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_recommendation_exposures_book FOREIGN KEY (book_id)
+        REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT uk_recommendation_exposure UNIQUE (queue_id, member_id, book_id),
+    CONSTRAINT chk_recommendation_exposure_position CHECK (position > 0)
 );
 
 CREATE TABLE restock_alerts (
@@ -230,6 +271,9 @@ CREATE INDEX idx_books_rating_avg         ON books (rating_avg DESC, review_coun
 CREATE INDEX idx_recent_books_member_viewed ON recent_books (member_id, viewed_at DESC);
 CREATE INDEX idx_reviews_book_created     ON reviews (book_id, created_at DESC);
 CREATE INDEX idx_book_swipes_member_created ON book_swipes (member_id, created_at DESC);
+CREATE INDEX idx_search_history_member_created ON search_history (member_id, created_at DESC);
+CREATE INDEX idx_recommendation_exposures_member_created
+    ON recommendation_exposures (member_id, created_at DESC);
 CREATE INDEX idx_book_webtoons_book_active ON book_webtoons (book_id, is_active, generation_status);
 CREATE INDEX idx_restock_alerts_member_status ON restock_alerts (member_id, status, requested_at DESC);
 CREATE INDEX idx_restock_alerts_book_status ON restock_alerts (book_id, status);

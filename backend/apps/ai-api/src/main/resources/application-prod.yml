@@ -1,4 +1,7 @@
 spring:
+  config:
+    import: classpath:application-redis-prod.yml
+
   datasource:
     # 다른 세 서비스와 같은 Aurora 클러스터, 다른 스키마다.
     # AI_DB_HOST 는 db-primary-service 를 가리키며 나머지 서비스와 같은 엔드포인트다.
@@ -40,6 +43,19 @@ spring:
           issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
+
+  # DailyQuota/FedBookCache 가 spring.data.redis.host/port 를 쓴다. DailyQuota 는
+  # Redis 장애 시 fail-open 이라 이 값이 없으면 일일 사용량 제한(AI_DAILY_QUOTA)이
+  # 조용히 무력화되고, FedBookCache 는 항상 미스라 매 요청마다 불필요한 DB 조회가
+  # 추가된다. 값 자체는 위 application-redis-prod.yml import 로 온다(공유 파일 참고).
+
+  # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
+  # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
 
 app:
   ai:

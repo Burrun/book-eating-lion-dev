@@ -14,9 +14,15 @@ data:
 
   # 서비스 간 동기 통신 주소. Eureka 없이 K8s Service DNS 가 해결한다(§4).
   SERVICES_ORDER_URL: "http://order-service.lion-app.svc.cluster.local:8080"
+  SERVICES_AI_URL: "http://ai-rag.lion-app.svc.cluster.local:8080"
 
   REDIS_HOST: "${REDIS_HOST}"
 
   AWS_REGION: "${AWS_REGION}"
   AWS_COGNITO_REGION: "${AWS_REGION}"
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
+
+  # 운영에서는 비공개 S3 EPUB을 짧은 유효기간의 Presigned URL로 제공한다.
+  EBOOK_STORAGE: "s3"
+  EBOOK_S3_BUCKET: "${EBOOK_S3_BUCKET}"
+  EBOOK_READ_URL_VALIDITY: "PT10M"

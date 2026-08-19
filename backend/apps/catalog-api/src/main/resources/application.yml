@@ -20,6 +20,8 @@ services:
     url: ${SERVICES_ORDER_URL:http://localhost:8082}
   member:
     url: ${SERVICES_MEMBER_URL:http://localhost:8083}
+  ai:
+    url: ${SERVICES_AI_URL:http://localhost:8084}
 
 aws:
   region: ${AWS_REGION:ap-northeast-2}
@@ -34,6 +36,13 @@ notifications:
     max-retries: ${RESTOCK_EMAIL_MAX_RETRIES:3}
     retry-delay: ${RESTOCK_EMAIL_RETRY_DELAY:PT5M}
     retry-scan-delay: ${RESTOCK_EMAIL_RETRY_SCAN_DELAY:60000}
+
+ebooks:
+  # local: frontend/public/ebooks, s3: 비공개 S3 + Presigned GET URL
+  storage: ${EBOOK_STORAGE:local}
+  read-url-validity: ${EBOOK_READ_URL_VALIDITY:PT10M}
+  s3:
+    bucket-name: ${EBOOK_S3_BUCKET:}
 
 resilience4j:
   circuitbreaker:

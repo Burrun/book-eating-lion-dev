@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import Header from "./components/Header.jsx";
+import ChatContainer from "./components/chat/ChatContainer.tsx";
 import { ToastProvider } from "./components/Toast.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { getCart } from "./api/cart.js";
@@ -42,6 +43,7 @@ function Layout() {
     <div className="min-h-screen bg-[var(--color-paper)]">
       <Header cartCount={cartCount} wishlistCount={2} />
       <Outlet />
+      <ChatContainer />
     </div>
   );
 }

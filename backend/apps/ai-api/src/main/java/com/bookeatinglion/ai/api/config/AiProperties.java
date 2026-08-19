@@ -58,5 +58,15 @@ public record AiProperties(String clients, Bedrock bedrock, Vector vector, Inges
     // text 를 빠뜨리면 청크 원문이 필터 예산 2KB 에 잡혀 PutVectors 가 400 이다.
     // 생성 후 변경 불가라 기동 시 GetIndex 로 대조한다.
     public record Vector(
-            String bucketName, String indexName, String distanceMetric, List<String> nonFilterableMetadataKeys) {}
+            String bucketName,
+            String indexName,
+            String recommendationIndexName,
+            String distanceMetric,
+            List<String> nonFilterableMetadataKeys) {
+
+        public Vector(
+                String bucketName, String indexName, String distanceMetric, List<String> nonFilterableMetadataKeys) {
+            this(bucketName, indexName, "recommendation-books-v1", distanceMetric, nonFilterableMetadataKeys);
+        }
+    }
 }

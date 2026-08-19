@@ -84,6 +84,7 @@ CREATE TABLE orders (
     postal_code            VARCHAR(20)  NOT NULL,
     address                VARCHAR(255) NOT NULL,
     address_detail         VARCHAR(255) NULL,
+    delivery_request       VARCHAR(255) NULL,
     items_subtotal         BIGINT NOT NULL DEFAULT 0,
     total_amount           BIGINT NOT NULL,
     coupon_discount_amount BIGINT NOT NULL DEFAULT 0,

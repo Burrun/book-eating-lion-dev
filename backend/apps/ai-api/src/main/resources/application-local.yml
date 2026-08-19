@@ -45,6 +45,7 @@ app:
       region: ${AWS_BEDROCK_REGION:ap-northeast-2}
     vector:
       bucket-name: ${AI_VECTOR_BUCKET:final-team3-wiki-vectors-prod}
+      recommendation-index-name: ${AI_RECOMMENDATION_VECTOR_INDEX:recommendation-books-v1}
 
 springdoc:
   swagger-ui:

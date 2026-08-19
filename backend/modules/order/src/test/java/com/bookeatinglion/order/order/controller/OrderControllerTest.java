@@ -53,14 +53,21 @@ class OrderControllerTest {
 
     private OrderResponse orderResponse(OrderStatus status) {
         return new OrderResponse(
-                1L, status, new Recipient("홍길동", "010-0000-0000", "06236", "서울"), 20000, List.of(), null, null, null);
+                1L,
+                status,
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울", null, null),
+                20000,
+                List.of(),
+                null,
+                null,
+                null);
     }
 
     private OrderResponse pendingKakaoResponse() {
         return new OrderResponse(
                 1L,
                 OrderStatus.PENDING_PAYMENT,
-                new Recipient("홍길동", "010-0000-0000", "06236", "서울"),
+                new Recipient("홍길동", "010-0000-0000", "06236", "서울", null, null),
                 20000,
                 List.of(),
                 null,
@@ -76,7 +83,7 @@ class OrderControllerTest {
 
     @Test
     void 주문_생성은_200과_데이터를_반환한다() throws Exception {
-        when(orderService.createOrder(eq(MEMBER_ID), any())).thenReturn(orderResponse(OrderStatus.PAID));
+        when(orderService.createOrder(eq(MEMBER_ID), any(), any())).thenReturn(orderResponse(OrderStatus.PAID));
 
         mockMvc.perform(post("/api/orders")
                         .with(authenticated())
@@ -90,7 +97,7 @@ class OrderControllerTest {
 
     @Test
     void 카카오페이_주문_생성은_PENDING_PAYMENT와_리다이렉트URL을_반환한다() throws Exception {
-        when(orderService.createOrder(eq(MEMBER_ID), any())).thenReturn(pendingKakaoResponse());
+        when(orderService.createOrder(eq(MEMBER_ID), any(), any())).thenReturn(pendingKakaoResponse());
 
         mockMvc.perform(post("/api/orders")
                         .with(authenticated())
@@ -104,7 +111,7 @@ class OrderControllerTest {
 
     @Test
     void 재고부족이면_400을_반환한다() throws Exception {
-        when(orderService.createOrder(eq(MEMBER_ID), any())).thenThrow(new OutOfStockException(100L));
+        when(orderService.createOrder(eq(MEMBER_ID), any(), any())).thenThrow(new OutOfStockException(100L));
 
         mockMvc.perform(post("/api/orders")
                         .with(authenticated())
@@ -117,7 +124,7 @@ class OrderControllerTest {
 
     @Test
     void 결제거절이면_402를_반환한다() throws Exception {
-        when(orderService.createOrder(eq(MEMBER_ID), any())).thenThrow(new PaymentDeclinedException("한도 초과"));
+        when(orderService.createOrder(eq(MEMBER_ID), any(), any())).thenThrow(new PaymentDeclinedException("한도 초과"));
 
         mockMvc.perform(post("/api/orders")
                         .with(authenticated())

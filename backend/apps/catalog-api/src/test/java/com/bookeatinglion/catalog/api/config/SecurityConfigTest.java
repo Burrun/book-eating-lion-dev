@@ -5,8 +5,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.bookeatinglion.book.controller.BookExceptionHandler;
+import com.bookeatinglion.book.controller.EbookController;
 import com.bookeatinglion.book.controller.ReadingProgressController;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
+import com.bookeatinglion.book.service.EbookService;
 import com.bookeatinglion.book.service.ReadingProgressService;
 import com.bookeatinglion.catalog.api.test.CatalogApiModuleTestApplication;
 import org.junit.jupiter.api.Test;
@@ -31,7 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 잡아내지 못한다. 이 테스트는 실제 SecurityConfig 빈을 @Import 해서 그 특정 규칙 순서를
  * 직접 검증한다.
  */
-@WebMvcTest(controllers = {ReadingProgressController.class, BookExceptionHandler.class})
+@WebMvcTest(controllers = {ReadingProgressController.class, EbookController.class, BookExceptionHandler.class})
 @Import({SecurityConfig.class, CatalogMemberIdentity.class})
 @ContextConfiguration(classes = CatalogApiModuleTestApplication.class)
 class SecurityConfigTest {
@@ -41,6 +43,9 @@ class SecurityConfigTest {
 
     @MockBean
     private ReadingProgressService readingProgressService;
+
+    @MockBean
+    private EbookService ebookService;
 
     @Test
     void 인증_없이_이어읽기_위치_조회는_401을_반환한다() throws Exception {
@@ -53,5 +58,10 @@ class SecurityConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cfi\":\"epubcfi(/6/4)\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 인증_없이_ebook_URL_발급은_401을_반환한다() throws Exception {
+        mockMvc.perform(get("/api/catalog/books/1/ebook")).andExpect(status().isUnauthorized());
     }
 }

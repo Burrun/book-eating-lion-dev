@@ -128,6 +128,26 @@ export interface paths {
         patch: operations["updateBook"];
         trace?: never;
     };
+    "/api/catalog/admin/books/recommendation-index/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 추천 도서 벡터 전체 재색인 요청
+         * @description 판매 중이며 삭제되지 않은 모든 도서를 Redis Stream에 발행한다. AI Service가 비동기로 임베딩·색인한다.
+         */
+        post: operations["rebuildRecommendationBookIndex"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/admin/categories": {
         parameters: {
             query?: never;
@@ -228,6 +248,28 @@ export interface paths {
          *     권한이 없으면 403 REVIEW_PERMISSION_REQUIRED 를 반환한다.
          */
         post: operations["createReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/books/{bookId}/ebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 로그인 회원 eBook 열람 URL 발급
+         * @description eBook 미지원 도서는 ebookAvailable=false를 반환한다.
+         *     지원 도서는 로그인 사용자에게 짧은 유효기간의 S3 Presigned URL을 발급한다.
+         *     Presigned URL은 DB에 저장하지 않는다.
+         */
+        get: operations["getEbookAccess"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -593,12 +635,49 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** FAQ 비활성화 */
-        delete: operations["deleteFaq"];
+        delete?: never;
         options?: never;
         head?: never;
         /** FAQ 수정 */
         patch: operations["updateFaq"];
+        trace?: never;
+    };
+    "/api/catalog/recommend/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 개인화 추천 대기열 조회
+         * @description 규칙 점수와 벡터 유사도를 결합하고, 검색된 행동 근거로 생성한 추천 이유를 반환한다.
+         */
+        get: operations["getRecommendationQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/recommend/queue/reaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 추천 카드 LIKE 또는 SKIP 기록 */
+        post: operations["reactRecommendationCard"];
+        /** FAQ 비활성화 */
+        delete: operations["deleteFaq"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -640,6 +719,8 @@ export interface components {
              */
             stockQuantity: number;
             description?: string | null;
+            /** @description EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라 null 이 될 수 없다. */
+            ebookAvailable: boolean;
             /** Format: date */
             publishedDate?: string | null;
             /** Format: date-time */
@@ -765,6 +846,35 @@ export interface components {
             rating: number;
             content: string;
         };
+        RecommendationReactionRequest: {
+            /** Format: uuid */
+            queueId: string;
+            /** Format: int64 */
+            bookId: number;
+            /** @enum {string} */
+            action: "LIKE" | "SKIP";
+        };
+        RecommendationCard: {
+            /** Format: int64 */
+            bookId?: number;
+            title?: string;
+            author?: string;
+            category?: string;
+            price?: number;
+            coverImageUrl?: string;
+            /** Format: double */
+            score?: number;
+            /** @description 검색된 사용자 행동 근거만 사용해 LLM이 생성한 추천 이유. AI 장애 시 고정 규칙 문구. */
+            recommendationReason?: string;
+        };
+        RecommendationQueueEnvelope: {
+            success?: boolean;
+            data?: {
+                /** Format: uuid */
+                queueId?: string;
+                cards?: components["schemas"]["RecommendationCard"][];
+            };
+        };
         Category: {
             /** Format: int64 */
             categoryId: number;
@@ -792,6 +902,8 @@ export interface components {
             coverImageUrl?: string;
             description?: string;
             detailedSynopsis?: string;
+            /** @description 비공개 S3 버킷 내 EPUB 객체 키. URL은 저장하지 않는다. */
+            epubS3Key?: string | null;
             /** @enum {string} */
             saleStatus?: "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
             /** Format: date */
@@ -808,6 +920,8 @@ export interface components {
             coverImageUrl?: string;
             description?: string;
             detailedSynopsis?: string;
+            /** @description null이면 유지, 빈 문자열이면 eBook 연결 해제 */
+            epubS3Key?: string | null;
             /** @enum {string} */
             saleStatus?: "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
             /** Format: date */
@@ -835,6 +949,19 @@ export interface components {
         BookDetailEnvelope: {
             success?: boolean;
             data?: components["schemas"]["BookDetail"];
+        };
+        EbookAccess: {
+            /** Format: int64 */
+            bookId: number;
+            ebookAvailable: boolean;
+            /** @description eBook 미지원이면 null. 운영에서는 만료되는 S3 Presigned URL. */
+            presignedUrl?: string | null;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        EbookAccessEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["EbookAccess"];
         };
         BookSynopsisDetailEnvelope: {
             success?: boolean;
@@ -1120,6 +1247,24 @@ export interface operations {
             };
         };
     };
+    rebuildRecommendationBookIndex: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 발행 대상 도서 수 반환 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getAdminCategories: {
         parameters: {
             query?: never;
@@ -1366,6 +1511,42 @@ export interface operations {
             };
             /** @description 구매 확정 이력 없음 (REVIEW_PERMISSION_REQUIRED) */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getEbookAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description eBook 지원 여부와 열람 URL 반환 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EbookAccessEnvelope"];
+                };
+            };
+            /** @description 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 열람 URL 발급 실패 (EBOOK_ACCESS_UNAVAILABLE) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1881,33 +2062,6 @@ export interface operations {
             };
         };
     };
-    deleteFaq: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                faqId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 비활성화 완료 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description FAQ 없음 */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     updateFaq: {
         parameters: {
             query?: never;
@@ -1931,6 +2085,83 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["FaqEnvelope"];
                 };
+            };
+            /** @description FAQ 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getRecommendationQueue: {
+        parameters: {
+            query?: {
+                /** @description Redis에 남은 대기열을 버리고 새 후보를 계산한다. */
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationQueueEnvelope"];
+                };
+            };
+        };
+    };
+    reactRecommendationCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommendationReactionRequest"];
+            };
+        };
+        responses: {
+            /** @description 반응 저장 및 현재 대기열에서 카드 제거 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 현재 대기열에 노출되지 않은 카드 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteFaq: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 비활성화 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description FAQ 없음 */
             404: {

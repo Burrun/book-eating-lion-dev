@@ -1,14 +1,18 @@
 package com.bookeatinglion.book.service;
 
 import com.bookeatinglion.book.domain.Book;
+import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.AdminBookCreateRequest;
 import com.bookeatinglion.book.dto.AdminBookResponse;
 import com.bookeatinglion.book.dto.AdminBookUpdateRequest;
+import com.bookeatinglion.book.event.BookRecommendationIndexEvent;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,7 @@ public class AdminBookService {
 
     private final BookRepository bookRepository;
     private final CategoryService categoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Page<AdminBookResponse> getBooks(boolean includeDeleted, Pageable pageable) {
         Page<Book> books =
@@ -48,11 +53,14 @@ public class AdminBookService {
                 .coverImageUrl(request.coverImageUrl())
                 .description(request.description())
                 .detailedSynopsis(request.detailedSynopsis())
+                .epubS3Key(request.epubS3Key())
                 .saleStatus(request.saleStatus())
                 .publishedDate(request.publishedDate())
                 .salesCount(0)
                 .build();
-        return AdminBookResponse.from(bookRepository.save(book));
+        Book saved = bookRepository.save(book);
+        publishIndexUpdate(saved);
+        return AdminBookResponse.from(saved);
     }
 
     @Transactional
@@ -75,8 +83,10 @@ public class AdminBookService {
                 request.coverImageUrl() == null ? book.getCoverImageUrl() : request.coverImageUrl(),
                 request.description() == null ? book.getDescription() : request.description(),
                 request.detailedSynopsis() == null ? book.getDetailedSynopsis() : request.detailedSynopsis(),
+                request.epubS3Key() == null ? book.getEpubS3Key() : request.epubS3Key(),
                 request.saleStatus() == null ? book.getSaleStatus() : request.saleStatus(),
                 request.publishedDate() == null ? book.getPublishedDate() : request.publishedDate());
+        publishIndexUpdate(book);
         return AdminBookResponse.from(book);
     }
 
@@ -85,10 +95,29 @@ public class AdminBookService {
         Book book = findBook(bookId);
         if (!book.isDeleted()) {
             book.delete(LocalDateTime.now());
+            eventPublisher.publishEvent(BookRecommendationIndexEvent.delete(bookId));
         }
+    }
+
+    /** 기존 활성 도서를 추천 벡터 인덱스에 최초 적재하거나 전체 재구축할 때 사용한다. */
+    @Transactional
+    public int reindexRecommendations() {
+        List<Book> books = bookRepository.findBySaleStatusAndIsDeletedFalse(SaleStatus.ON_SALE);
+        books.forEach(book -> eventPublisher.publishEvent(BookRecommendationIndexEvent.upsert(book)));
+        return books.size();
     }
 
     private Book findBook(Long bookId) {
         return bookRepository.findById(bookId).orElseThrow(() -> new BookNotFoundException(bookId));
+    }
+
+    private void publishIndexUpdate(Book book) {
+        // JPA 운영 경로에서는 ID가 항상 있지만, 영속화 어댑터 교체/단위 테스트에도 안전하게 둔다.
+        if (book.getBookId() != null) {
+            BookRecommendationIndexEvent event = !book.isDeleted() && book.getSaleStatus() == SaleStatus.ON_SALE
+                    ? BookRecommendationIndexEvent.upsert(book)
+                    : BookRecommendationIndexEvent.delete(book.getBookId());
+            eventPublisher.publishEvent(event);
+        }
     }
 }

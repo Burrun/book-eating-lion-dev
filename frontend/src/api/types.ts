@@ -41,14 +41,7 @@ export interface Page<T> {
 // --- 도서 (Catalog) ---
 export type BookSummaryResponse = Catalog["BookSummary"];
 
-// 🔴 ebookAvailable / ebookUrl 은 백엔드에 없다. Book 엔티티에 해당 컬럼이 없고
-// 전자책 조회 API 도 아직 없다 — 지금은 mock 만 채워 준다.
-// 실 API 모드에서는 항상 undefined 이므로 매퍼가 false/null 로 떨어뜨린다.
-// 전자책 계약이 생기면 이 교차 타입을 지우고 생성 타입만 쓰면 된다.
-export type BookDetailResponse = Catalog["BookDetail"] & {
-  ebookAvailable?: boolean;
-  ebookUrl?: string | null;
-};
+export type BookDetailResponse = Catalog["BookDetail"];
 export type BookSynopsisDetailResponse = Catalog["BookSynopsisDetail"];
 export type ReviewResponse = Catalog["Review"];
 export type ReviewRequest = Catalog["ReviewRequest"];
@@ -61,6 +54,14 @@ export interface ReadingProgressResponse {
   cfi: string;
   percentage: number | null;
   updatedAt: string;
+}
+
+// GET /api/catalog/books/{bookId}/ebook
+export interface EbookAccessResponse {
+  bookId: number;
+  ebookAvailable: boolean;
+  presignedUrl: string | null;
+  expiresAt: string | null;
 }
 
 export interface ReadingProgressRequest {
@@ -81,6 +82,31 @@ export type FaqWriteRequest = Catalog["FaqWriteRequest"];
 export type InquiryResponse = Catalog["InquiryResponse"];
 export type InquiryAnswerRequest = Catalog["InquiryAnswerRequest"];
 export type InquiryStatus = NonNullable<Catalog["InquiryResponse"]["status"]>;
+
+// GET /api/catalog/recommend/queue
+export interface RecommendationCardResponse {
+  bookId: number;
+  title: string;
+  author: string;
+  category: string;
+  price: number;
+  coverImageUrl: string | null;
+  score: number;
+  recommendationReason: string;
+}
+
+export interface RecommendationQueueResponse {
+  queueId: string;
+  cards: RecommendationCardResponse[];
+}
+
+export type RecommendationAction = "LIKE" | "SKIP";
+
+export interface RecommendationReactionRequest {
+  queueId: string;
+  bookId: number;
+  action: RecommendationAction;
+}
 
 // --- 회원 (Member) ---
 export type MemberResponse = MemberSchemas["Member"];
@@ -115,6 +141,13 @@ export type CartItemView = Order["CartItemView"];
 export type CartResponse = Order["CartResponse"];
 export type AddCartItemRequest = Order["AddCartItemRequest"];
 export type ChangeCartItemQuantityRequest = Order["ChangeCartItemQuantityRequest"];
+
+// --- AI 상담 (Chat) ---
+// POST /api/ai/bot/chat/ticket — /ws/ai/chat 접속용 1회성 교환권
+export interface ChatTicketResponse {
+  ticket: string;
+  expiresInSeconds: number;
+}
 
 // --- 주문 (Order) ---
 export type OrderItemRequest = Order["OrderItemRequest"];

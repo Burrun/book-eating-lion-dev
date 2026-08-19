@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class AdminBookServiceTest {
@@ -28,6 +29,9 @@ class AdminBookServiceTest {
 
     @Mock
     private CategoryService categoryService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AdminBookService adminBookService;
@@ -44,6 +48,7 @@ class AdminBookServiceTest {
                 "cover.jpg",
                 "설명",
                 "상세 줄거리",
+                "ebooks/spring.epub",
                 SaleStatus.ON_SALE,
                 LocalDate.of(2026, 1, 1));
         when(categoryService.getActiveCategoryName("IT/컴퓨터")).thenReturn("IT/컴퓨터");
@@ -58,7 +63,7 @@ class AdminBookServiceTest {
     @Test
     void 중복_ISBN은_등록하지_않는다() {
         AdminBookCreateRequest request = new AdminBookCreateRequest(
-                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000, null, null, null, null, null);
+                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000, null, null, null, null, null, null);
         when(bookRepository.existsByIsbn(request.isbn())).thenReturn(true);
 
         assertThatThrownBy(() -> adminBookService.create(request)).isInstanceOf(CatalogConflictException.class);
@@ -78,7 +83,7 @@ class AdminBookServiceTest {
                 .build();
         when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
         AdminBookUpdateRequest request =
-                new AdminBookUpdateRequest("변경 제목", null, null, null, null, 15000, null, null, null, null, null);
+                new AdminBookUpdateRequest("변경 제목", null, null, null, null, 15000, null, null, null, null, null, null);
 
         AdminBookResponse result = adminBookService.update(1L, request);
 

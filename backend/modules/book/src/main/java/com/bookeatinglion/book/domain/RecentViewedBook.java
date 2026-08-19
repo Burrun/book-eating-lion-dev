@@ -29,14 +29,19 @@ public class RecentViewedBook extends BaseEntity {
     @Column(nullable = false)
     private LocalDateTime viewedAt;
 
+    @Column(nullable = false)
+    private int viewCount;
+
     @Builder
     public RecentViewedBook(String memberId, Book book, LocalDateTime viewedAt) {
         this.memberId = memberId;
         this.book = book;
         this.viewedAt = viewedAt;
+        this.viewCount = 1;
     }
 
     public void touch(LocalDateTime now) {
         this.viewedAt = now;
+        this.viewCount++;
     }
 }

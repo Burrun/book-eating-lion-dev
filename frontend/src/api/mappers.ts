@@ -57,9 +57,7 @@ export function toBook(dto: BookDetailResponse): Book {
     synopsis: dto.description ?? "", // 무료 회원용 줄거리. 백엔드에서 null 가능
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다
     reviews: [], // 별도 API(/books/{id}/reviews)에서 toReview로 채운다
-    // 백엔드에 전자책 필드가 없다 — 실 API 모드에서는 항상 이 기본값이다(types.ts 참고).
-    ebookAvailable: dto.ebookAvailable ?? false,
-    ebookUrl: dto.ebookUrl ?? null,
+    ebookAvailable: dto.ebookAvailable,
   };
 }
 

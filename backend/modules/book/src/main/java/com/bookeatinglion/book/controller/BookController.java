@@ -6,6 +6,7 @@ import com.bookeatinglion.book.dto.BookSynopsisDetailResponse;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.BookService;
 import com.bookeatinglion.book.service.RecentViewedBookService;
+import com.bookeatinglion.book.service.SearchHistoryService;
 import com.bookeatinglion.common.dto.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class BookController {
     private final BookService bookService;
     private final RecentViewedBookService recentViewedBookService;
     private final CatalogMemberIdentity memberIdentity;
+    private final SearchHistoryService searchHistoryService;
 
     @GetMapping
     public ApiResponse<Page<BookSummaryResponse>> getBooks(
@@ -36,6 +38,7 @@ public class BookController {
     @GetMapping("/search")
     public ApiResponse<Page<BookSummaryResponse>> search(
             @RequestParam String q, @PageableDefault(size = 20) Pageable pageable) {
+        searchHistoryService.record(memberIdentity.optionalMemberId(), q);
         return ApiResponse.success(bookService.search(q, pageable));
     }
 
