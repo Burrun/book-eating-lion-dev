@@ -57,16 +57,16 @@ public record AiProperties(String clients, Bedrock bedrock, Vector vector, Inges
     // nonFilterableMetadataKeys 는 인덱스 생성 시 선언한 값이다. 기본값이 "전부 필터 가능"이라
     // text 를 빠뜨리면 청크 원문이 필터 예산 2KB 에 잡혀 PutVectors 가 400 이다.
     // 생성 후 변경 불가라 기동 시 GetIndex 로 대조한다.
+    // recommendationIndexName 은 편의 생성자로 기본값을 주지 않는다 — record 에 생성자가
+    // 2개 이상이면 @ConfigurationProperties 생성자 바인딩이 어느 걸 써야 할지 못 정해서
+    // 아예 바인딩을 포기하고(Vector 필드 전체가 null) 값이 다 있어도 조용히 실패한다
+    // (실측: 스프링 Binder 로 재현해 bound=false 확인). 기본값은 application.yml 의
+    // ${AI_RECOMMENDATION_VECTOR_INDEX:recommendation-books-v1} 로 이미 주고 있으므로
+    // Java 쪽 기본값은 중복이었다.
     public record Vector(
             String bucketName,
             String indexName,
             String recommendationIndexName,
             String distanceMetric,
-            List<String> nonFilterableMetadataKeys) {
-
-        public Vector(
-                String bucketName, String indexName, String distanceMetric, List<String> nonFilterableMetadataKeys) {
-            this(bucketName, indexName, "recommendation-books-v1", distanceMetric, nonFilterableMetadataKeys);
-        }
-    }
+            List<String> nonFilterableMetadataKeys) {}
 }
