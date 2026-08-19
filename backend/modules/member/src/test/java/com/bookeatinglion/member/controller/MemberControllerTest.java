@@ -74,6 +74,27 @@ class MemberControllerTest {
     }
 
     @Test
+    void cognito_groups에_ADMIN이_있으면_role이_ADMIN으로_내려간다() throws Exception {
+        when(memberService.getMyProfile(SUB)).thenReturn(memberResponse());
+
+        mockMvc.perform(get("/api/members/me")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("ADMIN")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("ADMIN"));
+    }
+
+    @Test
+    void cognito_groups에_ADMIN이_없으면_DB의_role을_그대로_반환한다() throws Exception {
+        when(memberService.getMyProfile(SUB)).thenReturn(memberResponse());
+
+        mockMvc.perform(get("/api/members/me")
+                        .with(jwt().jwt(
+                                jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("EDITOR")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("USER"));
+    }
+
+    @Test
     void 존재하지_않는_회원을_조회하면_404를_반환한다() throws Exception {
         when(memberService.getMyProfile(SUB)).thenThrow(new MemberNotFoundException(SUB));
 
