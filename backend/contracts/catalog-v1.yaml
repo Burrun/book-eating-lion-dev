@@ -47,6 +47,7 @@ paths:
   /api/catalog/books/search:
     get:
       summary: 도서 검색
+      description: 검색어로 도서를 조회하고, 로그인 사용자의 검색어를 추천 행동 로그로 기록한다. 자동완성은 제공하지 않는다.
       operationId: searchBooks
       tags: [books]
       parameters:
@@ -62,7 +63,7 @@ paths:
           schema: { type: integer, default: 20 }
       responses:
         "200":
-          description: 조회 성공
+          description: 검색 성공
           content:
             application/json:
               schema:
@@ -71,12 +72,13 @@ paths:
   /api/catalog/books/bestsellers:
     get:
       summary: 베스트셀러 목록
+      description: 판매 중인 도서를 누적 판매량 내림차순으로 조회한다.
       operationId: getBestsellers
       tags: [books]
       parameters:
         - name: limit
           in: query
-          schema: { type: integer, default: 10 }
+          schema: { type: integer, default: 10, minimum: 1 }
       responses:
         "200":
           description: 조회 성공
@@ -88,12 +90,13 @@ paths:
   /api/catalog/books/new-releases:
     get:
       summary: 신간 목록
+      description: 판매 중인 도서를 출간일 내림차순으로 조회한다.
       operationId: getNewReleases
       tags: [books]
       parameters:
         - name: limit
           in: query
-          schema: { type: integer, default: 10 }
+          schema: { type: integer, default: 10, minimum: 1 }
       responses:
         "200":
           description: 조회 성공
@@ -328,9 +331,8 @@ paths:
 
   /api/catalog/books/{bookId}/synopsis/detail:
     get:
-      summary: 상세 줄거리
-      description: |
-        줄거리는 도서 상세에 기본 제공되고, 이 경로는 구독 회원용 상세 줄거리다.
+      summary: 도서 상세 줄거리 조회
+      description: 저장된 상세 줄거리 텍스트를 반환한다. 구매·구독 권한 검증과 웹툰형 요약 이미지는 아직 제공하지 않는다.
       operationId: getSynopsisDetail
       tags: [books]
       parameters:
@@ -1448,6 +1450,20 @@ components:
         success: { type: boolean }
         data:
           $ref: "#/components/schemas/BookDetail"
+
+    BookSynopsisDetail:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        title: { type: string }
+        detailedSynopsis: { type: string }
+
+    BookSynopsisDetailEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/BookSynopsisDetail"
 
     EbookAccess:
       type: object

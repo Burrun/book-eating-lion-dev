@@ -20,6 +20,8 @@ import {
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
+import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
+import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
 import {
   cancelOrder,
   getMyOrders,
@@ -147,7 +149,169 @@ export default function MyPage() {
         <OrdersSection />
       </div>
 
+      <BookActivitySection />
+
       <ReviewsSection />
+    </div>
+  );
+}
+
+const BOOK_ACTIVITY_TABS = [
+  { id: "recent", label: "최근 본 도서" },
+  { id: "restock", label: "재입고 알림" },
+  { id: "wishlist", label: "찜 목록" },
+];
+
+const RESTOCK_STATUS_LABELS = {
+  WAITING: "알림 대기",
+  SENT: "알림 완료",
+  FAILED: "발송 재시도",
+  CANCELLED: "신청 취소",
+};
+
+function BookActivitySection() {
+  const toast = useToast();
+  const [activeTab, setActiveTab] = useState("recent");
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  const [cancellingBookId, setCancellingBookId] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const request =
+      activeTab === "recent"
+        ? getRecentBooks()
+        : activeTab === "restock"
+          ? getMyRestockAlerts()
+          : getWishlist();
+
+    request
+      .then((data) => {
+        if (!ignore) setItems(data);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setItems([]);
+          setError("도서 활동을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeTab]);
+
+  const handleTabChange = (tabId) => {
+    if (tabId === activeTab) return;
+    setItems(null);
+    setError(null);
+    setActiveTab(tabId);
+  };
+
+  const handleCancelRestockAlert = async (bookId) => {
+    setCancellingBookId(bookId);
+    try {
+      await cancelRestockAlert(bookId);
+      setItems((prev) => prev.filter((item) => item.bookId !== bookId));
+      toast.success("재입고 알림 신청이 취소되었습니다.");
+    } catch {
+      toast.error("재입고 알림 신청을 취소하지 못했습니다.");
+    } finally {
+      setCancellingBookId(null);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">내 도서 활동</h2>
+
+      <div className="mt-3 flex flex-wrap gap-1 border-b border-[var(--color-forest)]/10">
+        {BOOK_ACTIVITY_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => handleTabChange(tab.id)}
+            className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? "border-[var(--color-honey)] text-[var(--color-forest)]"
+                : "border-transparent text-[var(--color-ink)] opacity-50 hover:opacity-80"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="pt-5">
+        {items === null ? (
+          <TabSkeleton />
+        ) : error ? (
+          <EmptyState message={error} />
+        ) : items.length === 0 ? (
+          <EmptyState
+            message={
+              activeTab === "recent"
+                ? "최근 본 도서가 없어요"
+                : activeTab === "restock"
+                  ? "신청한 재입고 알림이 없어요"
+                  : "찜한 도서가 없어요"
+            }
+          />
+        ) : activeTab === "restock" ? (
+          <ul className="flex flex-col gap-3">
+            {items.map((item) => (
+              <li
+                key={item.restockAlertId}
+                className="flex items-center justify-between rounded-xl border border-[var(--color-forest)]/10 p-4"
+              >
+                <BookActivityTitle
+                  title={item.title}
+                  detail={`${item.requestedAt.slice(0, 10)} 신청`}
+                />
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-[var(--color-honey)]/20 px-2.5 py-1 text-xs font-medium text-[var(--color-forest)]">
+                    {RESTOCK_STATUS_LABELS[item.status] ?? item.status}
+                  </span>
+                  {item.status !== "CANCELLED" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      shimmer={false}
+                      disabled={cancellingBookId === item.bookId}
+                      onClick={() => handleCancelRestockAlert(item.bookId)}
+                    >
+                      신청 취소
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {items.map((item) => (
+              <li key={item.id} className="rounded-xl border border-[var(--color-forest)]/10 p-4">
+                <BookActivityTitle title={item.title} detail={item.category ?? "도서"} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BookActivityTitle({ title, detail }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-forest)]/5 text-[var(--color-forest)] opacity-40">
+        <BookOpen size={18} />
+      </span>
+      <div>
+        <p className="text-sm font-medium text-[var(--color-ink)]">{title}</p>
+        <p className="text-sm text-[var(--color-ink)] opacity-50">{detail}</p>
+      </div>
     </div>
   );
 }

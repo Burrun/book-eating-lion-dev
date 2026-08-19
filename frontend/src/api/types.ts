@@ -80,10 +80,13 @@ export type EpubUploadUrlResponse = Catalog["EpubUploadUrlResponse"];
 export type CategoryResponse = Catalog["Category"];
 export type CategoryCreateRequest = Catalog["CategoryCreateRequest"];
 export type CategoryUpdateRequest = Catalog["CategoryUpdateRequest"];
+// CategoryCreateRequest/UpdateRequest는 계약상 같은 모양이라(allOf) 폼 하나로 같이 쓴다.
+export type CategoryRequest = CategoryCreateRequest;
 
 // --- FAQ (관리자) ---
 export type FaqResponse = Catalog["FaqResponse"];
 export type FaqWriteRequest = Catalog["FaqWriteRequest"];
+export type FaqRequest = FaqWriteRequest;
 
 // --- 정기구독 배너 (관리자) ---
 export type SubscriptionBannerResponse = Catalog["SubscriptionBannerResponse"];
@@ -93,6 +96,23 @@ export type SubscriptionBannerWriteRequest = Catalog["SubscriptionBannerWriteReq
 export type InquiryResponse = Catalog["InquiryResponse"];
 export type InquiryAnswerRequest = Catalog["InquiryAnswerRequest"];
 export type InquiryStatus = NonNullable<Catalog["InquiryResponse"]["status"]>;
+export type InquiryRequest = Catalog["InquiryWriteRequest"];
+
+// --- 재입고 알림 ---
+// 계약(catalog-v1.yaml)에 아직 응답 스키마가 없어 수기로 둔다. 계약이 추가되면 위의
+// Catalog[...] 파생 패턴으로 옮긴다.
+export type RestockAlertStatus = "WAITING" | "SENT" | "FAILED" | "CANCELLED";
+
+export interface RestockAlertResponse {
+  restockAlertId: number;
+  bookId: number;
+  title: string;
+  status: RestockAlertStatus;
+  retryCount: number;
+  requestedAt: string;
+  notifiedAt: string | null;
+  cancelledAt: string | null;
+}
 
 // GET /api/catalog/recommend/queue
 export interface RecommendationCardResponse {
