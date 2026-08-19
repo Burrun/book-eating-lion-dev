@@ -10,6 +10,7 @@ const SECTIONS = [
   { to: "/admin/faqs", emoji: "❓", title: "FAQ 관리", desc: "자주 묻는 질문 등록/수정/비활성화" },
   { to: "/admin/inquiries", emoji: "✉️", title: "상품문의 관리", desc: "회원 문의 조회 및 답변" },
   { to: "/admin/reviews", emoji: "⭐", title: "리뷰 조회", desc: "도서별 리뷰 열람" },
+  { to: "/admin/coupons", emoji: "🎟️", title: "쿠폰 정책 관리", desc: "쿠폰 등록/조회/수정" },
 ];
 
 export default function AdminPage() {

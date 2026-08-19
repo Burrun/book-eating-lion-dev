@@ -194,6 +194,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/coupons/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 관리자용 전체 쿠폰 목록 조회 */
+        get: operations["getAdminCoupons"];
+        put?: never;
+        /** 쿠폰 등록 */
+        post: operations["createCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/coupons/admin/{couponId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                couponId: number;
+            };
+            cookie?: never;
+        };
+        /** 관리자용 쿠폰 상세 조회 */
+        get: operations["getAdminCoupon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 쿠폰 정책 수정
+         * @description 만료일을 과거로 수정하면 사실상 쿠폰이 종료된다(하드 삭제 API는 없다).
+         */
+        patch: operations["updateCoupon"];
+        trace?: never;
+    };
     "/api/orders": {
         parameters: {
             query?: never;
@@ -460,6 +501,55 @@ export interface components {
             success?: boolean;
             message?: string;
             data?: components["schemas"]["MemberCouponView"];
+            error?: components["schemas"]["ErrorDetail"];
+        };
+        CouponResponse: {
+            /** Format: int64 */
+            couponId: number;
+            /** @example WELCOME3000 */
+            couponCode: string;
+            /** @example 신규 가입 3000원 할인 */
+            couponName: string;
+            /** @example 3000 */
+            discountAmount: number;
+            /** @example 10000 */
+            minimumOrderAmount: number;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CouponCreateRequest: {
+            /** @example WELCOME3000 */
+            couponCode: string;
+            couponName: string;
+            discountAmount: number;
+            minimumOrderAmount: number;
+            /**
+             * Format: date-time
+             * @description 미래 시각이어야 한다.
+             */
+            expiresAt: string;
+        };
+        /**
+         * @description couponCode는 발급 식별자라 수정 대상에서 제외한다. expiresAt에는 과거 시각도 허용한다 —
+         *     쿠폰을 종료하는 유일한 방법이 만료일을 과거로 앞당기는 것이다(하드 삭제 API는 없다).
+         */
+        CouponUpdateRequest: {
+            couponName: string;
+            discountAmount: number;
+            minimumOrderAmount: number;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        CouponEnvelope: {
+            success?: boolean;
+            message?: string;
+            data?: components["schemas"]["CouponResponse"];
+            error?: components["schemas"]["ErrorDetail"];
+        };
+        CouponListEnvelope: {
+            success?: boolean;
+            message?: string;
+            data?: components["schemas"]["CouponResponse"][];
             error?: components["schemas"]["ErrorDetail"];
         };
         OrderItemRequest: {
@@ -912,6 +1002,119 @@ export interface operations {
             };
             /** @description 이미 보유한 쿠폰 */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAdminCoupons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponListEnvelope"];
+                };
+            };
+        };
+    };
+    createCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 등록 완료 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponEnvelope"];
+                };
+            };
+            /** @description 쿠폰 코드 중복 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAdminCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                couponId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponEnvelope"];
+                };
+            };
+            /** @description 존재하지 않는 쿠폰 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateCoupon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                couponId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description 수정 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponEnvelope"];
+                };
+            };
+            /** @description 존재하지 않는 쿠폰 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

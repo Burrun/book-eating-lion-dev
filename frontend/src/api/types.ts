@@ -105,6 +105,11 @@ export type SubscribeRequest = MemberSchemas["SubscribeRequest"];
 export type SubscriptionStatus = NonNullable<MemberSchemas["Subscription"]["status"]>;
 export type PlanType = NonNullable<MemberSchemas["Subscription"]["planType"]>;
 
+// --- 쿠폰 정책 (Coupon, 관리자) ---
+export type CouponResponse = Order["CouponResponse"];
+export type CouponCreateRequest = Order["CouponCreateRequest"];
+export type CouponUpdateRequest = Order["CouponUpdateRequest"];
+
 // --- 장바구니 (Cart) ---
 export type CartItemView = Order["CartItemView"];
 export type CartResponse = Order["CartResponse"];
