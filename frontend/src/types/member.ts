@@ -5,6 +5,7 @@ export interface Member {
   id: string;
   name: string;
   email: string;
+  role: "USER" | "ADMIN";
 }
 
 /** 구독 여부 (GET /api/members/me/subscription). 구독 이력이 없으면 비구독으로 취급한다. */

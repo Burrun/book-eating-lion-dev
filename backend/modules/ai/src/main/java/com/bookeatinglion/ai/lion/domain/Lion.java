@@ -3,6 +3,8 @@ package com.bookeatinglion.ai.lion.domain;
 import com.bookeatinglion.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -32,14 +34,16 @@ public class Lion extends BaseEntity {
     @Column(nullable = false)
     private long exp;
 
-    @Column(nullable = false)
-    private String growthStage;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "growth_stage", nullable = false)
+    private GrowthStage growthStage;
 
-    public Lion(String memberId, String growthStage) {
+    /** 생성 시점엔 항상 레벨 1이라 호출자가 초기 성장단계를 넘길 필요가 없다. */
+    public Lion(String memberId) {
         this.memberId = memberId;
         this.level = 1;
         this.exp = 0;
-        this.growthStage = growthStage;
+        this.growthStage = GrowthStage.fromLevel(this.level);
     }
 
     /** 책 1권을 먹였을 때 오르는 경험치. 100 당 1레벨이라 3권이면 레벨 2다. */
@@ -54,5 +58,6 @@ public class Lion extends BaseEntity {
     public void gainExp(long amount) {
         this.exp += amount;
         this.level = (int) (1 + this.exp / EXP_PER_LEVEL);
+        this.growthStage = GrowthStage.fromLevel(this.level);
     }
 }

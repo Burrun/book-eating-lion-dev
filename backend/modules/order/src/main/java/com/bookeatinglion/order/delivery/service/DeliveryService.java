@@ -55,4 +55,14 @@ public class DeliveryService {
 
         return DeliveryResponse.from(delivery);
     }
+
+    /** 관리자용 배송 상태 변경. 소유권 검증은 하지 않는다 — 인가는 SecurityConfig(hasRole("ADMIN"))가 담당한다. */
+    @Transactional
+    public DeliveryResponse updateDeliveryStatusAsAdmin(Long orderId, DeliveryStatus newStatus) {
+        Delivery delivery =
+                deliveryRepository.findByOrderId(orderId).orElseThrow(() -> new DeliveryNotFoundException(orderId));
+        delivery.updateStatus(newStatus);
+
+        return DeliveryResponse.from(delivery);
+    }
 }

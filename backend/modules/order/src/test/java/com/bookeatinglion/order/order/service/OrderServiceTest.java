@@ -2,6 +2,7 @@ package com.bookeatinglion.order.order.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,6 +31,7 @@ import com.bookeatinglion.order.lock.InventoryLockExecutor;
 import com.bookeatinglion.order.order.domain.Order;
 import com.bookeatinglion.order.order.domain.OrderItem;
 import com.bookeatinglion.order.order.domain.OrderStatus;
+import com.bookeatinglion.order.order.dto.AdminOrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.CreateOrderRequest;
 import com.bookeatinglion.order.order.dto.OrderItemRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
@@ -608,6 +610,44 @@ class OrderServiceTest {
         assertThat(result.getContent())
                 .extracting(OrderSummaryResponse::orderId)
                 .containsExactly(2L, 1L);
+    }
+
+    // ---------------------------------------------------------------- getAdminOrders
+
+    @Test
+    void 관리자는_상태_필터_없이_전체_주문을_배송상태와_함께_조회한다() {
+        setUp();
+        Order paidOrder = order(1L, MEMBER_ID, 10000);
+        Order pendingOrder = order(2L, OTHER_MEMBER_ID, 20000);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(orderRepository.findAll(pageable))
+                .thenReturn(new PageImpl<>(List.of(paidOrder, pendingOrder), pageable, 2));
+        Delivery delivery = Delivery.builder()
+                .orderId(1L)
+                .deliveryStatus(DeliveryStatus.SHIPPED)
+                .build();
+        when(deliveryRepository.findByOrderIdIn(List.of(1L, 2L))).thenReturn(List.of(delivery));
+
+        Page<AdminOrderSummaryResponse> result = orderService.getAdminOrders(null, pageable);
+
+        assertThat(result.getContent())
+                .extracting(AdminOrderSummaryResponse::orderId, AdminOrderSummaryResponse::deliveryStatus)
+                .containsExactly(tuple(1L, DeliveryStatus.SHIPPED), tuple(2L, null));
+    }
+
+    @Test
+    void 관리자는_주문상태로_필터링해_조회한다() {
+        setUp();
+        Order order = order(1L, MEMBER_ID, 10000);
+        Pageable pageable = PageRequest.of(0, 20);
+        when(orderRepository.findByOrderStatus(OrderStatus.PAID, pageable))
+                .thenReturn(new PageImpl<>(List.of(order), pageable, 1));
+        when(deliveryRepository.findByOrderIdIn(List.of(1L))).thenReturn(List.of());
+
+        Page<AdminOrderSummaryResponse> result = orderService.getAdminOrders(OrderStatus.PAID, pageable);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        verify(orderRepository, never()).findAll(any(Pageable.class));
     }
 
     // ---------------------------------------------------------------- getOrder

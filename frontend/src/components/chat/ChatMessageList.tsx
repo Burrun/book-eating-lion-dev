@@ -34,7 +34,8 @@ export default function ChatMessageList({
   }, [messages.length]);
 
   const hasUserSpoken = messages.some((message) => message.role === "USER");
-  const showQuickReplies = chatState === "BOT" && connectionStatus === "CONNECTED" && !hasUserSpoken;
+  const showQuickReplies =
+    chatState === "BOT" && connectionStatus === "CONNECTED" && !hasUserSpoken;
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
 import com.bookeatinglion.ai.wiki.domain.FedBook;
@@ -36,7 +37,7 @@ class FeedServiceTest {
         fedBookRepository = mock(FedBookRepository.class);
         lionRepository = mock(LionRepository.class);
         fedBookCache = mock(FedBookCache.class);
-        lion = new Lion(MEMBER_ID, "CUB");
+        lion = new Lion(MEMBER_ID);
 
         when(lionRepository.findByMemberId(MEMBER_ID)).thenReturn(Optional.of(lion));
         when(wikiBookRepository.existsById(BOOK_ID)).thenReturn(true);
@@ -88,6 +89,7 @@ class FeedServiceTest {
 
         assertThat(lion.getExp()).isEqualTo(120);
         assertThat(lion.getLevel()).isEqualTo(2);
+        assertThat(lion.getGrowthStage()).isEqualTo(GrowthStage.BABY);
     }
 
     @Test
@@ -99,7 +101,7 @@ class FeedServiceTest {
 
         assertThat(status.level()).isEqualTo(1);
         assertThat(status.exp()).isEqualTo(Lion.EXP_PER_FEED);
-        assertThat(status.growthStage()).isEqualTo("CUB");
+        assertThat(status.growthStage()).isEqualTo(GrowthStage.BABY);
         assertThat(status.fedBookCount()).isEqualTo(2L);
     }
 
@@ -113,8 +115,33 @@ class FeedServiceTest {
 
         assertThat(status.level()).isEqualTo(1);
         assertThat(status.exp()).isZero();
-        assertThat(status.growthStage()).isEqualTo("CUB");
+        assertThat(status.growthStage()).isEqualTo(GrowthStage.BABY);
         assertThat(status.fedBookCount()).isZero();
         verify(lionRepository, never()).save(any());
+    }
+
+    /** 레벨 2까지는 아직 아기 사자 구간이다(getLionTier와 동일한 경계). */
+    @Test
+    void 경험치_100_이상_200_미만이면_레벨_2이고_BABY_구간이다() {
+        lion.gainExp(120); // level = 1 + 120/100 = 2
+
+        assertThat(lion.getLevel()).isEqualTo(2);
+        assertThat(lion.getGrowthStage()).isEqualTo(GrowthStage.BABY);
+    }
+
+    @Test
+    void 레벨_3_4는_CUB_구간이다() {
+        lion.gainExp(200); // level = 1 + 200/100 = 3
+
+        assertThat(lion.getLevel()).isEqualTo(3);
+        assertThat(lion.getGrowthStage()).isEqualTo(GrowthStage.CUB);
+    }
+
+    @Test
+    void 레벨_5_이상은_ADULT_구간이다() {
+        lion.gainExp(400); // level = 1 + 400/100 = 5
+
+        assertThat(lion.getLevel()).isEqualTo(5);
+        assertThat(lion.getGrowthStage()).isEqualTo(GrowthStage.ADULT);
     }
 }

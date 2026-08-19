@@ -52,3 +52,19 @@ data:
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
 
   REDIS_HOST: "${REDIS_HOST}"
+
+  # EPUB 원본 버킷. 벡터 버킷과 다르다 — 원본은 관리자가 올린 파일, 벡터는 파생물이라
+  # 수명도 권한도 다르다. SQS 메시지의 epubS3Key 는 키만 담고 버킷명은 안 담는다.
+  AI_EPUB_BUCKET: "${AI_EPUB_BUCKET}"
+
+  # enabled 가 true 인데 URL 이 비면 기동은 되고 워커만 조용히 안 돈다.
+  # "왜 메시지가 안 처리되지"로만 보이므로 둘을 같이 관리할 것.
+  # 큐는 콘솔에서 수작업으로 만들었고 IaC 가 없다 — 재시도 정책은 .env.example 참고.
+  SQS_INGEST_ENABLED: "true"
+  SQS_INGEST_QUEUE_URL: "${SQS_INGEST_QUEUE_URL}"
+  SQS_PURCHASE_ENABLED: "true"
+  SQS_PURCHASE_QUEUE_URL: "${SQS_PURCHASE_QUEUE_URL}"
+
+  # 🔴 브라우저는 WebSocket 에 CORS preflight 를 보내지 않아 Ingress 의 CORS 애노테이션이
+  # 안 먹는다. 이 값이 /ws/ai 의 유일한 Origin 방어선이므로 prod 에서 * 로 두지 말 것.
+  CHAT_ALLOWED_ORIGINS: "${CHAT_ALLOWED_ORIGINS}"

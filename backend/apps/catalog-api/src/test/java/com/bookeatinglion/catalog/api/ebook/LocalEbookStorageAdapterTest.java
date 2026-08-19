@@ -33,4 +33,10 @@ class LocalEbookStorageAdapterTest {
         assertThatThrownBy(() -> adapter.createReadUrl("ebooks/", Duration.ofMinutes(10)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 로컬_모드는_업로드_URL_발급을_지원하지_않는다() {
+        assertThatThrownBy(() -> adapter.createUploadUrl("alice.epub", Duration.ofMinutes(10)))
+                .isInstanceOf(com.bookeatinglion.book.exception.EbookAccessUnavailableException.class);
+    }
 }

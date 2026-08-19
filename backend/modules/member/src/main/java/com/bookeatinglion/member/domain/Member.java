@@ -14,13 +14,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseEntity {
 
+    // Cognito가 발급한 sub 값을 그대로 PK로 쓴다(팀 컨벤션 확정). auto-increment가 아니라
+    // @GeneratedValue를 붙이지 않는다 — register()에서 Cognito sub를 그대로 대입한다.
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_id")
-    private Long id;
-
-    @Column(nullable = false, unique = true)
-    private String cognitoSub;
+    private String id;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -40,15 +38,16 @@ public class Member extends BaseEntity {
     private Role role;
 
     @Builder
-    public Member(String cognitoSub, String email, String name) {
-        this.cognitoSub = cognitoSub;
+    public Member(String id, String email, String name) {
+        this.id = id;
         this.email = email;
         this.name = name;
         this.role = Role.USER;
     }
 
+    /** cognitoSub: Cognito가 발급한 sub. 이 값이 그대로 PK(member_id)가 된다. */
     public static Member register(String cognitoSub, String email, String name) {
-        return Member.builder().cognitoSub(cognitoSub).email(email).name(name).build();
+        return Member.builder().id(cognitoSub).email(email).name(name).build();
     }
 
     /**

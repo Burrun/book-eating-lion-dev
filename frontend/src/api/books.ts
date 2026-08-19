@@ -76,7 +76,8 @@ export async function getNewReleases(limit = 10): Promise<BookSummary[]> {
   return list.map(toBookSummary);
 }
 
-// GET /api/catalog/books/{bookId} — 도서 상세 (JWT가 있으면 최근 본 상품에 기록됨)
+// GET /api/catalog/books/{bookId} — 도서 상세
+// 비로그인도 조회된다. 토큰이 있으면 서버가 sub 로 최근 본 상품에 기록한다.
 export async function getBook(bookId: number | string): Promise<Book> {
   const dto = USE_MOCK
     ? await mockDelay(mockGetBook(bookId))

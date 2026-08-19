@@ -10,8 +10,12 @@ import static org.mockito.Mockito.when;
 
 import com.bookeatinglion.order.coupon.domain.Coupon;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
+import com.bookeatinglion.order.coupon.dto.CouponCreateRequest;
+import com.bookeatinglion.order.coupon.dto.CouponResponse;
+import com.bookeatinglion.order.coupon.dto.CouponUpdateRequest;
 import com.bookeatinglion.order.coupon.dto.MemberCouponView;
 import com.bookeatinglion.order.coupon.exception.CouponAlreadyIssuedException;
+import com.bookeatinglion.order.coupon.exception.CouponCodeDuplicatedException;
 import com.bookeatinglion.order.coupon.exception.CouponExpiredException;
 import com.bookeatinglion.order.coupon.exception.CouponNotFoundException;
 import com.bookeatinglion.order.coupon.repository.CouponRepository;
@@ -121,5 +125,95 @@ class CouponServiceTest {
 
         assertThatThrownBy(() -> couponService.registerCoupon(MEMBER_ID, "RACE"))
                 .isInstanceOf(CouponAlreadyIssuedException.class);
+    }
+
+    @Test
+    void 전체_쿠폰_목록을_조회한다() {
+        Coupon coupon = coupon(1L, "WELCOME3000", LocalDateTime.now().plusDays(30));
+        when(couponRepository.findAllByOrderByExpiresAtDesc()).thenReturn(List.of(coupon));
+
+        List<CouponResponse> result = couponService.getAllCoupons();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).couponCode()).isEqualTo("WELCOME3000");
+    }
+
+    @Test
+    void 쿠폰_단건을_조회한다() {
+        Coupon coupon = coupon(1L, "WELCOME3000", LocalDateTime.now().plusDays(30));
+        when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+
+        CouponResponse result = couponService.getCoupon(1L);
+
+        assertThat(result.couponCode()).isEqualTo("WELCOME3000");
+    }
+
+    @Test
+    void 존재하지_않는_쿠폰_단건_조회는_예외를_던진다() {
+        when(couponRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> couponService.getCoupon(999L)).isInstanceOf(CouponNotFoundException.class);
+    }
+
+    @Test
+    void 쿠폰을_등록한다() {
+        CouponCreateRequest request = new CouponCreateRequest(
+                "NEW3000", "신규 쿠폰", 3000, 10000, LocalDateTime.now().plusDays(30));
+        when(couponRepository.existsByCouponCode("NEW3000")).thenReturn(false);
+        when(couponRepository.saveAndFlush(any(Coupon.class))).thenAnswer(invocation -> {
+            Coupon saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", 1L);
+            return saved;
+        });
+
+        CouponResponse result = couponService.createCoupon(request);
+
+        assertThat(result.couponId()).isEqualTo(1L);
+        assertThat(result.couponCode()).isEqualTo("NEW3000");
+    }
+
+    @Test
+    void 중복된_쿠폰_코드_등록은_예외를_던진다() {
+        CouponCreateRequest request = new CouponCreateRequest(
+                "DUP", "중복 쿠폰", 3000, 10000, LocalDateTime.now().plusDays(30));
+        when(couponRepository.existsByCouponCode("DUP")).thenReturn(true);
+
+        assertThatThrownBy(() -> couponService.createCoupon(request)).isInstanceOf(CouponCodeDuplicatedException.class);
+
+        verify(couponRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void 동시_등록_경합으로_코드_중복_제약이_위반되면_중복_예외로_변환한다() {
+        CouponCreateRequest request = new CouponCreateRequest(
+                "RACE", "경합 쿠폰", 3000, 10000, LocalDateTime.now().plusDays(30));
+        when(couponRepository.existsByCouponCode("RACE")).thenReturn(false);
+        when(couponRepository.saveAndFlush(any(Coupon.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> couponService.createCoupon(request)).isInstanceOf(CouponCodeDuplicatedException.class);
+    }
+
+    @Test
+    void 쿠폰을_수정한다() {
+        Coupon coupon = coupon(1L, "WELCOME3000", LocalDateTime.now().plusDays(30));
+        when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+        LocalDateTime newExpiresAt = LocalDateTime.now().plusDays(60);
+        CouponUpdateRequest request = new CouponUpdateRequest("수정된 이름", 5000, 20000, newExpiresAt);
+
+        CouponResponse result = couponService.updateCoupon(1L, request);
+
+        assertThat(result.couponName()).isEqualTo("수정된 이름");
+        assertThat(result.discountAmount()).isEqualTo(5000);
+        assertThat(result.minimumOrderAmount()).isEqualTo(20000);
+        assertThat(result.expiresAt()).isEqualTo(newExpiresAt);
+    }
+
+    @Test
+    void 존재하지_않는_쿠폰_수정은_예외를_던진다() {
+        when(couponRepository.findById(999L)).thenReturn(Optional.empty());
+        CouponUpdateRequest request = new CouponUpdateRequest("이름", 3000, 10000, LocalDateTime.now());
+
+        assertThatThrownBy(() -> couponService.updateCoupon(999L, request)).isInstanceOf(CouponNotFoundException.class);
     }
 }

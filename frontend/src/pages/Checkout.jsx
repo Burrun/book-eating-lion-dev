@@ -2,14 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Search, Wallet, CreditCard, Landmark, PawPrint } from "lucide-react";
+import { Search, Wallet, CreditCard, PawPrint } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getMyCards } from "../api/cards.ts";
-import { removeFromCart } from "../api/cart.js";
+import { getMyAddresses } from "../api/addresses.ts";
+import { fetchCoupons } from "../api/mypage.js";
 import { createOrder } from "../api/orders.js";
+import { openDaumPostcode } from "../utils/daumPostcode.js";
 
 const FREE_SHIPPING_THRESHOLD = 30000;
 
@@ -29,7 +31,8 @@ const CARD_STATUS_LABEL = {
 
 const PAYMENT_METHODS = [
   {
-    id: "KAKAOPAY",
+    // 백엔드 PaymentMethod enum: KAKAO_PAY.
+    id: "KAKAO_PAY",
     label: "카카오페이",
     description: "카카오 계정으로 간편결제",
     icon: Wallet,
@@ -41,24 +44,7 @@ const PAYMENT_METHODS = [
     description: "신용/체크카드 결제",
     icon: CreditCard,
   },
-  {
-    id: "BANK_TRANSFER",
-    label: "무통장입금",
-    description: "입금 확인 후 배송 시작",
-    icon: Landmark,
-  },
 ];
-
-function loadDaumPostcodeScript() {
-  return new Promise((resolve, reject) => {
-    if (window.daum?.Postcode) return resolve();
-    const script = document.createElement("script");
-    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -79,17 +65,42 @@ export default function Checkout() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [cards, setCards] = useState(null);
+  const [addresses, setAddresses] = useState(null);
+  const [coupons, setCoupons] = useState(null);
+  // null이면 "새 배송지 입력" 모드. 값이 있으면 그 id의 저장된 배송지를 쓰는 중이다.
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  // null이면 쿠폰 미사용.
+  const [selectedCouponId, setSelectedCouponId] = useState(null);
 
   // Cart.jsx에서 "주문/결제하기" 클릭 시 선택된 상품 목록을 state로 넘겨준다.
   // 새로고침 등으로 state 없이 직접 들어오면 아래 렌더링에서 안내 후 장바구니로 돌려보낸다.
   const checkoutItems = location.state?.items ?? null;
 
+  const applyAddress = (savedAddress) => {
+    setSelectedAddressId(savedAddress.id);
+    setForm((prev) => ({
+      ...prev,
+      receiver: savedAddress.recipientName,
+      phone: savedAddress.phoneNumber,
+      zipcode: savedAddress.zipcode,
+      address: savedAddress.address,
+      addressDetail: savedAddress.detailAddress ?? "",
+    }));
+  };
+
   useEffect(() => {
     let ignore = false;
-    getMyCards().then((cardsData) => {
-      if (ignore) return;
-      setCards(cardsData);
-    });
+    Promise.all([getMyCards(), getMyAddresses(), fetchCoupons()]).then(
+      ([cardsData, addressesData, couponsData]) => {
+        if (ignore) return;
+        setCards(cardsData);
+        setAddresses(addressesData);
+        setCoupons(couponsData);
+        // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
+        const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
+        if (preselected) applyAddress(preselected);
+      },
+    );
     return () => {
       ignore = true;
     };
@@ -113,7 +124,7 @@ export default function Checkout() {
     );
   }
 
-  if (cards === null) {
+  if (cards === null || addresses === null || coupons === null) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <h1 className="font-display mb-6 text-2xl text-[var(--color-forest)]">주문 / 결제</h1>
@@ -128,7 +139,11 @@ export default function Checkout() {
     subtotal >= FREE_SHIPPING_THRESHOLD
       ? 0
       : Math.max(...checkoutItems.map((item) => item.shippingFee ?? 3000));
-  const finalTotal = subtotal + shippingFee;
+
+  const selectedCoupon = coupons.find((c) => c.memberCouponId === selectedCouponId) ?? null;
+  // 백엔드(OrderService.createOrder)도 할인을 상품 소계에서만 빼고 배송비는 건드리지 않는다.
+  const couponDiscount = selectedCoupon ? Math.min(selectedCoupon.discountAmount, subtotal) : 0;
+  const finalTotal = Math.max(subtotal - couponDiscount, 0) + shippingFee;
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === paymentMethod);
 
@@ -155,12 +170,6 @@ export default function Checkout() {
       toast.error("결제 수단을 선택해주세요.");
       return;
     }
-    if (paymentMethod === "KAKAOPAY") {
-      // TODO: 카카오페이 주문 생성 + 결제 승인(POST /api/payments/kakao/approve) 연동은 별도 작업.
-      // 지금은 콜백 페이지 흐름만 미리 확인할 수 있도록 success 콜백으로 바로 이동한다(실제 결제 없음, 데모용).
-      navigate("/payment/kakao/success?pg_token=demo-pg-token");
-      return;
-    }
     if (paymentMethod === "VIRTUAL_CARD") {
       const chosenCard = cards?.find((card) => card.id === selectedCardId);
       if (!chosenCard) {
@@ -177,45 +186,60 @@ export default function Checkout() {
 
   const handleSearchAddress = async () => {
     try {
-      await loadDaumPostcodeScript();
-      new window.daum.Postcode({
-        oncomplete: (data) => {
-          setForm((prev) => ({
-            ...prev,
-            zipcode: data.zonecode,
-            address: data.roadAddress || data.jibunAddress,
-          }));
-          addressDetailRef.current?.focus();
-        },
-      }).open();
+      await openDaumPostcode(({ zipcode, address }) => {
+        setForm((prev) => ({ ...prev, zipcode, address }));
+        addressDetailRef.current?.focus();
+      });
     } catch {
       toast.error("우편번호 검색을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
     }
   };
 
-  // 주문 생성(POST /api/orders) + 구매한 장바구니 항목 정리. 카카오페이는 validateAndOpenConfirm에서
-  // 이미 걸러지므로 여기 도달하는 건 VIRTUAL_CARD/BANK_TRANSFER뿐이다.
+  // 저장된 배송지 대신 새 배송지를 입력하는 모드로 전환한다.
+  const handleUseNewAddress = () => {
+    setSelectedAddressId(null);
+    setForm((prev) => ({
+      ...prev,
+      receiver: "",
+      phone: "",
+      zipcode: "",
+      address: "",
+      addressDetail: "",
+    }));
+  };
+
+  // 주문 생성(POST /api/orders). VIRTUAL_CARD는 이 호출 안에서 결제까지 끝나 orderStatus=PAID로
+  // 응답하고(장바구니도 서버가 이미 비운다), KAKAO_PAY는 결제 준비(Ready)만 끝나
+  // orderStatus=PENDING_PAYMENT + nextRedirectUrl로 응답한다 — 그 URL로 브라우저를 통째로
+  // 리다이렉트시켜야 카카오 결제 페이지가 뜬다. 실제 승인(approve)은 카카오가 다시 우리
+  // /payments/kakao/callback 으로 리다이렉트해줄 때 그 페이지에서 이뤄진다.
   const handleConfirmPayment = async () => {
     setIsPlacingOrder(true);
     try {
-      await createOrder({
+      const order = await createOrder({
         items: checkoutItems.map((item) => ({ bookId: item.bookId, quantity: item.quantity })),
-        // 이번 스코프는 쿠폰 선택 UI를 만들지 않아 항상 null로 보낸다.
-        memberCouponId: null,
+        memberCouponId: selectedCouponId ? Number(selectedCouponId) : null,
         recipient: {
-          recipientName: form.receiver,
-          phoneNumber: form.phone,
-          zipcode: form.zipcode,
-          address: form.address,
-          detailAddress: form.addressDetail,
-          deliveryRequest: form.request,
+          name: form.receiver,
+          phone: form.phone,
+          postalCode: form.zipcode,
+          // 백엔드 Recipient에 상세주소 전용 필드가 없어 주소에 합쳐 보낸다.
+          address: form.addressDetail ? `${form.address} ${form.addressDetail}` : form.address,
         },
         paymentMethod,
         cardId: paymentMethod === "VIRTUAL_CARD" ? Number(selectedCardId) : null,
       });
 
-      // 주문한 상품은 더 이상 장바구니에 남아있으면 안 되므로 정리하고 헤더 뱃지를 갱신한다.
-      await Promise.all(checkoutItems.map((item) => removeFromCart(item.id)));
+      if (paymentMethod === "KAKAO_PAY") {
+        if (!order.nextRedirectUrl) {
+          throw new Error("카카오페이 결제 페이지 URL을 받지 못했습니다.");
+        }
+        window.location.href = order.nextRedirectUrl;
+        return;
+      }
+
+      // VIRTUAL_CARD는 createOrder 안에서 이미 서버가 장바구니를 비웠으므로 다시 지우지 않고
+      // 캐시만 무효화한다(중복 삭제를 시도하면 이미 없는 아이템이라 404로 실패한다).
       queryClient.invalidateQueries({ queryKey: ["cart"] });
 
       setIsConfirmOpen(false);
@@ -237,7 +261,62 @@ export default function Checkout() {
         <div className="flex flex-col gap-6">
           {/* 배송지 입력 */}
           <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-            <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">배송지 정보</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-lg text-[var(--color-forest)]">배송지 정보</h2>
+              <Link
+                to="/addresses"
+                className="text-xs font-medium text-[var(--color-coral)] hover:underline"
+              >
+                배송지 관리
+              </Link>
+            </div>
+
+            {addresses.length > 0 && (
+              <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {addresses.map((savedAddress) => {
+                  const isChosen = selectedAddressId === savedAddress.id;
+                  return (
+                    <button
+                      key={savedAddress.id}
+                      type="button"
+                      onClick={() => applyAddress(savedAddress)}
+                      className={`flex flex-col gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                        isChosen
+                          ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                          : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink)]">
+                        {savedAddress.recipientName}
+                        {savedAddress.isDefault && (
+                          <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)]">
+                            기본
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-60">
+                        {savedAddress.address} {savedAddress.detailAddress}
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-50">
+                        {savedAddress.phoneNumber}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={handleUseNewAddress}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-3 text-sm font-medium transition-colors ${
+                    selectedAddressId === null
+                      ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10 text-[var(--color-forest)]"
+                      : "border-[var(--color-forest)]/20 text-[var(--color-ink)] opacity-60 hover:border-[var(--color-honey)]/50"
+                  }`}
+                >
+                  + 새 배송지 입력
+                </button>
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="받는 분">
@@ -245,8 +324,9 @@ export default function Checkout() {
                     type="text"
                     value={form.receiver}
                     onChange={updateField("receiver")}
+                    readOnly={selectedAddressId !== null}
                     placeholder="이름"
-                    className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                    className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                   />
                 </Field>
                 <Field label="연락처">
@@ -255,9 +335,10 @@ export default function Checkout() {
                     inputMode="numeric"
                     value={form.phone}
                     onChange={handlePhoneChange}
+                    readOnly={selectedAddressId !== null}
                     placeholder="010-0000-0000"
                     maxLength={13}
-                    className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                    className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                   />
                 </Field>
               </div>
@@ -276,6 +357,7 @@ export default function Checkout() {
                     variant="secondary"
                     shimmer={false}
                     onClick={handleSearchAddress}
+                    disabled={selectedAddressId !== null}
                     className="shrink-0"
                   >
                     <Search size={15} className="mr-1" />
@@ -300,8 +382,9 @@ export default function Checkout() {
                   type="text"
                   value={form.addressDetail}
                   onChange={updateField("addressDetail")}
+                  readOnly={selectedAddressId !== null}
                   placeholder="동/호수 등 상세 주소"
-                  className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+                  className={`w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none ${selectedAddressId !== null ? "bg-[var(--color-forest)]/5 text-[var(--color-ink)]/70" : ""}`}
                 />
               </Field>
 
@@ -319,6 +402,57 @@ export default function Checkout() {
               </Field>
             </div>
           </section>
+
+          {/* 쿠폰 */}
+          {coupons.length > 0 && (
+            <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+              <h2 className="font-display mb-4 text-lg text-[var(--color-forest)]">쿠폰</h2>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCouponId(null)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-3 text-sm font-medium transition-colors ${
+                    selectedCouponId === null
+                      ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10 text-[var(--color-forest)]"
+                      : "border-[var(--color-forest)]/20 text-[var(--color-ink)] opacity-60 hover:border-[var(--color-honey)]/50"
+                  }`}
+                >
+                  쿠폰 사용 안 함
+                </button>
+                {coupons.map((coupon) => {
+                  const isChosen = selectedCouponId === coupon.memberCouponId;
+                  const isEligible = subtotal >= coupon.minimumOrderAmount;
+                  return (
+                    <button
+                      key={coupon.memberCouponId}
+                      type="button"
+                      disabled={!isEligible}
+                      onClick={() => setSelectedCouponId(coupon.memberCouponId)}
+                      className={`flex flex-col gap-1 rounded-xl border-2 p-3 text-left transition-colors ${
+                        !isEligible
+                          ? "cursor-not-allowed border-[var(--color-forest)]/10 bg-[var(--color-forest)]/5 opacity-40"
+                          : isChosen
+                            ? "border-[var(--color-honey)] bg-[var(--color-honey)]/10"
+                            : "border-[var(--color-forest)]/15 bg-white hover:border-[var(--color-honey)]/50"
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-[var(--color-ink)]">
+                        {coupon.couponName}
+                      </span>
+                      <span className="text-xs text-[var(--color-coral)]">
+                        {coupon.discountAmount.toLocaleString()}원 할인
+                      </span>
+                      <span className="text-xs text-[var(--color-ink)] opacity-50">
+                        {isEligible
+                          ? `~${coupon.expiresAt?.slice(0, 10)}까지`
+                          : `최소주문금액 ${coupon.minimumOrderAmount.toLocaleString()}원`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* 결제수단 */}
           <section className="rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
@@ -358,7 +492,7 @@ export default function Checkout() {
                     >
                       <Icon size={17} />
                     </span>
-                    <span className="text-sm font-medium text-[var(--color-ink)]">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink)]">
                       {method.label}
                     </span>
                     <span className="text-sm text-[var(--color-ink)] opacity-60">
@@ -453,6 +587,11 @@ export default function Checkout() {
 
             <dl className="mt-4 space-y-2.5 text-sm">
               <Row label="총 상품 금액" value={`${subtotal.toLocaleString()}원`} />
+              <Row
+                label="쿠폰 할인"
+                value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
+                tone={couponDiscount > 0 ? "coral" : undefined}
+              />
               <Row
                 label="배송비"
                 value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}

@@ -14,6 +14,7 @@ import com.bookeatinglion.book.exception.RestockAlertNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
+import com.bookeatinglion.book.exception.SubscriptionBannerNotFoundException;
 import com.bookeatinglion.common.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -88,6 +89,12 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleFaqNotFound(FaqNotFoundException e) {
         return ResponseEntity.status(BookErrorCode.FAQ_NOT_FOUND.getStatus())
                 .body(ApiResponse.error(BookErrorCode.FAQ_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(SubscriptionBannerNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSubscriptionBannerNotFound(SubscriptionBannerNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.SUBSCRIPTION_BANNER_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.SUBSCRIPTION_BANNER_NOT_FOUND.name(), e.getMessage()));
     }
 
     @ExceptionHandler(InvalidRecommendationReactionException.class)
