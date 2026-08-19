@@ -216,7 +216,11 @@ type Citation  = components["schemas"]["Citation"];
 | **스키마 경계 강제** (Phase 1.5) | `catalog_svc` 로 `order_db.inventory` 조회 | ✅ `permission denied for schema order_db` |
 | 재고 소유권 이전 (Phase 0-1) | `catalog_db.books` 에 stock 컬럼 확인 | ✅ 0건 (order_db.inventory 로 이동) |
 | 계약 YAML 파싱 + `$ref` 무결성 | `yaml.safe_load` 4종 | ✅ 통과 (`ai-v1.yaml` 파싱 오류 2건 수정 후) |
+| 계약 YAML 파싱 CI 자동화 | `backend-ci.yml` "계약 YAML 파싱" 스텝 확인 | ✅ 파일 0건이면 실패하도록 구성됨. 단 **YAML 문법만 검사** — 구현이 계약과 실제로 일치하는지(엔드포인트 존재 여부 등)는 아직 검사 안 함 |
 | 자료 → JSONL 변환 | `python scripts/build-corpus-jsonl.py` | ✅ 5편 / 46페이지 / 46청크, 불변식 3종 통과 |
+| **Redlock 재고차감 + 취소·환불** | `InventoryLockExecutor`(Redisson, bookId 정렬 락) 실사용처 확인, `OrderService.cancelOrder`/`requestReturn`/`refundOrder` 코드 확인 | ✅ 상태 검증(`OrderCannotBeCancelledException` 등)까지 구현 완료. **교환(Exchange)만 별도 미구현** — DB엔 상태값만 있고 코드 없음 |
+| **먹인 책 RAG** (`/api/ai/lion/ask`) | `AskController` + `WikiRagService`(215줄, 구매도서 필터링 포함) 코드 확인 | ✅ 일일 쿼터·요청 검증까지 갖춘 완성된 구현 |
+| **Bedrock 실연동** | `BedrockEmbeddingClient`/`BedrockLlmClient`/`S3VectorSearchAdapter` 파일 확인 | ✅ 존재 확인 |
 | 4개 서비스 기동 | `/actuator/health` | ✅ 전부 UP |
 | 재고 API 조합 | `GET /api/catalog/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
 | **Fallback** (Phase 2-3) | order 강제 종료 후 도서 상세 조회 | ✅ **HTTP 200**, 도서 정보 정상, `stockQuantity=-1` 로 degrade |
@@ -241,15 +245,15 @@ curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 
 전환 범위는 **구조 전환**까지다. 아래는 Phase 1(팀별 병렬 기능 개발) 영역이다.
 
+> ⚠️ 이 표는 한동안 갱신이 안 돼 있었습니다. 아래는 코드를 직접 대조해서 다시 정리한 것입니다 — 실제로는 절반 가까이 이미 완료 상태였습니다(완료 항목은 위 "검증된 항목"으로 옮김).
+
 | 항목 | 현재 상태 |
 | --- | --- |
-| 결제 상태머신, Redlock 재고차감, 취소·환불 | `inventory` 골격과 `/internal` API 까지만. 결제 로직은 미구현 |
-| 먹인 책 RAG 구현 (BOO-27) | 계약·스키마·자료까지 완료. Bedrock 클라이언트와 `/api/ai/ask` 구현은 진행 중. (참고했던 `docs/ai-api-plan.md` §12는 커밋된 적이 없어 저장소엔 없음 — 세부 이벤트 흐름은 `docs/개발 문서/이벤트-메시징-명세.md` §2 "EPUB 등록 → ai" 참고) |
-| Bedrock 실연동 | `BedrockEmbeddingClient` / `BedrockLlmClient` / `S3VectorSearchAdapter` 연동 완료 |
-| Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 — 실제로 `ai-v1.yaml` 이 계속 파싱 실패 상태였다 |
+| 주문 교환(Exchange) 로직 | 취소·환불·Redlock 재고차감은 완료(위 "검증된 항목" 참고). `orders.order_status`엔 `EXCHANGE_REQUESTED`/`EXCHANGED` 상태값이 있지만, 코드 어디에도 교환 처리 메서드가 없다 — 상태값만 선언돼 있고 실제로 못 씀 |
+| Contract test(구현-계약 일치 검사)를 `backend-ci.yml` 에 추가 | YAML 파싱 검사는 이미 추가됨(위 "검증된 항목" 참고). 하지만 "실제 구현이 계약과 일치하는가"(엔드포인트 실존 여부, 요청/응답 스키마 등)는 여전히 자동 검사 안 됨 — 문서에만 존재하는 엔드포인트가 계속 쌓일 수 있는 상태 |
 | Flyway 활성화 | 엔티티와 `db/postgres/01~04` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
 | 리뷰 권한 이벤트 유실 대비 fallback 동기 조회 | 미구현. 이벤트가 유실되면 실제 구매자도 리뷰를 못 쓴다 |
-| `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** |
+| `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** (`k8s/`에 관련 매니페스트 없음 확인) |
 | `gradlew build` | spotless `ratchetFrom origin/main` 때문에 실패한다. `ai-api` 앱 전체가 아직 `main` 에 없어 전부 검사 대상이 된다. `gradlew test` 는 통과 |
 
 ---
