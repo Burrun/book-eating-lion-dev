@@ -211,7 +211,8 @@ type Citation  = components["schemas"]["Citation"];
 | --- | --- | --- |
 | 4개 앱 독립 빌드 (Phase 2-1) | `./gradlew :apps:*-api:bootJar` | ✅ 4개 jar 생성 |
 | 전체 테스트 | `./gradlew test` | ✅ 통과 |
-| 스키마 4분할 | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
+| 스키마 4분할 (초기 검증 시점 스냅샷) | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
+| 스키마 4분할 (현재 기준) | `db/postgres/*.sql` 대조 | ✅ 34개 테이블이 `member_db`/`catalog_db`/`order_db`/`ai_db` 4개 스키마에 귀속 — 전체 목록·컬럼은 `docs/개발 문서/db-erd-v2.md` 참고 |
 | **스키마 경계 강제** (Phase 1.5) | `catalog_svc` 로 `order_db.inventory` 조회 | ✅ `permission denied for schema order_db` |
 | 재고 소유권 이전 (Phase 0-1) | `catalog_db.books` 에 stock 컬럼 확인 | ✅ 0건 (order_db.inventory 로 이동) |
 | 계약 YAML 파싱 + `$ref` 무결성 | `yaml.safe_load` 4종 | ✅ 통과 (`ai-v1.yaml` 파싱 오류 2건 수정 후) |
