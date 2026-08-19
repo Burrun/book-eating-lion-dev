@@ -12,7 +12,7 @@ export const MOCK_PROFILE = {
   phoneNumber: "010-1234-5678",
   gender: "MALE",
   birthDate: "1995-03-21",
-  role: "USER",
+  role: "ADMIN",
 };
 
 // mock 전용. 대응 API 가 없다.
