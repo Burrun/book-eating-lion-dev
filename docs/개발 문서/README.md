@@ -23,7 +23,7 @@
 | [`k8s-명세.md`](k8s-명세.md) | 네임스페이스, 리소스/Probe, Ingress 라우팅, HPA, ConfigMap/Secret, NetworkPolicy | ⚠️ 대체로 정확하나 Ingress 라우팅 표는 **실제 배포된 버그**를 그대로 기록한 것 (§3 참고) |
 | [`기획서-v6.md`](기획서-v6.md) | 프로젝트 배경, 사용자/운영자 시나리오, MSA 도메인 설계, 기술 채택 근거, 부하테스트 계획 | 📋 기획 문서 — 일부 표현(ElastiCache **Redis**, **3AZ** 등)이 구버전. 실제 스펙은 `TERRAFORM_STRUCTURE.md`/`db-erd-v2.md` 참고 |
 | [`요구사항-정의서-v2.md`](요구사항-정의서-v2.md) | 기능/비기능 요구사항, 기능 목록 20개, 차별화 전략 | 📋 기획 문서 — 정기구독을 하나처럼 서술하지만 실제로는 `premium_memberships`(eBook 구독)와 `subscriptions`(실물 배송)로 나뉨(`db-erd-v2.md` 참고) |
-| [`TERRAFORM_STRUCTURE.md`](TERRAFORM_STRUCTURE.md) | AWS 인프라 계층 구조·모듈 설계 (`terraform/TERRAFORM_STRUCTURE.md`와 동일 사본) | 📐 설계 문서 — **아직 실제 `.tf` 코드 없음**, AI 파이프라인 부분은 세부 미확정으로 표시돼 있음 |
+| [`TERRAFORM_STRUCTURE.md`](TERRAFORM_STRUCTURE.md) | AWS 인프라 계층 구조·모듈 설계 (`terraform/TERRAFORM_STRUCTURE.md`와 동일 사본) | ✅ `00-base`/`01-data`/`02-runtime` 3계층 전부 `.tf` 코드 구현·`terraform validate` 통과 완료(`terraform` 브랜치). 구현 중 발견한 설계와의 차이는 각 모듈 설명에 "실제 구현 중 발견"/"재검토 중 발견"으로 표시돼 있음. AI 파이프라인(S3 Vectors)만 여전히 provider 미지원으로 출력값이 `null` |
 
 ---
 

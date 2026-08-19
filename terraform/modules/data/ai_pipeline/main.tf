@@ -1,8 +1,12 @@
-# ⚠️ 세부 구현 미확정 (TERRAFORM_STRUCTURE.md §3.2-5 참고).
-#
 # 실제 백엔드 코드(이벤트-메시징-명세.md)를 보면 신간 등록 이벤트는 S3 업로드 이벤트가
 # 아니라 catalog-api가 직접 SQS로 발행하는 구조다. 그래서 S3 버킷 이벤트 알림은 여기서
 # 만들지 않는다 - 앱이 SqsClient로 이 큐에 바로 SendMessage하면 된다.
+#
+# ⚠️ 재검토 중 발견 (2026-08-19) - book-purchase-queue가 여기 없다. order-api →
+# ai-rag 구매확정 이벤트(이벤트-메시징-명세.md §1, SqsBookPurchasePublisher)는 앱
+# 양쪽 다 이미 동작 중인데, 이 모듈은 book-ingest-queue(catalog-api → ai-rag, 발행측은
+# 아직 미구현)만 만들어놨다. 운영 관점에선 이 반대가 더 급하다 - purchase 큐 추가는
+# 다음 반영 대상.
 resource "aws_sqs_queue" "ingest_dlq" {
   name                      = "book-eating-lion-${var.environment}-ai-ingest-dlq"
   message_retention_seconds = 1209600 # 14일 - 실패 메시지를 살펴볼 시간 확보

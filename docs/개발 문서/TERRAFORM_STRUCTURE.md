@@ -39,7 +39,7 @@
 | 계층 (Layer) | 자원 유형 | 변경 주기 | 위험 등급 | 관리 대상 리소스 | 상태 격리 목적 |
 | :--- | :---: | :---: | :---: | :--- | :--- |
 | **`00-base`** | 고정 | 극저 (연 1~2회) | **Critical** | VPC, Multi-AZ Subnets, IGW/NAT, Route 53 Hosted Zone, ACM 인증서, WAF WebACL, ECR, S3, SNS Topic, GitHub OIDC Provider | 네트워크 토대 봉인 (파괴 위험 차단) |
-| **`01-data`** | 고정 | 저 (분기 1회) | **Critical** | Aurora PostgreSQL (스토리지 3AZ 6중 복제 + Writer/Reader 인스턴스는 2AZ 배치), RDS Proxy, ElastiCache for Valkey 8.2 (Cluster Mode Disabled, Multi-AZ Failover), Cognito, S3 Vectors(추천용/구매도서 RAG용 인덱스 분리), 신간 등록 이벤트 채널(세부 구현 미확정) | 영속 데이터 유실 방지 및 독립 보존 |
+| **`01-data`** | 고정 | 저 (분기 1회) | **Critical** | Aurora PostgreSQL (스토리지 3AZ 6중 복제 + Writer/Reader 인스턴스는 2AZ 배치), RDS Proxy, ElastiCache for Valkey 8.2 (Cluster Mode Disabled, Multi-AZ Failover), Cognito, S3 Vectors(추천용/구매도서 RAG용 인덱스 분리, provider 미지원으로 현재는 출력값 `null`), 신간 등록 이벤트 채널(SQS, 구현 완료) | 영속 데이터 유실 방지 및 독립 보존 |
 | **`02-runtime`**| 비고정 | 중~고 (주 단위) | **High** | EKS Control Plane, OIDC, Karpenter, AWS Load Balancer Controller + ingress-nginx(NLB), CloudFront 배포, Route 53 ALIAS 레코드, AI 서비스 Bedrock IRSA | 서비스 배포 주기에 맞춘 반복 Plan/Apply |
 
 > **"3AZ"와 "2AZ"가 둘 다 맞는 이유:** 기획서 텍스트의 "3개 AZ 6중 복제"는 Aurora **스토리지 레이어** 얘기입니다 — Aurora는 인스턴스를 몇 개 띄우든 상관없이 스토리지를 항상 3AZ에 6중 복제합니다(AWS가 자동으로 하는 것이라 Terraform에서 켜고 끄는 옵션이 아님). 반면 다이어그램의 "AZ a/b 2개"는 **컴퓨트 인스턴스**(Writer/Reader) 배치 얘기입니다. 이 프로젝트는 VPC를 2AZ로 설계했으므로 인스턴스는 AZ당 하나씩(Writer→AZ a, Reader→AZ b) 배치합니다. ElastiCache도 같은 방식으로 Primary→AZ a, Replica→AZ b로 짝을 맞춥니다. ElastiCache 엔진은 Redis가 아니라 **Valkey 8.2**입니다(§3.2-3 참고, 기획서 텍스트는 구버전).
@@ -55,7 +55,7 @@ terraform/
 │   │   ├── vpc/                                  # VPC, 서브넷(Public/App/Data), NAT GW, 라우팅 테이블
 │   │   ├── dns_zone/                             # Route 53 Hosted Zone
 │   │   ├── acm_cert/                             # ACM 인증서 발급 + DNS 검증 레코드
-│   │   ├── waf/                                  # AWS WAF v2 WebACL 정의 (AWSManagedRulesCommonRuleSet, SQLi 방어) — 아직 아무 것에도 연결 안 함
+│   │   ├── waf/                                  # AWS WAF v2 WebACL 정의 (AWSManagedRulesCommonRuleSet, SQLi 방어) — `02-runtime`의 `edge_routing`이 CloudFront에 연결
 │   │   ├── storage/                               # S3 (React 프론트엔드 정적 호스팅, 도서 미디어 에셋 버킷)
 │   │   ├── container_reg/                        # Amazon ECR 레포지토리 (서비스별 1개씩)
 │   │   ├── alerting/                             # 장애/이상 알림용 SNS Topic + 이메일 구독 (개별 알람은 그 자원 만드는 모듈에서 이 Topic ARN을 받아 생성)
@@ -65,13 +65,13 @@ terraform/
 │   │   ├── rds_proxy/                            # K8s 워크로드 커넥션 풀링용 AWS RDS Proxy 및 IAM 인증
 │   │   ├── cache_valkey/                         # ElastiCache for Valkey 8.2, Cluster Mode Disabled (replica_count로 조절, 기본 1)
 │   │   ├── auth/                                 # AWS Cognito User Pool, Resource Server, App Client
-│   │   └── ai_pipeline/                          # S3 Vectors 인덱스 2개(추천용 / 구매도서 RAG 인용용) + 신간 등록 이벤트 채널 — 세부 구현 미확정, §3.2-5 참고
+│   │   └── ai_pipeline/                          # 신간 등록 이벤트 SQS 큐(+DLQ) 구현 완료. S3 Vectors 인덱스 2개(추천용/구매도서 RAG 인용용)는 provider 미지원으로 출력값 `null`, §3.2-5 참고
 │   ├── compute/                                  # 02-runtime 계층이 사용하는 모듈 (K8s 클러스터 + 라우팅 + 공개 진입점)
 │   │   ├── eks_cluster/                          # EKS v1.30+ Control Plane, Managed NodeGroup(시스템용), OIDC Provider
 │   │   ├── karpenter/                            # Karpenter Controller용 IAM/SQS, NodePool, EC2NodeClass 매니페스트
 │   │   ├── ingress_alb/                          # AWS Load Balancer Controller(NLB 프로비저닝) + ingress-nginx(실제 L7 라우팅, k8s/base/08-ingress.yaml이 대상)
 │   │   ├── edge_routing/                         # CloudFront 배포(S3+ALB 오리진, WAF 연결), 도메인→CloudFront Route 53 ALIAS 레코드
-│   │   └── ai_service_iam/                       # AI 서비스 Pod용 IRSA — Bedrock 호출 + 신간 등록 이벤트 소비 + S3 Vectors 읽기/쓰기 — 세부 구현 미확정, §3.3-5 참고
+│   │   └── ai_service_iam/                       # AI 서비스 Pod용 IRSA — Bedrock 호출 + 신간 등록 이벤트 소비 구현 완료, S3 Vectors 권한은 인덱스 ARN이 생기면 자동으로 붙는 조건부 statement로 구현, §3.3-5 참고
 │   └── dev_tools/
 │       └── ec2_postgres/                         # Dev 환경 전용, Aurora 대신 쓰는 비용 절감형 단일 EC2 PostgreSQL
 │
@@ -93,14 +93,14 @@ terraform/
         │   ├── provider.tf
         │   ├── main.tf                           # 00-base SSM 참조 + modules/data/* 호출
         │   ├── variables.tf
-        │   ├── outputs.tf                        # db_endpoint, rds_proxy_endpoint, valkey_endpoint → SSM 등록
+        │   ├── outputs.tf                        # db_endpoint, rds_proxy_endpoint, valkey_endpoint, cognito_user_pool_id → SSM 등록
         │   └── terraform.tfvars
         └── 02-runtime/
             ├── backend.tf                        # S3 tfstate Key: prod/02-runtime.tfstate
             ├── provider.tf                       # AWS + Helm + Kubernetes Provider 설정
             ├── main.tf                           # 00-base/01-data SSM 참조 + modules/compute/* 호출 (eks_cluster → karpenter → ingress_alb → edge_routing / ai_service_iam 순)
             ├── variables.tf
-            ├── outputs.tf                        # cluster_name, cluster_endpoint, alb_dns_name, cloudfront_distribution_id
+            ├── outputs.tf                        # cluster_name, cluster_endpoint, alb_dns_name, cloudfront_distribution_id, public_domain_url, ai_service_irsa_arn
             └── terraform.tfvars
 
 ```
