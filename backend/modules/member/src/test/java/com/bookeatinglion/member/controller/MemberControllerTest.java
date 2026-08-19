@@ -43,7 +43,7 @@ class MemberControllerTest {
 
     private MemberResponse memberResponse() {
         return new MemberResponse(
-                1L, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
+                SUB, "lion@bookeating.com", "책먹는사자", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1), Role.USER);
     }
 
     @Test
@@ -53,7 +53,9 @@ class MemberControllerTest {
         mockMvc.perform(get("/api/members/me").with(jwt().jwt(jwt -> jwt.subject(SUB))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.email").value("lion@bookeating.com"));
+                .andExpect(jsonPath("$.data.email").value("lion@bookeating.com"))
+                // id 는 DB PK 가 아니라 JWT sub 다.
+                .andExpect(jsonPath("$.data.id").value(SUB));
     }
 
     @Test
@@ -69,6 +71,26 @@ class MemberControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("책먹는사자"));
+    }
+
+    @Test
+    void cognito_groups에_ADMIN이_있으면_role이_ADMIN으로_내려간다() throws Exception {
+        when(memberService.getMyProfile(SUB)).thenReturn(memberResponse());
+
+        mockMvc.perform(get("/api/members/me")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("ADMIN")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("ADMIN"));
+    }
+
+    @Test
+    void cognito_groups에_ADMIN이_없으면_DB의_role을_그대로_반환한다() throws Exception {
+        when(memberService.getMyProfile(SUB)).thenReturn(memberResponse());
+
+        mockMvc.perform(get("/api/members/me")
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("EDITOR")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("USER"));
     }
 
     @Test

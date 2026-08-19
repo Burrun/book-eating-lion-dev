@@ -2,9 +2,10 @@
 
 K8s 및 AWS EKS 기반 금융/결제 연동 도서 쇼핑몰 시스템
 
-> **이 디렉터리는 `docs/msa-migration-plan.md` 를 실행해 모듈러 모놀리스를 4개
-> 마이크로서비스로 전환한 결과물이다.** 전환 전 코드는 상위 디렉터리에 그대로 있다.
-> 아래 [MSA 전환 요약](#-msa-전환-요약)에 무엇이 왜 바뀌었는지 정리했다.
+> **이 디렉터리는 원래 있던 모듈러 모놀리스를 4개 마이크로서비스로 전환한 결과물이다**
+> (전환을 실행한 `docs/msa-migration-plan.md`는 커밋된 적이 없어 저장소에 없다 — 그 계획의
+> 결과와 근거는 아래 [MSA 전환 요약](#-msa-전환-요약)과 [핵심 설계 결정 4가지](#-핵심-설계-결정-4가지)에
+> 정리돼 있으니 이 문서가 사실상의 대체본이다). 전환 전 코드는 상위 디렉터리에 그대로 있다.
 
 ---
 
@@ -210,11 +211,16 @@ type Citation  = components["schemas"]["Citation"];
 | --- | --- | --- |
 | 4개 앱 독립 빌드 (Phase 2-1) | `./gradlew :apps:*-api:bootJar` | ✅ 4개 jar 생성 |
 | 전체 테스트 | `./gradlew test` | ✅ 통과 |
-| 스키마 4분할 | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
+| 스키마 4분할 (초기 검증 시점 스냅샷) | `pg_tables` 조회 | ✅ 9개 테이블이 3개 스키마에 정확히 귀속 |
+| 스키마 4분할 (현재 기준) | `db/postgres/*.sql` 대조 | ✅ 34개 테이블이 `member_db`/`catalog_db`/`order_db`/`ai_db` 4개 스키마에 귀속 — 전체 목록·컬럼은 `docs/개발 문서/db-erd-v2.md` 참고 |
 | **스키마 경계 강제** (Phase 1.5) | `catalog_svc` 로 `order_db.inventory` 조회 | ✅ `permission denied for schema order_db` |
 | 재고 소유권 이전 (Phase 0-1) | `catalog_db.books` 에 stock 컬럼 확인 | ✅ 0건 (order_db.inventory 로 이동) |
 | 계약 YAML 파싱 + `$ref` 무결성 | `yaml.safe_load` 4종 | ✅ 통과 (`ai-v1.yaml` 파싱 오류 2건 수정 후) |
+| 계약 YAML 파싱 CI 자동화 | `backend-ci.yml` "계약 YAML 파싱" 스텝 확인 | ✅ 파일 0건이면 실패하도록 구성됨. 단 **YAML 문법만 검사** — 구현이 계약과 실제로 일치하는지(엔드포인트 존재 여부 등)는 아직 검사 안 함 |
 | 자료 → JSONL 변환 | `python scripts/build-corpus-jsonl.py` | ✅ 5편 / 46페이지 / 46청크, 불변식 3종 통과 |
+| **Redlock 재고차감 + 취소·환불** | `InventoryLockExecutor`(Redisson, bookId 정렬 락) 실사용처 확인, `OrderService.cancelOrder`/`requestReturn`/`refundOrder` 코드 확인 | ✅ 상태 검증(`OrderCannotBeCancelledException` 등)까지 구현 완료. **교환(Exchange)만 별도 미구현** — DB엔 상태값만 있고 코드 없음 |
+| **먹인 책 RAG** (`/api/ai/lion/ask`) | `AskController` + `WikiRagService`(215줄, 구매도서 필터링 포함) 코드 확인 | ✅ 일일 쿼터·요청 검증까지 갖춘 완성된 구현 |
+| **Bedrock 실연동** | `BedrockEmbeddingClient`/`BedrockLlmClient`/`S3VectorSearchAdapter` 파일 확인 | ✅ 존재 확인 |
 | 4개 서비스 기동 | `/actuator/health` | ✅ 전부 UP |
 | 재고 API 조합 | `GET /api/catalog/books/1` | ✅ `stockQuantity=100` (order 에서 조합) |
 | **Fallback** (Phase 2-3) | order 강제 종료 후 도서 상세 조회 | ✅ **HTTP 200**, 도서 정보 정상, `stockQuantity=-1` 로 degrade |
@@ -239,15 +245,15 @@ curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 
 전환 범위는 **구조 전환**까지다. 아래는 Phase 1(팀별 병렬 기능 개발) 영역이다.
 
+> ⚠️ 이 표는 한동안 갱신이 안 돼 있었습니다. 아래는 코드를 직접 대조해서 다시 정리한 것입니다 — 실제로는 절반 가까이 이미 완료 상태였습니다(완료 항목은 위 "검증된 항목"으로 옮김).
+
 | 항목 | 현재 상태 |
 | --- | --- |
-| 결제 상태머신, Redlock 재고차감, 취소·환불 | `inventory` 골격과 `/internal` API 까지만. 결제 로직은 미구현 |
-| 먹인 책 RAG 구현 (BOO-27) | 계약·스키마·자료까지 완료. Bedrock 클라이언트와 `/api/ai/ask` 구현은 진행 중 — `docs/ai-api-plan.md` §12 |
-| Bedrock 실연동 | `BedrockEmbeddingClient` / `BedrockLlmClient` / `S3VectorSearchAdapter` 연동 완료 |
-| Contract test 를 `backend-ci.yml` 에 추가 | 미완. 없으면 문서에만 존재하는 엔드포인트가 쌓인다 — 실제로 `ai-v1.yaml` 이 계속 파싱 실패 상태였다 |
+| 주문 교환(Exchange) 로직 | 취소·환불·Redlock 재고차감은 완료(위 "검증된 항목" 참고). `orders.order_status`엔 `EXCHANGE_REQUESTED`/`EXCHANGED` 상태값이 있지만, 코드 어디에도 교환 처리 메서드가 없다 — 상태값만 선언돼 있고 실제로 못 씀 |
+| Contract test(구현-계약 일치 검사)를 `backend-ci.yml` 에 추가 | YAML 파싱 검사는 이미 추가됨(위 "검증된 항목" 참고). 하지만 "실제 구현이 계약과 일치하는가"(엔드포인트 실존 여부, 요청/응답 스키마 등)는 여전히 자동 검사 안 됨 — 문서에만 존재하는 엔드포인트가 계속 쌓일 수 있는 상태 |
 | Flyway 활성화 | 엔티티와 `db/postgres/01~04` 목표 스키마가 아직 정렬되지 않아 `enabled: false`. 전환 전에도 같은 이유로 꺼져 있었다 |
 | 리뷰 권한 이벤트 유실 대비 fallback 동기 조회 | 미구현. 이벤트가 유실되면 실제 구매자도 리뷰를 못 쓴다 |
-| `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** |
+| `ai-bot` 동시요청 HPA | 매니페스트는 작성했으나 **Prometheus Adapter / KEDA 미설치 시 동작하지 않는다** (`k8s/`에 관련 매니페스트 없음 확인) |
 | `gradlew build` | spotless `ratchetFrom origin/main` 때문에 실패한다. `ai-api` 앱 전체가 아직 `main` 에 없어 전부 검사 대상이 된다. `gradlew test` 는 통과 |
 
 ---
@@ -269,5 +275,6 @@ curl http://localhost:8081/api/catalog/books/1     # stockQuantity: 100
 
 ## 📚 참고
 
-- 전환 계획서: `docs/msa-migration-plan.md`
+- 전환 계획서(`docs/msa-migration-plan.md`)는 저장소에 없음 — 위 [핵심 설계 결정 4가지](#-핵심-설계-결정-4가지)가 그 요약을 대신함
 - 계약 문서: `backend/contracts/README.md`
+- 그 외 기획/DB/이벤트 문서 전체 지도: `docs/개발 문서/README.md`

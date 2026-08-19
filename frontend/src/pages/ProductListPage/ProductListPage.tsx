@@ -3,8 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import BookCard from "../../components/BookCard/BookCard.tsx";
 import RecommendationPanel from "../../components/SwipeDeck/RecommendationPanel.tsx";
 import { getBooks, searchBooks } from "../../api/books.ts";
-// 카테고리 API 연결 전까지 목록만 목업을 사용한다.
-import { CATEGORIES } from "../../mocks/books.ts";
+import { getCategories } from "../../api/categories.ts";
 
 const PAGE_SIZE = 8;
 
@@ -14,6 +13,11 @@ export default function ProductListPage() {
   const category = searchParams.get("category") ?? "";
   const rawPage = Number(searchParams.get("page") ?? "0");
   const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["catalog-categories"],
+    queryFn: getCategories,
+  });
 
   // 검색어가 있으면 검색 API, 없으면 목록 API를 쓴다.
   const { data, isPending, isError } = useQuery({
@@ -88,7 +92,7 @@ export default function ProductListPage() {
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {["전체", ...CATEGORIES].map((c) => {
+              {["전체", ...categories.map((item) => item.categoryName)].map((c) => {
                 const value = c === "전체" ? "" : c;
                 const active = category === value;
                 return (

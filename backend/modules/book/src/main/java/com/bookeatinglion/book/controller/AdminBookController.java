@@ -3,7 +3,10 @@ package com.bookeatinglion.book.controller;
 import com.bookeatinglion.book.dto.AdminBookCreateRequest;
 import com.bookeatinglion.book.dto.AdminBookResponse;
 import com.bookeatinglion.book.dto.AdminBookUpdateRequest;
+import com.bookeatinglion.book.dto.EpubUploadUrlRequest;
+import com.bookeatinglion.book.dto.EpubUploadUrlResponse;
 import com.bookeatinglion.book.service.AdminBookService;
+import com.bookeatinglion.book.service.EbookService;
 import com.bookeatinglion.common.dto.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminBookController {
 
     private final AdminBookService adminBookService;
+    private final EbookService ebookService;
+
+    @PostMapping("/epub-upload-url")
+    public ApiResponse<EpubUploadUrlResponse> issueEpubUploadUrl(@Valid @RequestBody EpubUploadUrlRequest request) {
+        return ApiResponse.success(ebookService.issueUploadUrl(request.fileName()));
+    }
 
     @GetMapping
     public ApiResponse<Page<AdminBookResponse>> getBooks(

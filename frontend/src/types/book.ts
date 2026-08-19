@@ -18,6 +18,8 @@ export interface WebtoonCut {
 
 export interface Review {
   id: string;
+  /** Cognito sub. 로그인한 회원의 id와 비교해 "내 리뷰"인지 판단하는 데 쓴다. */
+  memberId: string;
   author: string;
   rating: number;
   date: string;
@@ -40,8 +42,6 @@ export interface Book {
   webtoonCuts: WebtoonCut[];
   reviews: Review[];
   ebookAvailable: boolean;
-  /** 로컬 정적 경로든 S3 presigned URL이든 그대로 담긴다. ebookAvailable이 false면 null. */
-  ebookUrl: string | null;
 }
 
 export interface SwipeDeckItem {

@@ -16,5 +16,6 @@ public record AdminBookUpdateRequest(
         @Size(max = 500) String coverImageUrl,
         String description,
         String detailedSynopsis,
+        @Size(max = 500) String epubS3Key,
         SaleStatus saleStatus,
         LocalDate publishedDate) {}

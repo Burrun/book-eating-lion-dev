@@ -8,6 +8,7 @@ import com.bookeatinglion.book.dto.AdminBookUpdateRequest;
 import com.bookeatinglion.book.event.BookRecommendationIndexEvent;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
+import com.bookeatinglion.book.port.BookIngestPublisher;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class AdminBookService {
     private final BookRepository bookRepository;
     private final CategoryService categoryService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BookIngestPublisher bookIngestPublisher;
 
     public Page<AdminBookResponse> getBooks(boolean includeDeleted, Pageable pageable) {
         Page<Book> books =
@@ -53,12 +57,16 @@ public class AdminBookService {
                 .coverImageUrl(request.coverImageUrl())
                 .description(request.description())
                 .detailedSynopsis(request.detailedSynopsis())
+                .epubS3Key(request.epubS3Key())
                 .saleStatus(request.saleStatus())
                 .publishedDate(request.publishedDate())
                 .salesCount(0)
                 .build();
         Book saved = bookRepository.save(book);
         publishIndexUpdate(saved);
+        if (saved.isEbookAvailable()) {
+            publishIngestEvent(saved);
+        }
         return AdminBookResponse.from(saved);
     }
 
@@ -82,6 +90,7 @@ public class AdminBookService {
                 request.coverImageUrl() == null ? book.getCoverImageUrl() : request.coverImageUrl(),
                 request.description() == null ? book.getDescription() : request.description(),
                 request.detailedSynopsis() == null ? book.getDetailedSynopsis() : request.detailedSynopsis(),
+                request.epubS3Key() == null ? book.getEpubS3Key() : request.epubS3Key(),
                 request.saleStatus() == null ? book.getSaleStatus() : request.saleStatus(),
                 request.publishedDate() == null ? book.getPublishedDate() : request.publishedDate());
         publishIndexUpdate(book);
@@ -103,6 +112,25 @@ public class AdminBookService {
         List<Book> books = bookRepository.findBySaleStatusAndIsDeletedFalse(SaleStatus.ON_SALE);
         books.forEach(book -> eventPublisher.publishEvent(BookRecommendationIndexEvent.upsert(book)));
         return books.size();
+    }
+
+    /**
+     * 신간 등록 SQS 이벤트는 afterCommit 훅으로 미룬다 — 커밋 전에 나가면, 등록 자체가 롤백돼도
+     * ai-service 는 이미 인제스트를 시작해버려 되돌릴 수 없다(order-api의 SqsBookPurchasePublisher
+     * 호출부와 같은 이유).
+     */
+    private void publishIngestEvent(Book book) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    bookIngestPublisher.publish(
+                            book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key());
+                }
+            });
+        } else {
+            bookIngestPublisher.publish(book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key());
+        }
     }
 
     private Book findBook(Long bookId) {

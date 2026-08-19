@@ -6,7 +6,12 @@ export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? "/api",
 });
 
-// BOO-23 로그인 연동: authStorage(localStorage)에 저장된 토큰을 매 요청마다 자동으로 실어 보낸다.
+// 인증은 이 인터셉터 하나로 끝난다. authStorage(localStorage)에 저장된 토큰을
+// 매 요청에 실어 보내고, 백엔드는 JWT 의 sub 클레임으로 회원을 식별한다.
+//
+// 예전에는 X-Member-Id 헤더로 사용자를 넘겼으나 지금은 어느 서비스도 그 헤더를 읽지
+// 않는다 — catalog 는 CatalogMemberIdentity, 나머지는 SecurityUtils.currentMemberSub()
+// 가 모두 jwt.getSubject() 를 쓴다.
 apiClient.interceptors.request.use((config) => {
   const tokens = readTokens();
   if (tokens?.accessToken) {
@@ -15,27 +20,34 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// 백엔드는 아직 로그인 연동 전이라 X-Member-Id 헤더로 사용자를 식별한다.
-// (리뷰 작성/삭제, 찜 추가/삭제, /members/me/* 에서 요구)
-// JWT(Cognito) 로그인이 프론트에 붙으면 accessToken 쪽으로 대체한다.
-export function setMemberId(memberId: number | null) {
-  if (memberId === null) delete apiClient.defaults.headers.common["X-Member-Id"];
-  else apiClient.defaults.headers.common["X-Member-Id"] = String(memberId);
-}
-
-export function setAccessToken(token: string | null) {
-  if (token === null) delete apiClient.defaults.headers.common["Authorization"];
-  else apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+function toApiError(body: ApiResponse<unknown> | undefined): Error {
+  const error = Object.assign(
+    new Error(body?.error?.message ?? body?.message ?? "API request failed"),
+    {
+      code: body?.error?.code,
+    },
+  );
+  return error;
 }
 
 // ApiResponse<T> 껍데기를 벗겨 data만 반환한다.
 // success: false (HTTP 200이어도 논리적으로 실패한 응답)면 error 정보로 예외를 던져
-// react-query 등 호출측이 실패로 인식하게 한다.
+// react-query 등 호출측이 실패로 인식하게 한다. 4xx/5xx(예: 403 REVIEW_PERMISSION_REQUIRED)는
+// axios가 먼저 reject하므로 별도로 잡아 같은 형태의 에러로 통일한다.
+// 두 경로 모두 error.code(ApiResponse.error 의 code)를 Error.code 에 실어 호출측이
+// 메시지 문자열을 파싱하지 않고 원인을 구분할 수 있게 한다.
 export async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
-  const res = await promise;
-  const body = res.data;
-  if (!body.success) {
-    throw new Error(body.error?.message ?? body.message ?? "API request failed");
+  try {
+    const res = await promise;
+    const body = res.data;
+    if (!body.success) {
+      throw toApiError(body);
+    }
+    return body.data;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.data) {
+      throw toApiError(err.response.data as ApiResponse<unknown>);
+    }
+    throw err;
   }
-  return body.data;
 }

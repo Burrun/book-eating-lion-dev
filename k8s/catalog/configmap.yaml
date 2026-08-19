@@ -21,3 +21,13 @@ data:
   AWS_REGION: "${AWS_REGION}"
   AWS_COGNITO_REGION: "${AWS_REGION}"
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
+
+  # 운영에서는 비공개 S3 EPUB을 짧은 유효기간의 Presigned URL로 제공한다.
+  EBOOK_STORAGE: "s3"
+  EBOOK_S3_BUCKET: "${EBOOK_S3_BUCKET}"
+  EBOOK_READ_URL_VALIDITY: "PT10M"
+  EBOOK_UPLOAD_URL_VALIDITY: "PT10M"
+
+  # 신간 등록 이벤트 발행 큐(SQS). ai-service 의 SqsIngestListener 가 book-ingest-queue 로
+  # 수신해 EPUB을 벡터로 인제스트한다.
+  SQS_INGEST_QUEUE_URL: "${SQS_INGEST_QUEUE_URL}"

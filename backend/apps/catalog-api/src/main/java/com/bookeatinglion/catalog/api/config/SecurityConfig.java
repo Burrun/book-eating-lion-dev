@@ -32,6 +32,9 @@ public class SecurityConfig {
                         // (SecurityConfigTest.인증_없이_이어읽기_위치_조회는_401을_반환한다 가 이 순서를 지킨다)
                         .requestMatchers("/api/catalog/books/*/reading-progress")
                         .authenticated()
+                        // 아래의 books GET permitAll보다 먼저 선언해야 EPUB URL이 공개되지 않는다.
+                        .requestMatchers("/api/catalog/books/*/ebook")
+                        .authenticated()
                         // 도서 조회는 비로그인도 가능하다.
                         .requestMatchers(HttpMethod.GET, "/api/catalog/books/**")
                         .permitAll()

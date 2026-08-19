@@ -35,6 +35,36 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
   const [location, setLocation] = useState(initialCfi);
   const [isIndexing, setIsIndexing] = useState(false);
   const epubBookRef = useRef(null);
+  const initialCfiBookRef = useRef(null);
+  const lastAppliedInitialCfiRef = useRef(null);
+  // 읽는 도중 다른 기기의 서버 진행률 조회가 뒤늦게 도착해도, 사용자가 이미 이 세션에서
+  // 페이지를 넘겼다면 위치를 되돌리지 않는다 — 안 그러면 한창 읽던 위치가 초기 위치로 튄다.
+  const hasUserNavigatedRef = useRef(false);
+  // bookId가 바뀌면 이전 책의 위치를 리렌더 중에 즉시 리셋한다 — state(ref 아님) 비교로
+  // 하는 React 공식 "렌더 중 조정" 패턴이라 refs-in-render/set-state-in-effect 둘 다 안 걸린다.
+  const [renderedBookId, setRenderedBookId] = useState(bookId);
+  if (renderedBookId !== bookId) {
+    setRenderedBookId(bookId);
+    setLocation(null);
+  }
+
+  // ref 리셋은 렌더 중이 아니라 이펙트에서 한다 — refs-in-render 규칙은 렌더 함수 본문에서의
+  // ref 접근만 막고, 이펙트 안에서의 ref 갱신은 원래도 허용된다.
+  useEffect(() => {
+    hasUserNavigatedRef.current = false;
+    initialCfiBookRef.current = null;
+    lastAppliedInitialCfiRef.current = null;
+  }, [bookId]);
+
+  useEffect(() => {
+    if (hasUserNavigatedRef.current || !initialCfi) return;
+    if (initialCfiBookRef.current === bookId && lastAppliedInitialCfiRef.current === initialCfi) {
+      return;
+    }
+    setLocation(initialCfi);
+    initialCfiBookRef.current = bookId;
+    lastAppliedInitialCfiRef.current = initialCfi;
+  }, [bookId, initialCfi]);
 
   // react-reader/epub.js locations(=페이지 인덱스)를 진행률 계산에 쓴다. 책마다 한 번만
   // generate()하면 되므로 localStorage에 캐싱해서 재방문 시 load()로 복원한다.
@@ -116,6 +146,7 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
           title={title}
           location={location}
           locationChanged={(cfi) => {
+            hasUserNavigatedRef.current = true;
             setLocation(cfi);
             const raw = epubBookRef.current?.locations?.percentageFromCfi(cfi);
             const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;

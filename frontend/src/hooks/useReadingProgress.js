@@ -1,7 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiClient, unwrap } from "../api/client.ts";
+import { isLoggedIn } from "../api/authStorage.js";
 
 const STORAGE_KEY_PREFIX = "reading-progress:";
 const SAVE_DEBOUNCE_MS = 500;
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
+function shouldSyncWithServer() {
+  return !USE_MOCK && isLoggedIn();
+}
+
+function createProgress({ cfi, percentage, updatedAt = null }) {
+  return {
+    cfi,
+    percentage: typeof percentage === "number" ? percentage : null,
+    updatedAt: typeof updatedAt === "string" ? updatedAt : null,
+  };
+}
+
+function createLocalProgress(cfi, percentage) {
+  return createProgress({ cfi, percentage, updatedAt: new Date().toISOString() });
+}
+
+function pickNewerProgress(localProgress, serverProgress) {
+  if (!serverProgress) return localProgress;
+
+  const normalizedServer = createProgress(serverProgress);
+  const serverUpdatedAt = Date.parse(normalizedServer.updatedAt ?? "");
+  const localUpdatedAt = Date.parse(localProgress?.updatedAt ?? "");
+  const serverIsNewer =
+    !localProgress ||
+    (Number.isFinite(serverUpdatedAt) &&
+      (!Number.isFinite(localUpdatedAt) || serverUpdatedAt > localUpdatedAt));
+
+  return serverIsNewer ? normalizedServer : localProgress;
+}
 
 function readProgress(bookId) {
   try {
@@ -9,33 +42,35 @@ function readProgress(bookId) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.cfi !== "string") return null;
-    // percentage는 구버전 데이터엔 없을 수 있다 (optional).
-    const percentage = typeof parsed?.percentage === "number" ? parsed.percentage : null;
-    return { cfi: parsed.cfi, percentage };
+    // percentage와 updatedAt은 구버전 데이터엔 없을 수 있다 (optional).
+    return createProgress(parsed);
   } catch {
     return null;
   }
 }
 
-function writeProgress(bookId, cfi, percentage) {
+function writeProgress(bookId, progress) {
   try {
-    localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}${bookId}`,
-      JSON.stringify({
-        cfi,
-        percentage: typeof percentage === "number" ? percentage : null,
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}${bookId}`, JSON.stringify(progress));
   } catch {
     // 용량 초과, 파싱 에러, 프라이빗 모드 등은 조용히 무시한다.
   }
 }
 
+async function syncServerProgress(bookId) {
+  const serverProgress = await unwrap(apiClient.get(`/catalog/books/${bookId}/reading-progress`));
+  const localProgress = readProgress(bookId);
+  const newerProgress = pickNewerProgress(localProgress, serverProgress);
+  if (!newerProgress || newerProgress === localProgress) return null;
+
+  writeProgress(bookId, newerProgress);
+  return newerProgress;
+}
+
 /**
  * 전자책 이어읽기 위치(+ 진행률)를 저장/복원한다.
- * 지금은 localStorage에만 저장하지만, 서버 API가 준비되면
- * readProgress/writeProgress 내부만 API 호출로 바꾸면 된다 (인터페이스는 유지).
+ * 로그인 사용자는 서버 API를 기준으로 동기화하고 localStorage는 즉시 복원용 캐시로 사용한다.
+ * 목업/비로그인 상태에서는 기존처럼 localStorage만 사용한다.
  */
 export function useReadingProgress(bookId) {
   // lazy init: 마운트 시 동기적으로 읽어 이후 EbookViewer의 open 이펙트가
@@ -52,6 +87,21 @@ export function useReadingProgress(bookId) {
   }, [bookId]);
 
   useEffect(() => {
+    if (!bookId || !shouldSyncWithServer()) return;
+    let cancelled = false;
+    syncServerProgress(bookId)
+      .then((newerProgress) => {
+        if (!cancelled && newerProgress) setProgress(newerProgress);
+      })
+      .catch(() => {
+        // 네트워크 장애 시 로컬 캐시로 계속 읽을 수 있게 둔다.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
+
+  useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
@@ -62,7 +112,19 @@ export function useReadingProgress(bookId) {
       if (!bookId || !cfi) return;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
-        writeProgress(bookId, cfi, percentage);
+        const nextProgress = createLocalProgress(cfi, percentage);
+        writeProgress(bookId, nextProgress);
+        setProgress(nextProgress);
+        if (shouldSyncWithServer()) {
+          unwrap(
+            apiClient.put(`/catalog/books/${bookId}/reading-progress`, {
+              cfi: nextProgress.cfi,
+              percentage: nextProgress.percentage,
+            }),
+          ).catch(() => {
+            // 서버 저장 실패에도 현재 독서 세션과 로컬 복원은 유지한다.
+          });
+        }
       }, SAVE_DEBOUNCE_MS);
     },
     [bookId],

@@ -20,6 +20,10 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-Member-Id"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+    # 상담 채팅(/ws/ai). 기본 60초면 대화가 잠시 멈춘 사이 소켓이 끊긴다.
+    # 서버 Ping 주기가 20초이므로 그보다 충분히 길어야 한다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:

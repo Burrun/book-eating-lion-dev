@@ -32,14 +32,14 @@ public class InventoryRestockedStreamConfig {
         return StreamMessageListenerContainer.create(connectionFactory, options);
     }
 
+    /** 같은 타입의 컨테이너 빈이 둘이라 이름이 아니라 {@code @Qualifier} 로 고른다. */
     @Bean
     InventoryRestockedSubscription inventoryRestockedSubscription(
             @Qualifier("inventoryRestockedContainer")
-                    StreamMessageListenerContainer<String, MapRecord<String, String, String>>
-                            inventoryRestockedContainer,
+                    StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             StringRedisTemplate redisTemplate,
             InventoryRestockedConsumer consumer) {
-        return new InventoryRestockedSubscription(inventoryRestockedContainer, redisTemplate, consumer);
+        return new InventoryRestockedSubscription(container, redisTemplate, consumer);
     }
 
     static class InventoryRestockedSubscription implements InitializingBean, DisposableBean {

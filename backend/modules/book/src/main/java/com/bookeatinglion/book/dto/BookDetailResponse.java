@@ -2,6 +2,7 @@ package com.bookeatinglion.book.dto;
 
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -18,8 +19,11 @@ public record BookDetailResponse(
         int stockQuantity,
         String coverImageUrl,
         String description,
+        boolean ebookAvailable,
         SaleStatus saleStatus,
         LocalDate publishedDate,
+        BigDecimal averageRating,
+        int reviewCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
     /** 재고 조회에 실패했을 때의 표식. 0(품절)과 구분해야 하므로 음수를 쓴다. */
@@ -37,8 +41,11 @@ public record BookDetailResponse(
                 stockQuantity,
                 book.getCoverImageUrl(),
                 book.getDescription(),
+                book.isEbookAvailable(),
                 book.getSaleStatus(),
                 book.getPublishedDate(),
+                book.getAverageRating(),
+                book.getReviewCount(),
                 book.getCreatedAt(),
                 book.getUpdatedAt());
     }

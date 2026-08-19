@@ -36,6 +36,8 @@ CREATE TABLE books (
     category          VARCHAR(100) NOT NULL,
     description       TEXT NULL,
     detailed_synopsis TEXT NULL,
+    -- 비공개 S3 object key. Presigned URL은 만료되므로 저장하지 않는다.
+    epub_s3_key       VARCHAR(500) NULL,
     cover_image_url   VARCHAR(500) NULL,
     sale_status       VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
     published_date    DATE NULL,
@@ -103,6 +105,21 @@ CREATE TABLE recent_books (
         REFERENCES books (book_id) ON DELETE CASCADE,
     CONSTRAINT uk_recent_books_member_book UNIQUE (member_id, book_id),
     CONSTRAINT chk_recent_books_view_count CHECK (view_count > 0)
+);
+
+CREATE TABLE reading_progress (
+    reading_progress_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    member_sub          VARCHAR(255) NOT NULL, -- Cognito sub. FK 없음
+    book_id             BIGINT NOT NULL,
+    cfi                 TEXT NOT NULL,
+    percentage          INT NULL,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reading_progress_book FOREIGN KEY (book_id)
+        REFERENCES books (book_id) ON DELETE CASCADE,
+    CONSTRAINT uk_reading_progress_member_book UNIQUE (member_sub, book_id),
+    CONSTRAINT chk_reading_progress_percentage CHECK
+        (percentage IS NULL OR percentage BETWEEN 0 AND 100)
 );
 
 CREATE TABLE wishlists (

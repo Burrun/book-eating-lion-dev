@@ -30,17 +30,19 @@ class MemberServiceTest {
     @Test
     void 내_프로필을_조회한다() {
         Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자");
-        when(memberRepository.findByCognitoSub("sub-1")).thenReturn(Optional.of(member));
+        when(memberRepository.findById("sub-1")).thenReturn(Optional.of(member));
 
         MemberResponse response = memberService.getMyProfile("sub-1");
 
         assertThat(response.email()).isEqualTo("lion@bookeating.com");
         assertThat(response.name()).isEqualTo("책먹는사자");
+        // id 는 DB PK 가 아니라 Cognito sub 여야 한다.
+        assertThat(response.id()).isEqualTo("sub-1");
     }
 
     @Test
     void 존재하지_않는_회원을_조회하면_예외를_던진다() {
-        when(memberRepository.findByCognitoSub("sub-unknown")).thenReturn(Optional.empty());
+        when(memberRepository.findById("sub-unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> memberService.getMyProfile("sub-unknown")).isInstanceOf(MemberNotFoundException.class);
     }
@@ -48,7 +50,7 @@ class MemberServiceTest {
     @Test
     void 프로필을_부분_수정한다() {
         Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자");
-        when(memberRepository.findByCognitoSub("sub-1")).thenReturn(Optional.of(member));
+        when(memberRepository.findById("sub-1")).thenReturn(Optional.of(member));
 
         MemberResponse response = memberService.updateProfile(
                 "sub-1", new MemberUpdateRequest("새이름", "010-1234-5678", Gender.MALE, LocalDate.of(2000, 1, 1)));

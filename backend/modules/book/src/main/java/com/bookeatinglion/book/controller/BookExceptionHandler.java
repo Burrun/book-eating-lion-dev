@@ -4,6 +4,7 @@ import com.bookeatinglion.book.exception.BookErrorCode;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.exception.CategoryNotFoundException;
+import com.bookeatinglion.book.exception.EbookAccessUnavailableException;
 import com.bookeatinglion.book.exception.FaqNotFoundException;
 import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
 import com.bookeatinglion.book.exception.InquiryNotFoundException;
@@ -13,6 +14,7 @@ import com.bookeatinglion.book.exception.RestockAlertNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
 import com.bookeatinglion.book.exception.ReviewNotFoundException;
 import com.bookeatinglion.book.exception.ReviewPermissionRequiredException;
+import com.bookeatinglion.book.exception.SubscriptionBannerNotFoundException;
 import com.bookeatinglion.common.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -89,11 +91,23 @@ public class BookExceptionHandler {
                 .body(ApiResponse.error(BookErrorCode.FAQ_NOT_FOUND.name(), e.getMessage()));
     }
 
+    @ExceptionHandler(SubscriptionBannerNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSubscriptionBannerNotFound(SubscriptionBannerNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.SUBSCRIPTION_BANNER_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.SUBSCRIPTION_BANNER_NOT_FOUND.name(), e.getMessage()));
+    }
+
     @ExceptionHandler(InvalidRecommendationReactionException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidRecommendationReaction(
             InvalidRecommendationReactionException e) {
         return ResponseEntity.status(BookErrorCode.INVALID_RECOMMENDATION_REACTION.getStatus())
                 .body(ApiResponse.error(BookErrorCode.INVALID_RECOMMENDATION_REACTION.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(EbookAccessUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEbookAccessUnavailable(EbookAccessUnavailableException e) {
+        return ResponseEntity.status(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.getStatus())
+                .body(ApiResponse.error(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

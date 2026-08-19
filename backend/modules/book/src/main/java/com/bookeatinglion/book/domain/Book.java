@@ -53,6 +53,10 @@ public class Book extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String detailedSynopsis;
 
+    /** 비공개 EPUB 원본의 S3 object key. URL은 만료되므로 저장하지 않는다. */
+    @Column(name = "epub_s3_key", length = 500)
+    private String epubS3Key;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SaleStatus saleStatus;
@@ -85,6 +89,7 @@ public class Book extends BaseEntity {
             String coverImageUrl,
             String description,
             String detailedSynopsis,
+            String epubS3Key,
             SaleStatus saleStatus,
             LocalDate publishedDate,
             int salesCount) {
@@ -97,6 +102,7 @@ public class Book extends BaseEntity {
         this.coverImageUrl = coverImageUrl;
         this.description = description;
         this.detailedSynopsis = detailedSynopsis;
+        this.epubS3Key = normalizeEpubS3Key(epubS3Key);
         this.saleStatus = saleStatus != null ? saleStatus : SaleStatus.ON_SALE;
         this.publishedDate = publishedDate;
         this.salesCount = salesCount;
@@ -115,6 +121,7 @@ public class Book extends BaseEntity {
             String coverImageUrl,
             String description,
             String detailedSynopsis,
+            String epubS3Key,
             SaleStatus saleStatus,
             LocalDate publishedDate) {
         this.title = title;
@@ -126,6 +133,7 @@ public class Book extends BaseEntity {
         this.coverImageUrl = coverImageUrl;
         this.description = description;
         this.detailedSynopsis = detailedSynopsis;
+        this.epubS3Key = normalizeEpubS3Key(epubS3Key);
         this.saleStatus = saleStatus;
         this.publishedDate = publishedDate;
     }
@@ -139,5 +147,13 @@ public class Book extends BaseEntity {
     public void updateReviewStatistics(BigDecimal averageRating, int reviewCount) {
         this.averageRating = averageRating;
         this.reviewCount = reviewCount;
+    }
+
+    public boolean isEbookAvailable() {
+        return epubS3Key != null;
+    }
+
+    private static String normalizeEpubS3Key(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }
