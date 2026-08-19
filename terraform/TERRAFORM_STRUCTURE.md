@@ -181,17 +181,19 @@ terraform/
   * `reader_count = 0` — 초기 단계 (Writer 1, 비용 최소)
   * `reader_count = 1` — 기본값, 다이어그램 기준 2AZ 운영 시연 (Writer AZ-a / Reader AZ-b)
   * `reader_count = 2` — k6 부하 테스트 등 강한 Multi-AZ 시연용. **VPC가 지금 2AZ로 설계돼 있으므로(§3.1-1 `vpc`), 이 값을 쓰려면 `data_subnet_ids`에 3번째 AZ 서브넷을 먼저 추가해야 합니다.**
-* **안전장치 (Critical 등급):** `deletion_protection = true`, `skip_final_snapshot = false` 를 기본값으로 두고, 환경별로 낮추고 싶으면 `terraform.tfvars`에서 명시적으로 override. `prevent_destroy` lifecycle은 prod 환경에서만 적용.
+* **안전장치 (Critical 등급):** `deletion_protection = true`, `skip_final_snapshot = false` 를 기본값으로 두고, 환경별로 낮추고 싶으면 `terraform.tfvars`에서 명시적으로 override. **정정:** 원래는 `prevent_destroy` lifecycle을 prod에서만 적용한다고 적었으나, Terraform의 `lifecycle.prevent_destroy`는 리터럴 값만 받고 변수를 못 받아서 환경별 조건부 적용이 애초에 불가능합니다(실제 구현 중 확인). 대신 `deletion_protection`을 실제 안전장치로 씁니다 — 이건 AWS API 레벨 보호라 Terraform이 아니라 콘솔/CLI로 지워도 막힙니다.
 
 #### 2) `rds_proxy`
 
-* **대상 리소스:** `aws_db_proxy` (IAM 인증 모드), `aws_db_proxy_default_target_group`, `aws_db_proxy_target`, `aws_iam_role` (Proxy용)
-* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `aurora_cluster_identifier`, `secrets_manager_arn` — 둘 다 같은 `01-data` 계층 안에서 `aurora_pg` 모듈의 `cluster_identifier`/`master_user_secret_arn` 출력을 바로 참조 (계층 간 SSM 필요 없음)
+* **대상 리소스:** `aws_db_proxy` (Secrets Manager 인증 모드), `aws_db_proxy_default_target_group`, `aws_db_proxy_target`, `aws_iam_role` (Proxy용), `aws_security_group`(Proxy 전용) + `aws_security_group_rule`(Aurora 클러스터 SG에 "Proxy SG에서 5432" 인바운드 추가)
+* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `cluster_security_group_id`(**실제 구현 중 발견 — 원래 설계엔 없었음**: Proxy가 Aurora 클러스터 SG로 나가려면 Proxy 자신의 SG를 Aurora 클러스터 SG의 인바운드 소스로 추가해야 하는데, 그러려면 그 클러스터 SG ID가 필요함), `aurora_cluster_identifier`, `secrets_manager_arn` — 전부 같은 `01-data` 계층 안에서 `aurora_pg` 모듈 출력을 바로 참조 (계층 간 SSM 필요 없음)
+* **인증 방식 정정:** 원래 "IAM 인증 모드"로 적었으나, 실제 백엔드 코드(k8s ConfigMap의 `DB_HOST`/`DB_PORT`/`DB_NAME` + Secret의 `DB_USERNAME`/`DB_PASSWORD`)를 보면 앱은 IAM 토큰이 아니라 **아이디/비밀번호로 접속**합니다. 그래서 `aws_db_proxy.auth`는 `auth_scheme = "SECRETS"`, `iam_auth = "DISABLED"`로 구현합니다 — `aurora_pg`가 만든 `master_user_secret_arn`을 그대로 씁니다.
 * **출력값(Outputs):** `proxy_endpoint`, `proxy_arn`
 
 #### 3) `cache_valkey`
 
-* **대상 리소스:** `aws_elasticache_replication_group` (`engine = "valkey"`, `engine_version = "8.2"`, `cluster_mode_enabled = false`, `multi_az_enabled = true`, `automatic_failover_enabled = true`, `num_cache_clusters = 1 + var.replica_count`, `noeviction` 파라미터 그룹 적용), `aws_elasticache_subnet_group`, `aws_cloudwatch_metric_alarm` (메모리 사용률 — 알람 액션은 `sns_topic_arn`)
+* **대상 리소스:** `aws_elasticache_replication_group` (`engine = "valkey"`, `engine_version = "8.2"`, `num_cache_clusters = 1 + var.replica_count`, `noeviction` 파라미터 그룹 적용), `aws_elasticache_subnet_group`, `aws_elasticache_parameter_group`, `aws_cloudwatch_metric_alarm` (메모리 사용률 — 알람 액션은 `sns_topic_arn`)
+* **정정 (실제 구현 중 발견):** `cluster_mode_enabled`라는 인자는 없습니다 — `num_cache_clusters`를 쓰는 것 자체가 Cluster Mode Disabled 구성입니다(`num_node_groups`를 쓰면 Cluster Mode Enabled가 되어 상호 배타적). 그리고 `automatic_failover_enabled`/`multi_az_enabled`는 Replica가 최소 1개 있어야 켤 수 있어서(`replica_count > 0`), dev처럼 `replica_count = 0`으로 비용을 아낄 때는 두 값 다 자동으로 꺼집니다.
 * **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `node_type` (`cache.t4g.medium`), `sns_topic_arn` (`00-base`의 `alerting` 출력을 SSM으로 조회), `replica_count` (`number`, 기본값 `1`)
 * **출력값(Outputs):** `valkey_primary_endpoint`, `valkey_reader_endpoint`
 * **인스턴스 구성:** `aurora_pg`의 `reader_count`와 같은 방식. 기본값(`replica_count = 1`)은 다이어그램 기준 2AZ(Primary AZ-a / Replica AZ-b)이고, Aurora의 "강한 3AZ 시연"과 짝을 맞추려면 `replica_count = 2` + 3번째 AZ 서브넷이 필요합니다(§3.1-1 `vpc` 참고).
@@ -213,8 +215,8 @@ terraform/
   * **RAG 질의응답 인덱스**: "개인 메모 RAG"라고 부르지만 실제로는 사용자가 **구매한 책의 본문**을 임베딩해서, 질문하면 관련 인용 구절을 찾아 보여주는 기능입니다(사용자가 직접 작성한 메모 텍스트를 임베딩하는 게 아님). 구매 여부로 검색 범위가 제한됩니다.
 
   기획서가 이 항목을 "3) 데이터베이스 및 인메모리 캐시" 영역에 함께 분류해서, Aurora/Valkey와 같은 `01-data`에 둡니다.
-* **대상 리소스:** 신간 등록 이벤트를 받을 큐(SQS 또는 다른 이벤트 채널 — 확정 전), S3 Vectors 버킷 + 인덱스 2개(추천용, 구매도서 RAG용) (AWS provider의 최신 리소스 타입 확인 필요 — 이 서비스는 최근 출시라 Terraform AWS provider 버전에 따라 리소스명이 다를 수 있음, 구현 직전에 provider 문서 재확인)
-* **필수 입력(Inputs):** `media_bucket_id`, `media_bucket_arn` (`00-base`의 `storage` 출력을 SSM으로 조회 — 버킷은 `storage`가 갖고 있고, 이벤트 알림 설정만 여기서 붙임. `edge_routing`이 CloudFront 배포에 버킷 정책을 붙이는 것과 같은 이유)
+* **대상 리소스:** `aws_sqs_queue`(신간 등록 이벤트 큐) + DLQ(`maxReceiveCount = 3`) — **구현 완료**. S3 Vectors 버킷 + 인덱스 2개(추천용, 구매도서 RAG용)는 **아직 구현 못 함**: `hashicorp/aws` provider 5.100.0 바이너리를 직접 확인한 결과 `s3vectors_*` 리소스 타입이 없습니다(2025년 말 출시된 신규 서비스라 provider가 아직 못 따라감). 지원되는 provider 버전이 나오면 추가하고, 그때까지 이 두 인덱스의 출력은 `null`입니다.
+* **필수 입력(Inputs):** `environment` — **정정 (실제 구현 중 발견):** 애초에 이 모듈은 `media_bucket_id`/`media_bucket_arn`을 받아서 S3 이벤트 알림을 붙이려 했으나, 실제 백엔드 코드(이벤트-메시징-명세.md)를 보면 신간 등록 이벤트는 S3 업로드 트리거가 아니라 catalog-api가 SQS로 직접 발행하는 구조입니다. 그래서 S3 버킷 관련 입력 자체가 필요 없어졌습니다 — 앱이 `ingest_channel_arn` 큐에 바로 `SendMessage`합니다.
 * **출력값(Outputs):** `vector_bucket_arn`, `recommendation_index_arn`, `purchased_book_rag_index_arn`, `ingest_channel_arn` (신간 등록 이벤트 채널 — SQS면 큐 ARN, 다른 채널이면 그에 맞는 식별자)
 
 ---
@@ -426,3 +428,6 @@ dev 환경의 `01-data` 계층은 Aurora Multi-AZ 대신 **단일 EC2 인스턴�
 * dev의 `environments/dev/01-data/main.tf`는 `modules/data/aurora_pg` 대신 `modules/dev_tools/ec2_postgres`를 호출합니다.
 * 두 모듈의 출력값 이름(`cluster_endpoint` 등)을 동일하게 맞춰서, 상위에서 참조하는 SSM 파라미터 이름(`/${var.environment}/data/db_endpoint`)이 환경에 상관없이 동일한 키를 쓰도록 합니다. 이렇게 하면 `02-runtime`은 dev/prod 어느 쪽이든 같은 코드로 DB endpoint를 읽어올 수 있습니다.
 * prod에는 이 모듈을 절대 사용하지 않습니다 (Multi-AZ/자동 백업 없음 — 데이터 유실 위험).
+* **실제 구현 중 발견 — 인스턴스는 `data_subnet`이 아니라 `app_subnet`에 놓습니다.** `data_subnet`은 완전 격리(NAT 없음, §3.1-1 `vpc`)라 패키지 설치(`dnf install postgresql`)조차 안 됩니다. 그래서 이 인스턴스만 예외적으로 App Subnet(NAT 경유 아웃바운드 있음)에 배치하되, 보안그룹은 `aurora_pg`와 똑같이 "`app_security_group_id`에서만 5432 인바운드 허용"으로 제한해서 데이터 계층과 동일한 접근 통제를 유지합니다. SSH 키/포트는 아예 안 열고 SSM Session Manager로만 접속합니다. 마스터 비밀번호는 `random_password` + Secrets Manager로 관리해 Aurora와 동일한 보안 수준(평문 비밀번호를 tfvars/state에 안 둠)을 맞춥니다.
+* `rds_proxy`는 Aurora 전용 기능이라 dev에서는 호출하지 않습니다. 대신 `rds_proxy_endpoint` SSM 파라미터에도 `ec2_postgres`의 엔드포인트를 그대로 등록해서, `02-runtime`이 dev/prod 분기 없이 같은 키를 읽게 합니다.
+* 스키마 초기화(`db/postgres/00-init.sql`, `01~04-*.sql`)는 이 모듈의 책임이 아닙니다 — PostgreSQL 설치와 마스터 계정 생성까지만 하고, 실제 스키마 적용은 배포 파이프라인/애플리케이션 쪽 몫입니다(로컬 `docker-compose`가 하는 역할과 동일).
