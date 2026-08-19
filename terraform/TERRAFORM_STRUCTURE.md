@@ -38,9 +38,11 @@
 
 | 계층 (Layer) | 자원 유형 | 변경 주기 | 위험 등급 | 관리 대상 리소스 | 상태 격리 목적 |
 | :--- | :---: | :---: | :---: | :--- | :--- |
-| **`00-base`** | 고정 | 극저 (연 1~2회) | **Critical** | VPC, Multi-AZ Subnets, IGW/NAT, Route 53 Hosted Zone, ACM 인증서, WAF WebACL, ECR, S3 | 네트워크 토대 봉인 (파괴 위험 차단) |
-| **`01-data`** | 고정 | 저 (분기 1회) | **Critical** | Aurora PostgreSQL (2AZ Multi-AZ), RDS Proxy, ElastiCache for Valkey 8.2, Cognito | 영속 데이터 유실 방지 및 독립 보존 |
-| **`02-runtime`**| 비고정 | 중~고 (주 단위) | **High** | EKS Control Plane, OIDC, Karpenter, ALB Controller, Target Group/Listener, CloudFront 배포, Route 53 ALIAS 레코드 | 서비스 배포 주기에 맞춘 반복 Plan/Apply |
+| **`00-base`** | 고정 | 극저 (연 1~2회) | **Critical** | VPC, Multi-AZ Subnets, IGW/NAT, Route 53 Hosted Zone, ACM 인증서, WAF WebACL, ECR, S3, SNS Topic, GitHub OIDC Provider | 네트워크 토대 봉인 (파괴 위험 차단) |
+| **`01-data`** | 고정 | 저 (분기 1회) | **Critical** | Aurora PostgreSQL (스토리지 3AZ 6중 복제 + Writer/Reader 인스턴스는 2AZ 배치), RDS Proxy, ElastiCache for Valkey 8.2 (Cluster Mode Disabled, Multi-AZ Failover), Cognito, SQS(벡터 색인 큐), S3 Vectors(추천용/RAG용 인덱스 분리) | 영속 데이터 유실 방지 및 독립 보존 |
+| **`02-runtime`**| 비고정 | 중~고 (주 단위) | **High** | EKS Control Plane, OIDC, Karpenter, ALB Controller, Target Group/Listener, CloudFront 배포, Route 53 ALIAS 레코드, AI 서비스 Bedrock IRSA | 서비스 배포 주기에 맞춘 반복 Plan/Apply |
+
+> **"3AZ"와 "2AZ"가 둘 다 맞는 이유:** 기획서 텍스트의 "3개 AZ 6중 복제"는 Aurora **스토리지 레이어** 얘기입니다 — Aurora는 인스턴스를 몇 개 띄우든 상관없이 스토리지를 항상 3AZ에 6중 복제합니다(AWS가 자동으로 하는 것이라 Terraform에서 켜고 끄는 옵션이 아님). 반면 다이어그램의 "AZ a/b 2개"는 **컴퓨트 인스턴스**(Writer/Reader) 배치 얘기입니다. 이 프로젝트는 VPC를 2AZ로 설계했으므로 인스턴스는 AZ당 하나씩(Writer→AZ a, Reader→AZ b) 배치합니다. ElastiCache도 같은 방식으로 Primary→AZ a, Replica→AZ b로 짝을 맞춥니다. ElastiCache 엔진은 Redis가 아니라 **Valkey 8.2**입니다(§3.2-3 참고, 기획서 텍스트는 구버전).
 
 ---
 
@@ -55,17 +57,21 @@ terraform/
 │   │   ├── acm_cert/                             # ACM 인증서 발급 + DNS 검증 레코드
 │   │   ├── waf/                                  # AWS WAF v2 WebACL 정의 (AWSManagedRulesCommonRuleSet, SQLi 방어) — 아직 아무 것에도 연결 안 함
 │   │   ├── storage/                               # S3 (React 프론트엔드 정적 호스팅, 도서 미디어 에셋 버킷)
-│   │   └── container_reg/                        # Amazon ECR 레포지토리 (서비스별 1개씩)
+│   │   ├── container_reg/                        # Amazon ECR 레포지토리 (서비스별 1개씩)
+│   │   ├── alerting/                             # 장애/이상 알림용 SNS Topic + 이메일 구독 (개별 알람은 그 자원 만드는 모듈에서 이 Topic ARN을 받아 생성)
+│   │   └── github_oidc/                          # GitHub Actions가 AWS를 인증하는 OIDC Provider + IAM Role (워크플로우 YAML 자체는 테라폼 범위 아님)
 │   ├── data/
-│   │   ├── aurora_pg/                            # Aurora PostgreSQL Serverless v2/Provisioned (2AZ Multi-AZ: Writer/Reader)
+│   │   ├── aurora_pg/                            # 스토리지 3AZ 자동 복제 + Writer/Reader 인스턴스(reader_count로 0~2 조절, 기본 1)
 │   │   ├── rds_proxy/                            # K8s 워크로드 커넥션 풀링용 AWS RDS Proxy 및 IAM 인증
-│   │   ├── cache_valkey/                         # ElastiCache for Valkey 8.2 (1 Primary + 1 Replica, Multi-AZ)
-│   │   └── auth/                                 # AWS Cognito User Pool, Resource Server, App Client
+│   │   ├── cache_valkey/                         # ElastiCache for Valkey 8.2, Cluster Mode Disabled (replica_count로 조절, 기본 1)
+│   │   ├── auth/                                 # AWS Cognito User Pool, Resource Server, App Client
+│   │   └── ai_pipeline/                          # S3 Vectors 인덱스 2개(추천=SQS 비동기 색인 / RAG 메모=앱이 직접 씀) + SQS 큐 + S3 이벤트 알림
 │   ├── compute/                                  # 02-runtime 계층이 사용하는 모듈 (K8s 클러스터 + 라우팅 + 공개 진입점)
 │   │   ├── eks_cluster/                          # EKS v1.30+ Control Plane, Managed NodeGroup(시스템용), OIDC Provider
 │   │   ├── karpenter/                            # Karpenter Controller용 IAM/SQS, NodePool, EC2NodeClass 매니페스트
 │   │   ├── ingress_alb/                          # AWS Load Balancer Controller, Target Group, ALB Listener
-│   │   └── edge_routing/                         # CloudFront 배포(S3+ALB 오리진, WAF 연결), 도메인→CloudFront Route 53 ALIAS 레코드
+│   │   ├── edge_routing/                         # CloudFront 배포(S3+ALB 오리진, WAF 연결), 도메인→CloudFront Route 53 ALIAS 레코드
+│   │   └── ai_service_iam/                       # AI 서비스 Pod용 IRSA — Bedrock 호출 + SQS 소비 + S3 Vectors 권한(추천=읽기전용, RAG메모=읽기+쓰기)
 │   └── dev_tools/
 │       └── ec2_postgres/                         # Dev 환경 전용, Aurora 대신 쓰는 비용 절감형 단일 EC2 PostgreSQL
 │
@@ -80,7 +86,7 @@ terraform/
         │   ├── provider.tf                       # AWS Provider(ap-northeast-2) 및 기본 태그 선언 + us-east-1 alias (acm_cert/waf가 CloudFront용으로 사용)
         │   ├── main.tf                           # modules/base/* 호출 및 파라미터 전달
         │   ├── variables.tf                      # VPC CIDR, 서브넷 대역, 도메인 변수 선언
-        │   ├── outputs.tf                        # vpc_id, subnet_ids, acm_certificate_arn, route53_zone_id, waf_web_acl_arn, frontend_bucket_id/arn/domain_name → SSM 등록
+        │   ├── outputs.tf                        # vpc_id, subnet_ids, acm_certificate_arn, route53_zone_id, waf_web_acl_arn, frontend_bucket_id/arn/domain_name, media_bucket_id/arn, sns_topic_arn, github_actions_role_arn → SSM 등록
         │   └── terraform.tfvars                  # 운영 VPC CIDR ("10.0.0.0/16") 등 실제 값
         ├── 01-data/
         │   ├── backend.tf                        # S3 tfstate Key: prod/01-data.tfstate
@@ -92,7 +98,7 @@ terraform/
         └── 02-runtime/
             ├── backend.tf                        # S3 tfstate Key: prod/02-runtime.tfstate
             ├── provider.tf                       # AWS + Helm + Kubernetes Provider 설정
-            ├── main.tf                           # 00-base/01-data SSM 참조 + modules/compute/* 호출 (eks_cluster → karpenter → ingress_alb → edge_routing 순)
+            ├── main.tf                           # 00-base/01-data SSM 참조 + modules/compute/* 호출 (eks_cluster → karpenter → ingress_alb → edge_routing / ai_service_iam 순)
             ├── variables.tf
             ├── outputs.tf                        # cluster_name, cluster_endpoint, alb_dns_name, cloudfront_distribution_id
             └── terraform.tfvars
@@ -147,15 +153,33 @@ terraform/
 * **필수 입력(Inputs):** `service_names` (`list(string)`) — 기획서 "3. 도메인" 기준 4개 확정: `catalog`(도서/리뷰/위시리스트), `order`(장바구니/쿠폰/주문/결제/배송), `member`(회원/사자 캐릭터), `ai`(RAG/추천/1:1 채팅/벡터 색인). "문의채팅"은 별도 서비스가 아니라 `ai` 도메인 하위 기능이므로 5번째 레포는 만들지 않음.
 * **출력값(Outputs):** `repository_urls` (`map(string)`)
 
+#### 7) `alerting`
+
+* **대상 리소스:** `aws_sns_topic`, `aws_sns_topic_subscription` (운영자 이메일/SMS)
+* **필수 입력(Inputs):** `alert_email` (또는 `alert_phone_number`)
+* **출력값(Outputs):** `sns_topic_arn`
+* **참고:** Topic만 여기서 만듭니다. "무엇을 알람으로 볼지"(Aurora 커넥션 수, Valkey 메모리, Pod CPU 등)는 그 리소스를 실제로 만드는 모듈이 각자 `aws_cloudwatch_metric_alarm`을 만들고 이 Topic ARN을 SSM으로 받아 알람 액션으로 연결합니다 — 계층 하나로 몰아넣지 않고 "그 자원을 아는 모듈이 그 자원의 알람도 안다"는 원칙.
+
+#### 8) `github_oidc`
+
+* **대상 리소스:** `aws_iam_openid_connect_provider` (`token.actions.githubusercontent.com`), `aws_iam_role` (GitHub Actions가 assume), `aws_iam_role_policy` (ECR push + EKS 배포에 필요한 최소 권한)
+* **필수 입력(Inputs):** `github_org`, `github_repo` (트러스트 정책의 `sub` 조건을 이 리포지토리로 제한 — 다른 리포/포크가 이 역할을 못 쓰게)
+* **출력값(Outputs):** `github_actions_role_arn`
+* **범위:** 이 모듈은 "GitHub Actions가 AWS를 인증하는 방법"까지만입니다. 실제 배포 워크플로우(`*.github/workflows/*.yml`)는 애플리케이션 리포지토리가 관리하는 영역이라 이 테라폼 문서에서 다루지 않습니다.
+
 ---
 
 ### 3.2 Data Modules (`modules/data/`)
 
 #### 1) `aurora_pg`
 
-* **대상 리소스:** `aws_rds_cluster`, `aws_rds_cluster_instance` (Serverless v2 0.5~8 ACU 또는 Provisioned Multi-AZ), `aws_db_subnet_group`, `aws_security_group`
-* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `database_name` (`bookdb`), `master_username`
+* **대상 리소스:** `aws_rds_cluster`, `aws_rds_cluster_instance` (Serverless v2 0.5~8 ACU 또는 Provisioned, `count = 1 + var.reader_count`), `aws_db_subnet_group`, `aws_security_group`, `aws_cloudwatch_metric_alarm` (DB 커넥션 수, CPU — 알람 액션은 `sns_topic_arn`)
+* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `database_name` (`bookdb`), `master_username`, `sns_topic_arn` (`00-base`의 `alerting` 출력을 SSM으로 조회), `reader_count` (`number`, 기본값 `1`)
 * **출력값(Outputs):** `cluster_endpoint` (Writer), `reader_endpoint` (Reader), `cluster_security_group_id`, `cluster_identifier`, `master_user_secret_arn` (`manage_master_user_password = true`로 AWS가 자동 발급하는 Secrets Manager 시크릿 ARN — 마스터 비밀번호를 tfvars/state에 평문으로 두지 않기 위함)
+* **스토리지 vs 인스턴스 (중요):** Aurora **스토리지**는 인스턴스 개수와 무관하게 항상 3AZ에 6중 복제됩니다 — AWS가 자동으로 하는 것이라 이 모듈에 옵션이 없습니다. 이 모듈이 실제로 조절하는 건 **컴퓨트 인스턴스**(Writer/Reader) 개수뿐입니다. `reader_count`로 단계별 조절 (아래 세 단계는 전부 `aurora_pg`를 실제로 호출하는 환경 기준입니다 — `dev/01-data`는 §6.3에 따라 `aurora_pg`가 아니라 `ec2_postgres`를 쓰므로 이 변수 자체가 적용되지 않습니다):
+  * `reader_count = 0` — 초기 단계 (Writer 1, 비용 최소)
+  * `reader_count = 1` — 기본값, 다이어그램 기준 2AZ 운영 시연 (Writer AZ-a / Reader AZ-b)
+  * `reader_count = 2` — k6 부하 테스트 등 강한 Multi-AZ 시연용. **VPC가 지금 2AZ로 설계돼 있으므로(§3.1-1 `vpc`), 이 값을 쓰려면 `data_subnet_ids`에 3번째 AZ 서브넷을 먼저 추가해야 합니다.**
 * **안전장치 (Critical 등급):** `deletion_protection = true`, `skip_final_snapshot = false` 를 기본값으로 두고, 환경별로 낮추고 싶으면 `terraform.tfvars`에서 명시적으로 override. `prevent_destroy` lifecycle은 prod 환경에서만 적용.
 
 #### 2) `rds_proxy`
@@ -166,10 +190,12 @@ terraform/
 
 #### 3) `cache_valkey`
 
-* **대상 리소스:** `aws_elasticache_replication_group` (Multi-AZ, `engine = "valkey"`, `engine_version = "8.2"`, `noeviction` 파라미터 그룹 적용), `aws_elasticache_subnet_group`
-* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `node_type` (`cache.t4g.medium`)
+* **대상 리소스:** `aws_elasticache_replication_group` (`engine = "valkey"`, `engine_version = "8.2"`, `cluster_mode_enabled = false`, `multi_az_enabled = true`, `automatic_failover_enabled = true`, `num_cache_clusters = 1 + var.replica_count`, `noeviction` 파라미터 그룹 적용), `aws_elasticache_subnet_group`, `aws_cloudwatch_metric_alarm` (메모리 사용률 — 알람 액션은 `sns_topic_arn`)
+* **필수 입력(Inputs):** `vpc_id`, `data_subnet_ids`, `app_security_group_id`, `node_type` (`cache.t4g.medium`), `sns_topic_arn` (`00-base`의 `alerting` 출력을 SSM으로 조회), `replica_count` (`number`, 기본값 `1`)
 * **출력값(Outputs):** `valkey_primary_endpoint`, `valkey_reader_endpoint`
-* **참고:** Valkey는 Redis OSS와 프로토콜 호환이라 Redisson 분산 락, Pub/Sub, Streams 등 백엔드 코드에서 쓰는 Redis 클라이언트를 그대로 씁니다. AWS ElastiCache가 새 클러스터부터 Valkey를 기본값으로 미는 추세라 이 프로젝트도 처음부터 Valkey로 시작합니다.
+* **인스턴스 구성:** `aurora_pg`의 `reader_count`와 같은 방식. 기본값(`replica_count = 1`)은 다이어그램 기준 2AZ(Primary AZ-a / Replica AZ-b)이고, Aurora의 "강한 3AZ 시연"과 짝을 맞추려면 `replica_count = 2` + 3번째 AZ 서브넷이 필요합니다(§3.1-1 `vpc` 참고).
+* **용도:** ① 베스트셀러 캐싱 ② Redisson 분산 락(재고 오버셀링 방지) ③ 채팅 Pub/Sub ④ MSA 비동기 이벤트(Streams) ⑤ **AI 임베딩·검색 결과 캐시** (`ai_pipeline`이 S3 Vectors 조회 결과를 여기 캐싱 — 매번 벡터 검색을 반복하지 않도록)
+* **참고:** Valkey는 Redis OSS와 프로토콜 호환이라 Redisson 분산 락, Pub/Sub, Streams 등 백엔드 코드에서 쓰는 Redis 클라이언트를 그대로 씁니다. AWS ElastiCache가 새 클러스터부터 Valkey를 기본값으로 미는 추세라 이 프로젝트도 처음부터 Valkey로 시작합니다. Cluster Mode는 Disabled — 샤딩 없이 Primary/Replica 구조 그대로 씁니다.
 
 #### 4) `auth`
 
@@ -177,14 +203,25 @@ terraform/
 * **필수 입력(Inputs):** `user_pool_name`, `custom_domain_name`
 * **출력값(Outputs):** `user_pool_id`, `user_pool_arn`, `user_pool_client_id`
 
+#### 5) `ai_pipeline`
+
+* **역할:** 벡터 저장을 목적이 다른 두 인덱스로 분리합니다 — 용도가 섞이면 검색 품질도 섞이기 때문입니다.
+  * **추천 도서 인덱스** (`book_recommendation`): 신간 등록 → S3 이벤트 → SQS → 임베딩 → 색인, **완전 비동기 파이프라인**.
+  * **개인 메모/RAG 인덱스** (`rag_memo`): 사용자가 앱에서 메모를 남기는 즉시 AI 서비스 Pod가 직접 임베딩해서 쓰는 구조라, S3/SQS 이벤트 파이프라인이 필요 없습니다 — 인덱스만 여기서 만들고 쓰기는 `02-runtime`의 `ai_service_iam` 권한으로 애플리케이션이 직접 합니다.
+
+  기획서가 이 항목을 "3) 데이터베이스 및 인메모리 캐시" 영역에 함께 분류해서, Aurora/Valkey와 같은 `01-data`에 둡니다.
+* **대상 리소스:** `aws_sqs_queue` (벡터 색인 이벤트 큐, `book_recommendation` 전용), `aws_sqs_queue_policy` (S3가 메시지를 보낼 수 있도록 허용), `aws_s3_bucket_notification` (미디어 버킷에 "신간 업로드 시 SQS로 알림" 설정), S3 Vectors 버킷 + 인덱스 2개(`book_recommendation`, `rag_memo`) (AWS provider의 최신 리소스 타입 확인 필요 — 이 서비스는 최근 출시라 Terraform AWS provider 버전에 따라 리소스명이 다를 수 있음, 구현 직전에 provider 문서 재확인)
+* **필수 입력(Inputs):** `media_bucket_id`, `media_bucket_arn` (`00-base`의 `storage` 출력을 SSM으로 조회 — 버킷은 `storage`가 갖고 있고, 이벤트 알림 설정만 여기서 붙임. `edge_routing`이 CloudFront 배포에 버킷 정책을 붙이는 것과 같은 이유)
+* **출력값(Outputs):** `sqs_queue_arn`, `sqs_queue_url`, `vector_bucket_arn`, `book_recommendation_index_arn`, `rag_memo_index_arn`
+
 ---
 
 ### 3.3 Compute Modules (`modules/compute/`) — `02-runtime` 계층이 사용
 
 #### 1) `eks_cluster`
 
-* **대상 리소스:** `aws_eks_cluster` (v1.30+), `aws_eks_node_group` (CoreDNS/Karpenter 기동용 t4g.medium 2노드), `aws_iam_openid_connect_provider`, `aws_eks_addon` (vpc-cni, kube-proxy, coredns)
-* **필수 입력(Inputs):** `vpc_id`, `app_subnet_ids`, `cluster_name`, `cluster_version`
+* **대상 리소스:** `aws_eks_cluster` (v1.30+), `aws_eks_node_group` (CoreDNS/Karpenter 기동용 t4g.medium 2노드), `aws_iam_openid_connect_provider`, `aws_eks_addon` (vpc-cni, kube-proxy, coredns, **amazon-cloudwatch-observability** — Pod/Node CPU·메모리를 CloudWatch Container Insights로 수집), `aws_cloudwatch_metric_alarm` (Pod CPU — 알람 액션은 `sns_topic_arn`)
+* **필수 입력(Inputs):** `vpc_id`, `app_subnet_ids`, `cluster_name`, `cluster_version`, `sns_topic_arn` (`00-base`의 `alerting` 출력을 SSM으로 조회)
 * **출력값(Outputs):** `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`, `oidc_provider_arn`, `oidc_provider_url`
 
 #### 2) `karpenter`
@@ -210,6 +247,16 @@ terraform/
 * **필수 입력(Inputs):** `alb_dns_name` (같은 `02-runtime` 내 `ingress_alb` 모듈 출력을 바로 참조), `route53_zone_id`, `acm_certificate_arn` (us-east-1 인증서, `acm_cert` 참고), `waf_web_acl_arn`, `frontend_bucket_id`, `frontend_bucket_arn`, `frontend_bucket_domain_name` (모두 `00-base`가 SSM에 등록해둔 값을 조회)
 * **출력값(Outputs):** `cloudfront_distribution_id`, `cloudfront_domain_name`, `public_domain_url`
 * **순서:** `main.tf` 내에서 `ingress_alb` 다음, 즉 `eks_cluster → karpenter → ingress_alb → edge_routing` 순으로 적용됩니다.
+
+#### 5) `ai_service_iam`
+
+* **역할:** `ai` 마이크로서비스 Pod가 Bedrock/SQS/S3 Vectors를 호출할 때 쓰는 IRSA(IAM Role for Service Account). ALB나 CloudFront와는 무관하게 `eks_cluster`의 OIDC만 있으면 되므로, `edge_routing`과 순서상 나란히(병렬로) 적용 가능합니다.
+* **대상 리소스:** `aws_iam_role` (Trust policy: `ai` 서비스 계정만), `aws_iam_policy` (`bedrock:InvokeModel`, SQS `ReceiveMessage`/`DeleteMessage`, S3 Vectors 권한 — 최소 권한으로 이 세 가지만)
+* **S3 Vectors 권한은 인덱스별로 다르지만, 결국 둘 다 이 IRSA로 씁니다:** 이 IRSA는 SQS `ReceiveMessage`/`DeleteMessage` 권한도 갖고 있어서(위) — 신간 등록 이벤트를 폴링해서 실제로 색인하는 것도 결국 AI 서비스 Pod 자신입니다. 별도 인덱싱 Lambda/워커는 없습니다.
+  * `book_recommendation_index` — **읽기+쓰기**. Pod가 SQS 큐를 소비하면서 임베딩 후 색인(쓰기)하고, 추천 조회 시엔 읽기.
+  * `rag_memo_index` — **읽기+쓰기**. 사용자가 메모를 남기면 Pod가 그 자리에서 직접 임베딩해서 씁니다(SQS를 안 거치는 동기 경로라는 점만 `book_recommendation_index`와 다름, §3.2-5 `ai_pipeline` 참고).
+* **필수 입력(Inputs):** `oidc_provider_arn`, `oidc_provider_url` (같은 `02-runtime` 내 `eks_cluster` 출력을 바로 참조), `sqs_queue_arn`, `book_recommendation_index_arn`, `rag_memo_index_arn` (`01-data`의 `ai_pipeline` 출력을 SSM으로 조회), `bedrock_model_arns` (`list(string)` — 실제 사용하는 임베딩/LLM 모델 ARN)
+* **출력값(Outputs):** `ai_service_irsa_arn`
 
 ---
 
@@ -271,19 +318,19 @@ module "aurora" {
 ### 5.1 최초 프로비저닝 순서
 
 ```bash
-# 1. Base 계층 배포 (VPC, 서브넷, ECR, S3, Route53, ACM) — 고정자원
+# 1. Base 계층 배포 (VPC, 서브넷, ECR, S3, Route53, ACM, WAF, SNS, GitHub OIDC) — 고정자원
 cd terraform/environments/prod/00-base
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
 
-# 2. Data 계층 배포 (Aurora DB, RDS Proxy, Valkey, Cognito) — 고정자원
+# 2. Data 계층 배포 (Aurora DB, RDS Proxy, Valkey, Cognito, SQS/S3 Vectors) — 고정자원
 cd ../01-data
 terraform init
 terraform plan -out=tfplan
 terraform apply tfplan
 
-# 3. Runtime 계층 배포 (EKS → Karpenter → ALB Controller) — 비고정자원
+# 3. Runtime 계층 배포 (EKS → Karpenter → ALB Controller → CloudFront/AI IRSA) — 비고정자원
 cd ../02-runtime
 terraform init
 # 3-1. 클러스터부터 먼저 생성 (Karpenter/ALB Controller의 kubernetes provider가 인증할 대상이 필요)
@@ -377,13 +424,3 @@ dev 환경의 `01-data` 계층은 Aurora Multi-AZ 대신 **단일 EC2 인스턴�
 * dev의 `environments/dev/01-data/main.tf`는 `modules/data/aurora_pg` 대신 `modules/dev_tools/ec2_postgres`를 호출합니다.
 * 두 모듈의 출력값 이름(`cluster_endpoint` 등)을 동일하게 맞춰서, 상위에서 참조하는 SSM 파라미터 이름(`/${var.environment}/data/db_endpoint`)이 환경에 상관없이 동일한 키를 쓰도록 합니다. 이렇게 하면 `02-runtime`은 dev/prod 어느 쪽이든 같은 코드로 DB endpoint를 읽어올 수 있습니다.
 * prod에는 이 모듈을 절대 사용하지 않습니다 (Multi-AZ/자동 백업 없음 — 데이터 유실 위험).
-
----
-
-## 7. 아직 다루지 않은 것 (알고 있는 범위 밖)
-
-기획서에는 있지만 이 문서(3계층 뼈대)에는 아직 반영하지 않은 인프라입니다. 빠뜨린 게 아니라 의도적으로 나중으로 미룬 것임을 남겨둡니다.
-
-* **AI 벡터 파이프라인**: 신간 등록 → S3 이벤트 → SQS → S3 Vectors 자동 색인 → Bedrock 임베딩. SQS 큐, S3 이벤트 알림, S3 Vectors 버킷/인덱스, Bedrock 호출 IAM 권한 모두 미정.
-* **모니터링/알림**: CloudWatch 알람(Pod CPU, DB 커넥션, Valkey 메모리) + SNS 알림. 계층 하나에 속하지 않고 각 계층 리소스마다 걸리는 성격이라 배치 방식부터 다시 정해야 함.
-* **CI/CD 배포 권한**: 아키텍처 다이어그램상 GitHub Actions가 직접 EKS에 배포합니다(Developer → GitHub → GitHub Actions → EKS). GitHub Actions가 AWS를 인증하는 방법(OIDC Provider + IAM Role)이 현재 `00-base` 어디에도 없음 — 나중에 `dns_zone`/`acm_cert`처럼 역할이 분명한 모듈(예: `github_oidc`)로 추가 필요.
