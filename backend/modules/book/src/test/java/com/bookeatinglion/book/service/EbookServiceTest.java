@@ -31,7 +31,8 @@ class EbookServiceTest {
 
     @BeforeEach
     void setUp() {
-        ebookService = new EbookService(bookRepository, ebookStoragePort, Duration.ofMinutes(10));
+        ebookService = new EbookService(
+                bookRepository, ebookStoragePort, Duration.ofMinutes(10), Duration.ofMinutes(10));
     }
 
     @Test
@@ -56,6 +57,20 @@ class EbookServiceTest {
 
         assertThat(result.ebookAvailable()).isTrue();
         assertThat(result.presignedUrl()).isEqualTo("https://signed.example/alice");
+        assertThat(result.expiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void 신간_등록_화면에서_업로드_URL을_발급한다() {
+        OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(10);
+        when(ebookStoragePort.createUploadUrl("alice.epub", Duration.ofMinutes(10)))
+                .thenReturn(new EbookStoragePort.UploadUrl(
+                        "https://signed.example/upload", "epubs/uuid_alice.epub", expiresAt));
+
+        var result = ebookService.issueUploadUrl("alice.epub");
+
+        assertThat(result.uploadUrl()).isEqualTo("https://signed.example/upload");
+        assertThat(result.epubS3Key()).isEqualTo("epubs/uuid_alice.epub");
         assertThat(result.expiresAt()).isEqualTo(expiresAt);
     }
 

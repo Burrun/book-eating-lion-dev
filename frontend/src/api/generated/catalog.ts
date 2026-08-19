@@ -107,6 +107,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog/admin/books/epub-upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * EPUB 업로드용 Presigned URL 발급
+         * @description 도서 등록/수정 전에 먼저 호출한다. 응답의 uploadUrl로 브라우저가 S3에 직접 PUT 업로드하고,
+         *     epubS3Key를 도서 등록/수정 요청(AdminBookCreateRequest/AdminBookUpdateRequest)에 그대로
+         *     넘긴다. EBOOK_STORAGE=local(로컬 기본값)에서는 지원하지 않는다(503).
+         */
+        post: operations["issueEpubUploadUrl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/admin/books/{bookId}": {
         parameters: {
             query?: never;
@@ -1029,6 +1051,62 @@ export interface components {
             /** Format: date */
             publishedDate?: string;
         };
+        AdminBookResponse: {
+            /** Format: int64 */
+            bookId: number;
+            title: string;
+            author: string;
+            publisher: string;
+            isbn: string;
+            category: string;
+            price: number;
+            coverImageUrl?: string | null;
+            description?: string | null;
+            detailedSynopsis?: string | null;
+            ebookAvailable: boolean;
+            epubS3Key?: string | null;
+            /** @enum {string} */
+            saleStatus: "ON_SALE" | "STOPPED" | "OUT_OF_STOCK";
+            /** Format: date */
+            publishedDate?: string | null;
+            salesCount: number;
+            /** Format: double */
+            averageRating: number;
+            reviewCount: number;
+            deleted: boolean;
+            /** Format: date-time */
+            deletedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminBookEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["AdminBookResponse"];
+        };
+        AdminBookPageEnvelope: {
+            success?: boolean;
+            data?: {
+                content?: components["schemas"]["AdminBookResponse"][];
+                totalElements?: number;
+            };
+        };
+        EpubUploadUrlRequest: {
+            fileName: string;
+        };
+        EpubUploadUrlResponse: {
+            /** @description 이 URL로 EPUB 파일 바이트를 그대로 PUT 하면 업로드가 끝난다. */
+            uploadUrl: string;
+            /** @description 도서 등록/수정 요청의 epubS3Key로 그대로 넘긴다. */
+            epubS3Key: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        EpubUploadUrlEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["EpubUploadUrlResponse"];
+        };
         CategoryListEnvelope: {
             success?: boolean;
             data?: components["schemas"]["Category"][];
@@ -1224,7 +1302,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AdminBookPageEnvelope"];
+                };
             };
         };
     };
@@ -1246,10 +1326,43 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AdminBookEnvelope"];
+                };
             };
             /** @description ISBN 중복 */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issueEpubUploadUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpubUploadUrlRequest"];
+            };
+        };
+        responses: {
+            /** @description 발급 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpubUploadUrlEnvelope"];
+                };
+            };
+            /** @description 로컬 저장소 모드거나 S3 발급 실패 */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1273,7 +1386,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AdminBookEnvelope"];
+                };
             };
             /** @description 도서 없음 */
             404: {
@@ -1331,7 +1446,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AdminBookEnvelope"];
+                };
             };
             /** @description 도서 또는 카테고리 없음 */
             404: {

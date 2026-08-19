@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 const SECTIONS = [
+  { to: "/admin/books", emoji: "📚", title: "신간 등록", desc: "도서 등록/수정 및 EPUB 업로드" },
   {
     to: "/admin/categories",
     emoji: "🗂️",

@@ -3,6 +3,8 @@ package com.bookeatinglion.book.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bookeatinglion.book.domain.Book;
@@ -11,6 +13,7 @@ import com.bookeatinglion.book.dto.AdminBookCreateRequest;
 import com.bookeatinglion.book.dto.AdminBookResponse;
 import com.bookeatinglion.book.dto.AdminBookUpdateRequest;
 import com.bookeatinglion.book.exception.CatalogConflictException;
+import com.bookeatinglion.book.port.BookIngestPublisher;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -32,6 +35,9 @@ class AdminBookServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private BookIngestPublisher bookIngestPublisher;
 
     @InjectMocks
     private AdminBookService adminBookService;
@@ -58,6 +64,41 @@ class AdminBookServiceTest {
 
         assertThat(result.title()).isEqualTo("스프링");
         assertThat(result.category()).isEqualTo("IT/컴퓨터");
+    }
+
+    @Test
+    void epubS3Key가_있는_신간_등록은_인제스트_이벤트를_발행한다() {
+        AdminBookCreateRequest request = new AdminBookCreateRequest(
+                "스프링",
+                "저자",
+                "출판사",
+                "9791100000001",
+                "IT/컴퓨터",
+                20000,
+                "cover.jpg",
+                "설명",
+                "상세 줄거리",
+                "epubs/uuid_spring.epub",
+                SaleStatus.ON_SALE,
+                LocalDate.of(2026, 1, 1));
+        when(categoryService.getActiveCategoryName("IT/컴퓨터")).thenReturn("IT/컴퓨터");
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminBookService.create(request);
+
+        verify(bookIngestPublisher).publish(null, "스프링", "IT/컴퓨터", "epubs/uuid_spring.epub");
+    }
+
+    @Test
+    void epubS3Key가_없는_신간_등록은_인제스트_이벤트를_발행하지_않는다() {
+        AdminBookCreateRequest request = new AdminBookCreateRequest(
+                "스프링", "저자", "출판사", "9791100000001", "IT/컴퓨터", 20000, null, null, null, null, null, null);
+        when(categoryService.getActiveCategoryName("IT/컴퓨터")).thenReturn("IT/컴퓨터");
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminBookService.create(request);
+
+        verify(bookIngestPublisher, never()).publish(any(), any(), any(), any());
     }
 
     @Test

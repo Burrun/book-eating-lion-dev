@@ -69,6 +69,13 @@ export interface ReadingProgressRequest {
   percentage?: number;
 }
 
+// --- 신간/EPUB 업로드 (관리자) ---
+export type AdminBookResponse = Catalog["AdminBookResponse"];
+export type AdminBookCreateRequest = Catalog["AdminBookCreateRequest"];
+export type AdminBookUpdateRequest = Catalog["AdminBookUpdateRequest"];
+export type EpubUploadUrlRequest = Catalog["EpubUploadUrlRequest"];
+export type EpubUploadUrlResponse = Catalog["EpubUploadUrlResponse"];
+
 // --- 카테고리 (Category, 관리자) ---
 export type CategoryResponse = Catalog["Category"];
 export type CategoryCreateRequest = Catalog["CategoryCreateRequest"];

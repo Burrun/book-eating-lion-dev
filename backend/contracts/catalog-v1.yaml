@@ -126,7 +126,11 @@ paths:
           in: query
           schema: { type: boolean, default: false }
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookPageEnvelope" }
     post:
       summary: 도서 등록
       operationId: createBook
@@ -138,8 +142,35 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AdminBookCreateRequest" }
       responses:
-        "201": { description: 등록 완료 }
+        "201":
+          description: 등록 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "409": { description: ISBN 중복 }
+
+  /api/catalog/admin/books/epub-upload-url:
+    post:
+      summary: EPUB 업로드용 Presigned URL 발급
+      description: |
+        도서 등록/수정 전에 먼저 호출한다. 응답의 uploadUrl로 브라우저가 S3에 직접 PUT 업로드하고,
+        epubS3Key를 도서 등록/수정 요청(AdminBookCreateRequest/AdminBookUpdateRequest)에 그대로
+        넘긴다. EBOOK_STORAGE=local(로컬 기본값)에서는 지원하지 않는다(503).
+      operationId: issueEpubUploadUrl
+      tags: [admin-books]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EpubUploadUrlRequest" }
+      responses:
+        "200":
+          description: 발급 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EpubUploadUrlEnvelope" }
+        "503": { description: 로컬 저장소 모드거나 S3 발급 실패 }
 
   /api/catalog/admin/books/{bookId}:
     parameters:
@@ -153,7 +184,11 @@ paths:
       tags: [admin-books]
       security: [{ bearerAuth: [] }]
       responses:
-        "200": { description: 조회 성공 }
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "404": { description: 도서 없음 }
     patch:
       summary: 도서 정보 부분 수정
@@ -166,7 +201,11 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AdminBookUpdateRequest" }
       responses:
-        "200": { description: 수정 완료 }
+        "200":
+          description: 수정 완료
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminBookEnvelope" }
         "404": { description: 도서 또는 카테고리 없음 }
         "409": { description: ISBN 중복 또는 비활성 카테고리 }
     delete:
@@ -1277,6 +1316,94 @@ components:
           description: null이면 유지, 빈 문자열이면 eBook 연결 해제
         saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
         publishedDate: { type: string, format: date }
+
+    AdminBookResponse:
+      type: object
+      required:
+        [
+          bookId,
+          title,
+          author,
+          publisher,
+          isbn,
+          category,
+          price,
+          ebookAvailable,
+          saleStatus,
+          salesCount,
+          averageRating,
+          reviewCount,
+          deleted,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        bookId: { type: integer, format: int64 }
+        title: { type: string }
+        author: { type: string }
+        publisher: { type: string }
+        isbn: { type: string }
+        category: { type: string }
+        price: { type: integer }
+        coverImageUrl: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        detailedSynopsis: { type: string, nullable: true }
+        ebookAvailable: { type: boolean }
+        epubS3Key: { type: string, nullable: true }
+        saleStatus: { type: string, enum: [ON_SALE, STOPPED, OUT_OF_STOCK] }
+        publishedDate: { type: string, format: date, nullable: true }
+        salesCount: { type: integer }
+        averageRating: { type: number, format: double }
+        reviewCount: { type: integer }
+        deleted: { type: boolean }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminBookEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/AdminBookResponse"
+
+    AdminBookPageEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminBookResponse"
+            totalElements: { type: integer }
+
+    EpubUploadUrlRequest:
+      type: object
+      required: [fileName]
+      properties:
+        fileName: { type: string, maxLength: 255 }
+
+    EpubUploadUrlResponse:
+      type: object
+      required: [uploadUrl, epubS3Key, expiresAt]
+      properties:
+        uploadUrl:
+          type: string
+          description: 이 URL로 EPUB 파일 바이트를 그대로 PUT 하면 업로드가 끝난다.
+        epubS3Key:
+          type: string
+          description: 도서 등록/수정 요청의 epubS3Key로 그대로 넘긴다.
+        expiresAt: { type: string, format: date-time }
+
+    EpubUploadUrlEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/EpubUploadUrlResponse"
 
     CategoryListEnvelope:
       type: object
