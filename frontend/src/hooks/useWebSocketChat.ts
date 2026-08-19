@@ -49,6 +49,53 @@ interface ServerEnvelope {
   error?: { code: string; message: string } | null;
 }
 
+type ServerFrame = ServerEnvelope | (ChatMessage & { type: string });
+
+function parseServerFrame(raw: string): ServerFrame | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+// JOINED/NO_AGENT 등은 ApiResponse 봉투에 담겨 오고(success 필드 있음),
+// MESSAGE는 Redis 팬아웃이 원본 그대로 보낸다 — 두 종류의 프레임이 같은 채널로 온다.
+function handleApiEnvelope(
+  envelope: ServerEnvelope,
+  appendMessage: (message: ChatMessage) => void,
+  setChatState: (state: ChatRoomState) => void,
+) {
+  if (!envelope.success) {
+    console.warn("[chat] server error", envelope.error);
+    return;
+  }
+
+  const data = envelope.data;
+  if (data?.type === "JOINED") {
+    if (data.state) setChatState(data.state);
+    data.messages?.forEach(appendMessage);
+  } else if (data?.type === "NO_AGENT") {
+    setChatState("CLOSED");
+  }
+}
+
+function handleMessageFrame(
+  frame: ChatMessage & { type: string },
+  appendMessage: (message: ChatMessage) => void,
+  setChatState: (state: ChatRoomState) => void,
+) {
+  if (frame.type !== "MESSAGE") return;
+  appendMessage(frame);
+  // 서버는 상담사 배정을 별도 프레임으로 알리지 않는다 — AGENT 발화가 오는 순간이
+  // 곧 LIVE 전환의 유일한 신호다(backend ChatWebSocketHandler#onClaim 참고).
+  if (frame.role === "AGENT") setChatState("LIVE");
+}
+
+function computeReconnectDelay(attempt: number): number {
+  return Math.min(1000 * 2 ** attempt, 8000);
+}
+
 export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("DISCONNECTED");
   const [chatState, setChatState] = useState<ChatRoomState>("BOT");
@@ -79,35 +126,13 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
 
   const handleRawFrame = useCallback(
     (raw: string) => {
-      let frame: ServerEnvelope | (ChatMessage & { type: string });
-      try {
-        frame = JSON.parse(raw);
-      } catch {
-        return;
-      }
+      const frame = parseServerFrame(raw);
+      if (!frame) return;
 
-      // 두 종류의 프레임이 같은 채널로 온다: JOINED/NO_AGENT 등은 ApiResponse 봉투에
-      // 담겨 오고(success 필드 있음), MESSAGE는 Redis 팬아웃이 원본 그대로 보낸다.
       if ("success" in frame) {
-        if (!frame.success) {
-          console.warn("[chat] server error", frame.error);
-          return;
-        }
-        const data = frame.data;
-        if (data?.type === "JOINED") {
-          if (data.state) setChatState(data.state);
-          data.messages?.forEach(appendMessage);
-        } else if (data?.type === "NO_AGENT") {
-          setChatState("CLOSED");
-        }
-        return;
-      }
-
-      if (frame.type === "MESSAGE") {
-        appendMessage(frame);
-        // 서버는 상담사 배정을 별도 프레임으로 알리지 않는다 — AGENT 발화가 오는 순간이
-        // 곧 LIVE 전환의 유일한 신호다(backend ChatWebSocketHandler#onClaim 참고).
-        if (frame.role === "AGENT") setChatState("LIVE");
+        handleApiEnvelope(frame, appendMessage, setChatState);
+      } else {
+        handleMessageFrame(frame, appendMessage, setChatState);
       }
     },
     [appendMessage],
@@ -142,7 +167,7 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
         setConnectionStatus("DISCONNECTED");
         if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) return;
         reconnectAttemptsRef.current += 1;
-        const delay = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 8000);
+        const delay = computeReconnectDelay(reconnectAttemptsRef.current);
         // connect의 의존성(handleRawFrame -> appendMessage)이 전부 빈 배열로 고정돼 있어
         // connect 자체가 컴포넌트 생애주기 동안 재생성되지 않는다 — 재귀 참조가 안전하다.
         // eslint-disable-next-line react-hooks/immutability
@@ -214,6 +239,9 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
   }, [chatState, connect, connectionStatus, disconnect, sendFrame]);
 
   const reconnect = useCallback(() => {
+    // 이미 예약된 자동 재연결 타이머가 있으면 지운다 — 안 그러면 이 수동 재연결과
+    // 나중에 발화할 예약된 connect가 경쟁해서 티켓/핸드셰이크가 중복 소모된다.
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     reconnectAttemptsRef.current = 0;
     connect();
   }, [connect]);
