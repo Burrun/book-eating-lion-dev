@@ -86,7 +86,7 @@ terraform/
         │   ├── provider.tf                       # AWS Provider(ap-northeast-2) 및 기본 태그 선언 + us-east-1 alias (acm_cert/waf가 CloudFront용으로 사용)
         │   ├── main.tf                           # modules/base/* 호출 및 파라미터 전달
         │   ├── variables.tf                      # VPC CIDR, 서브넷 대역, 도메인 변수 선언
-        │   ├── outputs.tf                        # vpc_id, subnet_ids, acm_certificate_arn, route53_zone_id, waf_web_acl_arn, frontend_bucket_id/arn/domain_name, media_bucket_id/arn, sns_topic_arn, github_actions_role_arn → SSM 등록
+        │   ├── outputs.tf                        # vpc_id, subnet_ids, app_security_group_id, acm_certificate_arn, route53_zone_id, waf_web_acl_arn, frontend_bucket_id/arn/domain_name, media_bucket_id/arn, sns_topic_arn, github_actions_role_arn → SSM 등록
         │   └── terraform.tfvars                  # 운영 VPC CIDR ("10.0.0.0/16") 등 실제 값
         ├── 01-data/
         │   ├── backend.tf                        # S3 tfstate Key: prod/01-data.tfstate
@@ -117,7 +117,7 @@ terraform/
 
 * **대상 리소스:** `aws_vpc`, `aws_subnet` (Public 2, Private App 2, Private Data 2), `aws_internet_gateway`, `aws_nat_gateway` (Multi-AZ 2개), `aws_route_table`, `aws_route_table_association`
 * **필수 입력(Inputs):** `vpc_cidr`, `availability_zones` (`["ap-northeast-2a", "ap-northeast-2c"]`), `public_subnet_cidrs`, `app_subnet_cidrs`, `data_subnet_cidrs`
-* **출력값(Outputs):** `vpc_id`, `public_subnet_ids`, `app_subnet_ids`, `data_subnet_ids`
+* **출력값(Outputs):** `vpc_id`, `public_subnet_ids`, `app_subnet_ids`, `data_subnet_ids`, `app_security_group_id` (EKS 노드/Pod 공용 보안그룹 — `01-data`의 `aurora_pg`/`rds_proxy`/`cache_valkey`가 이 SG를 소스로 인바운드를 여는 데 씀. 실제 구현 중 발견: 이 출력이 없으면 데이터 계층 보안그룹을 무엇을 기준으로 열지 정할 방법이 없었음)
 
 #### 2) `dns_zone`
 
@@ -163,9 +163,10 @@ terraform/
 #### 8) `github_oidc`
 
 * **대상 리소스:** `aws_iam_openid_connect_provider` (`token.actions.githubusercontent.com`), `aws_iam_role` (GitHub Actions가 assume), `aws_iam_role_policy` (ECR push + EKS 배포에 필요한 최소 권한)
-* **필수 입력(Inputs):** `github_org`, `github_repo` (트러스트 정책의 `sub` 조건을 이 리포지토리로 제한 — 다른 리포/포크가 이 역할을 못 쓰게)
+* **필수 입력(Inputs):** `environment` (Role 이름 충돌 방지용), `create_oidc_provider` (`bool`, 기본 `true`), `github_org`, `github_repo` (트러스트 정책의 `sub` 조건을 이 리포지토리로 제한 — 다른 리포/포크가 이 역할을 못 쓰게), `ecr_repository_arns`
 * **출력값(Outputs):** `github_actions_role_arn`
 * **범위:** 이 모듈은 "GitHub Actions가 AWS를 인증하는 방법"까지만입니다. 실제 배포 워크플로우(`*.github/workflows/*.yml`)는 애플리케이션 리포지토리가 관리하는 영역이라 이 테라폼 문서에서 다루지 않습니다.
+* **주의 (실제 구현 중 발견 — dev/prod 동시 호출 시 충돌):** `aws_iam_openid_connect_provider`는 **계정당 URL 하나에 유일한 전역 리소스**입니다. dev/prod가 모두 이 모듈을 호출하므로, 한쪽만 `create_oidc_provider = true`로 실제로 만들고 나머지는 `false`로 둬서 `data "aws_iam_openid_connect_provider"`로 조회만 하게 합니다. 이 프로젝트는 `prod/00-base`가 소유합니다. **결과적으로 `dev/00-base`는 `prod/00-base`가 최소 한 번 apply된 뒤에만 apply할 수 있습니다** — 계층 간 순서(§5.1)와 별개로 생기는, OIDC Provider 하나 때문의 예외적인 환경 간 순서 의존입니다. IAM Role 이름에는 `environment`를 넣어 dev/prod가 서로 다른 이름을 쓰게 해서 그쪽은 충돌하지 않습니다.
 
 ---
 
