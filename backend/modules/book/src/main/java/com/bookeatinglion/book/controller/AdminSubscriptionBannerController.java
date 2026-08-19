@@ -38,8 +38,7 @@ public class AdminSubscriptionBannerController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<SubscriptionBannerResponse> create(
-            @Valid @RequestBody SubscriptionBannerCreateRequest request) {
+    public ApiResponse<SubscriptionBannerResponse> create(@Valid @RequestBody SubscriptionBannerCreateRequest request) {
         return ApiResponse.success(subscriptionBannerService.create(request));
     }
 

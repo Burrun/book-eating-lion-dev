@@ -110,5 +110,11 @@ class SubscriptionBannerControllerTest {
     }
 
     private record WriteRequest(
-            String imageUrl, String title, String linkUrl, String startAt, String endAt, int sortOrder, boolean active) {}
+            String imageUrl,
+            String title,
+            String linkUrl,
+            String startAt,
+            String endAt,
+            int sortOrder,
+            boolean active) {}
 }

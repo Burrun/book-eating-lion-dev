@@ -31,8 +31,8 @@ class EbookServiceTest {
 
     @BeforeEach
     void setUp() {
-        ebookService = new EbookService(
-                bookRepository, ebookStoragePort, Duration.ofMinutes(10), Duration.ofMinutes(10));
+        ebookService =
+                new EbookService(bookRepository, ebookStoragePort, Duration.ofMinutes(10), Duration.ofMinutes(10));
     }
 
     @Test

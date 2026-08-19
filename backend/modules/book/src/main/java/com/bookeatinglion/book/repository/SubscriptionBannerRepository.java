@@ -11,9 +11,8 @@ public interface SubscriptionBannerRepository extends JpaRepository<Subscription
 
     List<SubscriptionBanner> findAllByOrderBySortOrderAscBannerIdAsc();
 
-    @Query(
-            "select b from SubscriptionBanner b "
-                    + "where b.active = true and b.startAt <= :now and b.endAt >= :now "
-                    + "order by b.sortOrder asc, b.bannerId asc")
+    @Query("select b from SubscriptionBanner b "
+            + "where b.active = true and b.startAt <= :now and b.endAt >= :now "
+            + "order by b.sortOrder asc, b.bannerId asc")
     List<SubscriptionBanner> findCurrentlyActive(@Param("now") LocalDateTime now);
 }
