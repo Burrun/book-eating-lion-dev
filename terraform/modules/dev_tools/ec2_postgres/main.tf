@@ -4,6 +4,8 @@
 # 출력값 이름을 aurora_pg와 최대한 맞춰서, 02-runtime이 dev/prod 어느 쪽이든
 # 같은 SSM 파라미터 이름으로 DB 정보를 읽을 수 있게 한다.
 
+data "aws_region" "current" {}
+
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
@@ -85,6 +87,23 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# user_data에 비밀번호를 직접 심으면 Terraform state와 EC2 user-data 메타데이터에
+# 평문으로 남는다 - Secrets Manager를 따로 만든 목적 자체가 무너진다. 그래서 인스턴스가
+# 부팅 시점에 이 권한으로 Secrets Manager에서 직접 읽어오게 한다.
+resource "aws_iam_role_policy" "read_secret" {
+  name = "read-master-secret"
+  role = aws_iam_role.ssm.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = [aws_secretsmanager_secret.master.arn]
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "this" {
   name = "book-eating-lion-${var.environment}-ec2-postgres"
   role = aws_iam_role.ssm.name
@@ -106,6 +125,9 @@ resource "aws_instance" "this" {
   # PostgreSQL 16 설치 + 마스터 계정 생성. 스키마(00-init.sql, 01~04-*.sql) 적용은
   # 이 모듈의 책임이 아니다 - db/postgres/*.sql을 psql로 실행하는 건 배포 파이프라인/
   # 애플리케이션 쪽 몫이다 (docker-compose가 로컬에서 하는 것과 같은 역할).
+  #
+  # 비밀번호는 스크립트에 직접 넣지 않는다 - 부팅 시점에 Secrets Manager에서 읽어온다
+  # (var.aws_region이 없어 aws cli의 기본 리전 탐지에 의존하지 않도록 명시적으로 넘김).
   user_data = <<-EOF
     #!/bin/bash
     set -euxo pipefail
@@ -113,8 +135,14 @@ resource "aws_instance" "this" {
     postgresql-setup --initdb
     systemctl enable --now postgresql
 
-    sudo -u postgres psql -c "ALTER USER postgres PASSWORD '${random_password.master.result}';"
-    sudo -u postgres psql -c "CREATE ROLE ${var.master_username} LOGIN SUPERUSER PASSWORD '${random_password.master.result}';"
+    DB_PASSWORD=$(aws secretsmanager get-secret-value \
+      --secret-id ${aws_secretsmanager_secret.master.arn} \
+      --region ${data.aws_region.current.name} \
+      --query SecretString --output text \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
+
+    sudo -u postgres psql -c "ALTER USER postgres PASSWORD '$DB_PASSWORD';"
+    sudo -u postgres psql -c "CREATE ROLE ${var.master_username} LOGIN SUPERUSER PASSWORD '$DB_PASSWORD';"
     sudo -u postgres createdb -O ${var.master_username} ${var.database_name}
 
     sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /var/lib/pgsql/data/postgresql.conf
