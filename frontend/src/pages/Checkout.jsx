@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Search, Wallet, CreditCard, Landmark, PawPrint } from "lucide-react";
+import { Search, Wallet, CreditCard, PawPrint } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
@@ -43,14 +43,6 @@ const PAYMENT_METHODS = [
     label: "카드 (Saja Pay)",
     description: "신용/체크카드 결제",
     icon: CreditCard,
-  },
-  {
-    // 백엔드 PaymentMethod enum에 없다 — 선택 자체를 막아둔다(disabled).
-    id: "BANK_TRANSFER",
-    label: "무통장입금",
-    description: "준비 중인 결제수단입니다",
-    icon: Landmark,
-    disabled: true,
   },
 ];
 
@@ -478,9 +470,9 @@ export default function Checkout() {
                       borderColor: isSelected ? "var(--color-honey)" : "rgba(27,59,54,0.15)",
                     }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
-                    className={`relative flex flex-col gap-2 rounded-2xl border-2 bg-white p-4 ${
-                      method.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer"
-                    } ${isSelected ? "shadow-[0_10px_24px_rgba(242,169,59,0.25)]" : "shadow-sm"}`}
+                    className={`relative flex cursor-pointer flex-col gap-2 rounded-2xl border-2 bg-white p-4 ${
+                      isSelected ? "shadow-[0_10px_24px_rgba(242,169,59,0.25)]" : "shadow-sm"
+                    }`}
                   >
                     <input
                       type="radio"
@@ -488,7 +480,6 @@ export default function Checkout() {
                       name="paymentMethod"
                       value={method.id}
                       checked={isSelected}
-                      disabled={method.disabled}
                       onChange={() => setPaymentMethod(method.id)}
                       className="sr-only"
                     />
@@ -503,11 +494,6 @@ export default function Checkout() {
                     </span>
                     <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink)]">
                       {method.label}
-                      {method.disabled && (
-                        <span className="rounded-full bg-[var(--color-forest)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--color-forest)]">
-                          준비 중
-                        </span>
-                      )}
                     </span>
                     <span className="text-sm text-[var(--color-ink)] opacity-60">
                       {method.description}
