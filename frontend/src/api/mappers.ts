@@ -100,7 +100,7 @@ export function toCard(dto: CardResponse): Card {
 export function toReview(dto: ReviewResponse): Review {
   return {
     id: String(dto.id),
-    author: `user_${dto.memberId}`, // 백엔드가 작성자 표시명을 주지 않음
+    author: dto.nickname,
     rating: dto.rating,
     date: dto.createdAt.slice(0, 10),
     text: dto.content,

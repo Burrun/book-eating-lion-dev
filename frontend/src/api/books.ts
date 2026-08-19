@@ -76,7 +76,7 @@ export async function getNewReleases(limit = 10): Promise<BookSummary[]> {
   return list.map(toBookSummary);
 }
 
-// GET /api/catalog/books/{bookId} — 도서 상세 (X-Member-Id 있으면 최근 본 상품에 기록됨)
+// GET /api/catalog/books/{bookId} — 도서 상세 (JWT가 있으면 최근 본 상품에 기록됨)
 export async function getBook(bookId: number | string): Promise<Book> {
   const dto = USE_MOCK
     ? await mockDelay(mockGetBook(bookId))
@@ -93,15 +93,20 @@ export async function getEbookAccess(bookId: number | string): Promise<EbookAcce
       );
 }
 
-// GET /api/catalog/books/{bookId}/synopsis/detail — 구독 회원 전용. 줄거리는 기본 제공되고,
-// 구독 시 줄거리 + 웹툰 요약 컷까지 함께 제공된다.
-export async function getWebtoonCuts(bookId: number | string): Promise<WebtoonCut[]> {
-  const dto = USE_MOCK
+// GET /api/catalog/books/{bookId}/synopsis/detail — 현재 구현 범위는 상세 줄거리 텍스트 조회다.
+export async function getSynopsisDetail(
+  bookId: number | string,
+): Promise<BookSynopsisDetailResponse> {
+  return USE_MOCK
     ? await mockDelay(mockGetSynopsisDetail(bookId))
     : await unwrap(
         apiClient.get<ApiResponse<BookSynopsisDetailResponse>>(
           `/catalog/books/${bookId}/synopsis/detail`,
         ),
       );
-  return toWebtoonCuts(dto);
+}
+
+// 기존 웹툰 컷 UI의 문단 변환 호환 함수. 백엔드는 현재 이미지가 아니라 줄거리 텍스트를 반환한다.
+export async function getWebtoonCuts(bookId: number | string): Promise<WebtoonCut[]> {
+  return toWebtoonCuts(await getSynopsisDetail(bookId));
 }

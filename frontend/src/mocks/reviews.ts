@@ -1,13 +1,14 @@
 // 리뷰 목업. 다른 목업과 동일하게 백엔드 DTO(ReviewResponse) 형태로 두고,
 // UI 타입 변환은 api/reviews.ts 가 매퍼(toReview)로 처리한다.
-// 작성자 표시명은 백엔드가 memberId만 주므로 매퍼가 user_{memberId} 로 만든다.
+// Cognito sub와 작성 당시 닉네임을 포함하는 실제 백엔드 응답 형식을 따른다.
 import type { Page, ReviewResponse } from "../api/types.ts";
 
 const REVIEWS: ReviewResponse[] = [
   {
     id: 1,
     bookId: 1,
-    memberId: 102,
+    memberId: "mock-user-102",
+    nickname: "책벌레102",
     rating: 5,
     content: "JPA 입문에 최고의 책입니다. 웹툰 요약 컷도 쉽게 잘 정리되어 있어서 대만족!",
     createdAt: "2026-07-29T10:12:00",
@@ -15,7 +16,8 @@ const REVIEWS: ReviewResponse[] = [
   {
     id: 2,
     bookId: 2,
-    memberId: 88,
+    memberId: "mock-user-88",
+    nickname: "독서사자88",
     rating: 4,
     content: "개발자 필독서! 명구절들 정리해두기 좋았습니다.",
     createdAt: "2026-07-25T09:40:00",
@@ -23,7 +25,8 @@ const REVIEWS: ReviewResponse[] = [
   {
     id: 3,
     bookId: 3,
-    memberId: 45,
+    memberId: "mock-user-45",
+    nickname: "페이지45",
     rating: 5,
     content: "저렴하게 잘 구해서 읽었습니다.",
     createdAt: "2026-07-18T20:05:00",

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getBook, getEbookAccess, getWebtoonCuts } from "../../api/books.ts";
-import { getReviews } from "../../api/reviews.ts";
+import { getBook, getEbookAccess, getSynopsisDetail, getWebtoonCuts } from "../../api/books.ts";
+import { createReview, getReviews } from "../../api/reviews.ts";
+import { addToWishlist, getWishlist, removeFromWishlist } from "../../api/wishlist.ts";
 import { getMySubscription } from "../../api/member.ts";
 import { addToCart } from "../../api/cart.js";
 import { useToast } from "../../components/Toast.jsx";
@@ -55,12 +56,42 @@ export default function ProductDetailPage() {
     enabled: Boolean(id),
   });
 
-  // 작성한 리뷰는 아직 서버로 보내지 않으므로 조회 결과 위에 얹어서 보여준다.
-  const [addedReviews, setAddedReviews] = useState<Review[]>([]);
+  const { data: synopsisDetail } = useQuery({
+    queryKey: ["bookSynopsisDetail", id],
+    queryFn: () => getSynopsisDetail(id!),
+    enabled: Boolean(id),
+  });
+
   const [draftRating, setDraftRating] = useState(5);
   const [draftText, setDraftText] = useState("");
   const [isEbookOpen, setIsEbookOpen] = useState(false);
   const [ebookUrl, setEbookUrl] = useState<string | null>(null);
+
+  const { data: wishlist = [] } = useQuery({
+    queryKey: ["wishlist"],
+    queryFn: getWishlist,
+  });
+  const isWishlisted = wishlist.some((item) => item.id === String(id));
+
+  const wishlistMutation = useMutation({
+    mutationFn: () => (isWishlisted ? removeFromWishlist(id!) : addToWishlist(id!)),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      toast.success(isWishlisted ? "찜 목록에서 삭제했습니다." : "찜 목록에 추가했습니다.");
+    },
+    onError: () => toast.error("찜 상태를 변경하지 못했습니다. 로그인 상태를 확인해주세요."),
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: () => createReview(id!, { rating: draftRating, content: draftText.trim() }),
+    onSuccess: async () => {
+      setDraftText("");
+      setDraftRating(5);
+      await queryClient.invalidateQueries({ queryKey: ["reviews", id] });
+      toast.success("리뷰가 등록되었습니다.");
+    },
+    onError: () => toast.error("리뷰를 등록하지 못했습니다. 구매 권한과 로그인 상태를 확인해주세요."),
+  });
 
   const ebookAccessMutation = useMutation({
     mutationFn: () => getEbookAccess(id!),
@@ -101,18 +132,7 @@ export default function ProductDetailPage() {
 
   function handleSubmitReview() {
     if (!draftText.trim()) return;
-    setAddedReviews((prev) => [
-      {
-        id: `local-${Date.now()}`,
-        author: "나",
-        rating: draftRating,
-        date: new Date().toISOString().slice(0, 10),
-        text: draftText.trim(),
-      },
-      ...prev,
-    ]);
-    setDraftText("");
-    setDraftRating(5);
+    reviewMutation.mutate();
   }
 
   if (isPending) {
@@ -139,7 +159,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  const reviews = [...addedReviews, ...(reviewPage?.items ?? [])];
+  const reviews: Review[] = reviewPage?.items ?? [];
   // 백엔드 상세 응답에 리뷰 수가 없어 매퍼가 0으로 채운다. 리뷰 목록의 totalElements 로 대체한다.
   const reviewCount = reviewPage?.totalElements ?? book.reviewCount;
 
@@ -166,8 +186,16 @@ export default function ProductDetailPage() {
             >
               {addToCartMutation.isPending ? "담는 중..." : "🛒 장바구니"}
             </button>
-            <button className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40">
-              ❤️ 찜하기
+            <button
+              onClick={() => wishlistMutation.mutate()}
+              disabled={wishlistMutation.isPending}
+              className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40 disabled:opacity-60"
+            >
+              {wishlistMutation.isPending
+                ? "처리 중..."
+                : isWishlisted
+                  ? "❤️ 찜 해제"
+                  : "♡ 찜하기"}
             </button>
             {book.ebookAvailable ? (
               <div className="flex flex-col gap-1.5">
@@ -218,7 +246,9 @@ export default function ProductDetailPage() {
         ) : (
           <>
             <h2 className="text-xl font-bold">📖 줄거리</h2>
-            <p className="text-sm leading-relaxed text-forest/80">{book.synopsis}</p>
+            <p className="text-sm leading-relaxed text-forest/80">
+              {synopsisDetail?.detailedSynopsis || book.synopsis}
+            </p>
             <div className="flex flex-col gap-3 rounded-xl border border-honey/40 bg-honey/15 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-forest">
                 🎨 구독 회원이 되면 이 책의 웹툰 요약 컷을 볼 수 있어요
@@ -257,9 +287,10 @@ export default function ProductDetailPage() {
             />
             <button
               onClick={handleSubmitReview}
+              disabled={reviewMutation.isPending}
               className="shrink-0 rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light"
             >
-              등록하기
+              {reviewMutation.isPending ? "등록 중..." : "등록하기"}
             </button>
           </div>
         </div>

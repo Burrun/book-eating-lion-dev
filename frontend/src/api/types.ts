@@ -75,7 +75,8 @@ export interface BookSynopsisDetailResponse {
 export interface ReviewResponse {
   id: number;
   bookId: number;
-  memberId: number;
+  memberId: string;
+  nickname: string;
   rating: number;
   content: string;
   createdAt: string;
@@ -84,6 +85,121 @@ export interface ReviewResponse {
 export interface ReviewRequest {
   rating: number;
   content: string;
+}
+
+export interface CategoryResponse {
+  categoryId: number;
+  categoryName: string;
+  parentId: number | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface CategoryRequest {
+  categoryName: string;
+  parentId: number | null;
+  sortOrder: number;
+}
+
+export type InquiryStatus = "WAITING" | "ANSWERED";
+
+export interface InquiryResponse {
+  inquiryId: number;
+  bookId: number;
+  memberId: string;
+  title: string;
+  content: string;
+  privateInquiry: boolean;
+  status: InquiryStatus;
+  answer: string | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
+  deleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InquiryRequest {
+  title: string;
+  content: string;
+  privateInquiry: boolean;
+}
+
+export interface InquiryAnswerRequest {
+  answer: string;
+}
+
+export interface FaqResponse {
+  faqId: number;
+  category: string;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FaqRequest {
+  category: string;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface AdminBookResponse {
+  bookId: number;
+  title: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  category: string;
+  price: number;
+  coverImageUrl: string | null;
+  description: string | null;
+  detailedSynopsis: string | null;
+  ebookAvailable: boolean;
+  epubS3Key: string | null;
+  saleStatus: SaleStatus;
+  publishedDate: string | null;
+  salesCount: number;
+  averageRating: number;
+  reviewCount: number;
+  deleted: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminBookCreateRequest {
+  title: string;
+  author: string;
+  publisher: string;
+  isbn: string;
+  category: string;
+  price: number;
+  coverImageUrl?: string | null;
+  description?: string | null;
+  detailedSynopsis?: string | null;
+  epubS3Key?: string | null;
+  saleStatus?: SaleStatus;
+  publishedDate?: string | null;
+}
+
+export type AdminBookUpdateRequest = Partial<AdminBookCreateRequest>;
+
+export type RestockAlertStatus = "WAITING" | "SENT" | "FAILED" | "CANCELLED";
+
+export interface RestockAlertResponse {
+  restockAlertId: number;
+  bookId: number;
+  title: string;
+  status: RestockAlertStatus;
+  retryCount: number;
+  requestedAt: string;
+  notifiedAt: string | null;
+  cancelledAt: string | null;
 }
 
 // GET /api/catalog/recommend/queue
