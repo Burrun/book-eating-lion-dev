@@ -88,8 +88,7 @@ class MemberControllerTest {
         when(memberService.getMyProfile(SUB)).thenReturn(memberResponse());
 
         mockMvc.perform(get("/api/members/me")
-                        .with(jwt().jwt(
-                                jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("EDITOR")))))
+                        .with(jwt().jwt(jwt -> jwt.subject(SUB).claim("cognito:groups", java.util.List.of("EDITOR")))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("USER"));
     }

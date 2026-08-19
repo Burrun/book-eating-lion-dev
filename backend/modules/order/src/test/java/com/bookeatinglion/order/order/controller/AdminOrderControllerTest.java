@@ -43,15 +43,13 @@ class AdminOrderControllerTest {
     }
 
     private AdminOrderSummaryResponse summary(Long orderId, DeliveryStatus deliveryStatus) {
-        return new AdminOrderSummaryResponse(
-                orderId, "member-sub", "홍길동", OrderStatus.PAID, deliveryStatus, 20000);
+        return new AdminOrderSummaryResponse(orderId, "member-sub", "홍길동", OrderStatus.PAID, deliveryStatus, 20000);
     }
 
     @Test
     void 관리자_주문_목록_조회는_200과_페이징된_데이터를_반환한다() throws Exception {
         when(orderService.getAdminOrders(isNull(), any()))
-                .thenReturn(new PageImpl<>(
-                        List.of(summary(1L, DeliveryStatus.SHIPPED)), PageRequest.of(0, 20), 1));
+                .thenReturn(new PageImpl<>(List.of(summary(1L, DeliveryStatus.SHIPPED)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/orders/admin").with(authenticated()))
                 .andExpect(status().isOk())
@@ -63,8 +61,7 @@ class AdminOrderControllerTest {
     @Test
     void status_파라미터로_필터링해_조회한다() throws Exception {
         when(orderService.getAdminOrders(eq(OrderStatus.PAID), any()))
-                .thenReturn(new PageImpl<>(
-                        List.of(summary(1L, DeliveryStatus.PENDING)), PageRequest.of(0, 20), 1));
+                .thenReturn(new PageImpl<>(List.of(summary(1L, DeliveryStatus.PENDING)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/orders/admin").param("status", "PAID").with(authenticated()))
                 .andExpect(status().isOk())

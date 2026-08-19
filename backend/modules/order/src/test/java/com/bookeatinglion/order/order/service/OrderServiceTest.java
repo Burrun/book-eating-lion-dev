@@ -620,7 +620,8 @@ class OrderServiceTest {
         Order paidOrder = order(1L, MEMBER_ID, 10000);
         Order pendingOrder = order(2L, OTHER_MEMBER_ID, 20000);
         Pageable pageable = PageRequest.of(0, 20);
-        when(orderRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(paidOrder, pendingOrder), pageable, 2));
+        when(orderRepository.findAll(pageable))
+                .thenReturn(new PageImpl<>(List.of(paidOrder, pendingOrder), pageable, 2));
         Delivery delivery = Delivery.builder()
                 .orderId(1L)
                 .deliveryStatus(DeliveryStatus.SHIPPED)
