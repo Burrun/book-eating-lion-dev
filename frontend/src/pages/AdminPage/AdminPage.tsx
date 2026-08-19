@@ -12,6 +12,12 @@ const SECTIONS = [
   { to: "/admin/reviews", emoji: "⭐", title: "리뷰 조회", desc: "도서별 리뷰 열람" },
   { to: "/admin/coupons", emoji: "🎟️", title: "쿠폰 정책 관리", desc: "쿠폰 등록/조회/수정" },
   { to: "/admin/orders", emoji: "📦", title: "주문/배송 관리", desc: "전체 주문 조회 및 배송 상태 변경" },
+  {
+    to: "/admin/subscription-banners",
+    emoji: "📣",
+    title: "정기구독 배너 관리",
+    desc: "홈 화면 홍보 배너 등록/수정/비활성화",
+  },
 ];
 
 export default function AdminPage() {

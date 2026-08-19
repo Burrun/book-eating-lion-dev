@@ -642,6 +642,71 @@ export interface paths {
         patch: operations["updateFaq"];
         trace?: never;
     };
+    "/api/catalog/subscription-banners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 홈 화면용 노출 중인 정기구독 배너 목록
+         * @description active=true 이면서 현재 시각이 startAt~endAt 안에 든 배너만, sortOrder 순으로 반환한다.
+         */
+        get: operations["getSubscriptionBanners"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/admin/subscription-banners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자용 전체 정기구독 배너 목록
+         * @description 기간이 지났거나 비활성인 것도 포함해 sortOrder 순으로 전부 반환한다.
+         */
+        get: operations["getAdminSubscriptionBanners"];
+        put?: never;
+        /** 정기구독 배너 등록 */
+        post: operations["createSubscriptionBanner"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/admin/subscription-banners/{bannerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bannerId: number;
+            };
+            cookie?: never;
+        };
+        /** 정기구독 배너 상세 조회 */
+        get: operations["getAdminSubscriptionBanner"];
+        put?: never;
+        post?: never;
+        /**
+         * 정기구독 배너 비활성화
+         * @description 하드 삭제가 아니라 active=false 로 바꾼다(Category/Faq와 동일한 소프트 삭제 규칙).
+         */
+        delete: operations["deleteSubscriptionBanner"];
+        options?: never;
+        head?: never;
+        /** 정기구독 배너 수정 */
+        patch: operations["updateSubscriptionBanner"];
+        trace?: never;
+    };
     "/api/catalog/recommend/queue": {
         parameters: {
             query?: never;
@@ -821,6 +886,43 @@ export interface components {
         FaqListEnvelope: {
             success?: boolean;
             data?: components["schemas"]["FaqResponse"][];
+        };
+        SubscriptionBannerWriteRequest: {
+            imageUrl: string;
+            title: string;
+            /** @description 배너 클릭 시 이동할 경로. 없으면 클릭해도 아무 데도 안 간다. */
+            linkUrl?: string | null;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            sortOrder: number;
+            active: boolean;
+        };
+        SubscriptionBannerResponse: {
+            /** Format: int64 */
+            bannerId: number;
+            imageUrl: string;
+            title: string;
+            linkUrl?: string | null;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            sortOrder: number;
+            active: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SubscriptionBannerEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["SubscriptionBannerResponse"];
+        };
+        SubscriptionBannerListEnvelope: {
+            success?: boolean;
+            data?: components["schemas"]["SubscriptionBannerResponse"][];
         };
         ReviewRequest: {
             rating: number;
@@ -2087,6 +2189,159 @@ export interface operations {
                 };
             };
             /** @description FAQ 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSubscriptionBanners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionBannerListEnvelope"];
+                };
+            };
+        };
+    };
+    getAdminSubscriptionBanners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionBannerListEnvelope"];
+                };
+            };
+        };
+    };
+    createSubscriptionBanner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionBannerWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description 등록 완료 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionBannerEnvelope"];
+                };
+            };
+        };
+    };
+    getAdminSubscriptionBanner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bannerId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionBannerEnvelope"];
+                };
+            };
+            /** @description 배너 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteSubscriptionBanner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bannerId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 비활성화 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 배너 없음 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateSubscriptionBanner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bannerId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionBannerWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description 수정 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionBannerEnvelope"];
+                };
+            };
+            /** @description 배너 없음 */
             404: {
                 headers: {
                     [name: string]: unknown;

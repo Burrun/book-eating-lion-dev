@@ -30,6 +30,7 @@ import AdminInquiriesPage from "./pages/AdminPage/AdminInquiriesPage.tsx";
 import AdminReviewsPage from "./pages/AdminPage/AdminReviewsPage.tsx";
 import AdminCouponsPage from "./pages/AdminPage/AdminCouponsPage.tsx";
 import AdminOrdersPage from "./pages/AdminPage/AdminOrdersPage.tsx";
+import AdminSubscriptionBannersPage from "./pages/AdminPage/AdminSubscriptionBannersPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -189,6 +190,14 @@ export default function App() {
                   element={
                     <AdminRoute>
                       <AdminOrdersPage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/subscription-banners"
+                  element={
+                    <AdminRoute>
+                      <AdminSubscriptionBannersPage />
                     </AdminRoute>
                   }
                 />

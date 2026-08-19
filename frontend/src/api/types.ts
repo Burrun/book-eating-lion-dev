@@ -78,6 +78,10 @@ export type CategoryUpdateRequest = Catalog["CategoryUpdateRequest"];
 export type FaqResponse = Catalog["FaqResponse"];
 export type FaqWriteRequest = Catalog["FaqWriteRequest"];
 
+// --- 정기구독 배너 (관리자) ---
+export type SubscriptionBannerResponse = Catalog["SubscriptionBannerResponse"];
+export type SubscriptionBannerWriteRequest = Catalog["SubscriptionBannerWriteRequest"];
+
 // --- 상품문의 (Inquiry, 관리자) ---
 export type InquiryResponse = Catalog["InquiryResponse"];
 export type InquiryAnswerRequest = Catalog["InquiryAnswerRequest"];
