@@ -285,7 +285,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 내 주문 목록 조회 (페이징)
+         * @description 품목/결제 상세는 내려주지 않는다 — 상세는 GET /api/orders/{orderId}에서 조회한다.
+         */
+        get: operations["getOrders"];
         put?: never;
         /**
          * 주문 생성 (CARD 는 결제 승인까지, KAKAOPAY 는 결제 준비까지)
@@ -655,6 +659,20 @@ export interface components {
             orderId: number;
             /** @description 카카오페이 리다이렉트 콜백에서 받은 pg_token. */
             pgToken: string;
+        };
+        OrderSummaryResponse: {
+            /** Format: int64 */
+            orderId: number;
+            /** @enum {string} */
+            orderStatus: "PENDING_PAYMENT" | "PAID" | "CANCELLED" | "RETURN_REQUESTED" | "REFUNDED";
+            totalAmount: number;
+        };
+        OrderSummaryPageEnvelope: {
+            success?: boolean;
+            data?: {
+                content?: components["schemas"]["OrderSummaryResponse"][];
+                totalElements?: number;
+            };
         };
         AdminOrderSummaryResponse: {
             /** Format: int64 */
@@ -1252,6 +1270,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    getOrders: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSummaryPageEnvelope"];
+                };
             };
         };
     };

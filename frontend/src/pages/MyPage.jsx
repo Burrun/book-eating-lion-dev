@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
@@ -14,13 +14,19 @@ import {
   feedLion,
   fetchReadingNotes,
   askLion,
-  fetchOrders,
   fetchCoupons,
   fetchReturnRequests,
   fetchRestockRequests,
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
+import {
+  cancelOrder,
+  getMyOrders,
+  getOrder,
+  getOrderDelivery,
+  requestOrderReturn,
+} from "../api/orders.js";
 // badges/streakCount는 member(GET /api/members/me)도 ai(GET /api/ai/lion/me)도 갖고 있지
 // 않다 — 대응 API가 아직 없는 mock 전용 데이터라(mocks/mypage.js 참고) api 레이어를 거치지
 // 않고 여기서 직접 가져와 mock 모드일 때만 profile에 붙인다.
@@ -43,16 +49,28 @@ const ORDER_TABS = [
   { id: "addresses", label: "배송지 관리" },
 ];
 
+// orderStatus(결제/주문 생명주기)와 deliveryStatus(배송 진행)는 별개 리소스다 — 백엔드가
+// Order/Delivery 두 엔티티로 분리해뒀다. 주문 목록(GET /api/orders)엔 orderStatus만 오고,
+// deliveryStatus는 "배송조회" 클릭 시 그 주문 하나만 따로 조회한다(N+1 방지).
 const ORDER_STATUS_META = {
-  shipping: { label: "배송중", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
-  delivered: {
-    label: "배송완료",
+  PENDING_PAYMENT: {
+    label: "결제 대기",
     className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]",
   },
-  canceled: {
-    label: "주문취소",
+  PAID: { label: "결제 완료", className: "bg-[var(--color-honey)]/20 text-[var(--color-forest)]" },
+  CANCELLED: { label: "주문취소", className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]" },
+  RETURN_REQUESTED: {
+    label: "반품/교환 접수됨",
     className: "bg-[var(--color-coral)]/10 text-[var(--color-coral)]",
   },
+  REFUNDED: { label: "환불 완료", className: "bg-[var(--color-forest)]/10 text-[var(--color-forest)]" },
+};
+
+const DELIVERY_STATUS_LABEL = {
+  PENDING: "배송 대기",
+  SHIPPED: "배송 시작",
+  IN_TRANSIT: "배송 중",
+  DELIVERED: "배송 완료",
 };
 
 const RETURN_STATUS_META = {
@@ -713,79 +731,342 @@ function TabSkeleton() {
   );
 }
 
+// 배송 레코드는 결제가 확정된 시점에만 생성된다(OrderService.createDelivery) — 결제 대기
+// 중인 주문은 배송조회 자체가 불가능하다. 취소/반품은 백엔드가 PAID 상태에서만 허용한다
+// (Order.cancel/requestReturn). 이 조건 외에 배송 진행 정도로 취소·반품 버튼을 더 나누지
+// 않는다 — 백엔드가 실제로 검증하지 않는 규칙을 프론트가 임의로 만드는 셈이라서다.
+function canViewDelivery(orderStatus) {
+  return orderStatus !== "PENDING_PAYMENT";
+}
+function canCancelOrReturn(orderStatus) {
+  return orderStatus === "PAID";
+}
+
+const ORDERS_PAGE_SIZE = 20;
+
 function OrdersTab() {
-  const [orders, setOrders] = useState(null);
+  const toast = useToast();
+  const [page, setPage] = useState(0);
+  const [orderPage, setOrderPage] = useState(null);
+  const [isError, setIsError] = useState(false);
+  const [busyOrderId, setBusyOrderId] = useState(null);
+  // 취소/반품 성공 후 목록을 다시 부르기 위한 트리거. page가 그대로여도 useEffect가
+  // 다시 돌아야 하므로 page와 별개의 의존성으로 둔다.
+  const [reloadTick, setReloadTick] = useState(0);
+
+  const [detailOrder, setDetailOrder] = useState(null);
+  const [deliveryModal, setDeliveryModal] = useState(null); // { orderId, delivery: null | data }
+  const [cancelTarget, setCancelTarget] = useState(null); // orderId
+  const [returnTarget, setReturnTarget] = useState(null); // orderId
+  const [returnReason, setReturnReason] = useState("");
+
+  const loadOrders = useCallback(() => setReloadTick((t) => t + 1), []);
 
   useEffect(() => {
-    if (!USE_MOCK) return;
     let ignore = false;
-    fetchOrders().then((data) => {
-      if (!ignore) setOrders(data);
-    });
+    getMyOrders({ page, size: ORDERS_PAGE_SIZE })
+      .then((data) => {
+        if (!ignore) setOrderPage(data);
+      })
+      .catch(() => {
+        if (!ignore) setIsError(true);
+      });
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [page, reloadTick]);
 
-  if (!USE_MOCK) return <EmptyState message="주문/배송 조회 기능은 준비 중이에요" />;
-  if (!orders) return <TabSkeleton />;
+  const openDetail = (orderId) => {
+    getOrder(orderId)
+      .then(setDetailOrder)
+      .catch(() => toast.error("주문 상세를 불러오지 못했어요."));
+  };
+
+  const openDelivery = (orderId) => {
+    setDeliveryModal({ orderId, delivery: null });
+    getOrderDelivery(orderId)
+      .then((delivery) => setDeliveryModal({ orderId, delivery }))
+      .catch(() => {
+        toast.error("배송 정보를 불러오지 못했어요.");
+        setDeliveryModal(null);
+      });
+  };
+
+  const handleCancel = () => {
+    const orderId = cancelTarget;
+    setBusyOrderId(orderId);
+    cancelOrder(orderId)
+      .then(() => {
+        toast.success("주문을 취소했어요.");
+        setCancelTarget(null);
+        loadOrders();
+      })
+      .catch(() => toast.error("주문 취소에 실패했어요."))
+      .finally(() => setBusyOrderId(null));
+  };
+
+  const handleReturn = () => {
+    if (!returnReason.trim()) {
+      toast.error("반품/교환 사유를 입력해주세요.");
+      return;
+    }
+    const orderId = returnTarget;
+    setBusyOrderId(orderId);
+    requestOrderReturn(orderId, returnReason.trim())
+      .then(() => {
+        toast.success("반품/교환을 접수했어요.");
+        setReturnTarget(null);
+        setReturnReason("");
+        loadOrders();
+      })
+      .catch(() => toast.error("반품/교환 신청에 실패했어요."))
+      .finally(() => setBusyOrderId(null));
+  };
+
+  if (!orderPage && !isError) return <TabSkeleton />;
+  if (isError) {
+    return (
+      <p className="py-10 text-center text-sm text-[var(--color-coral)]">
+        주문 목록을 불러오지 못했어요.
+      </p>
+    );
+  }
+  if (!orderPage || orderPage.content.length === 0) {
+    return <EmptyState message="주문 내역이 없어요" />;
+  }
 
   return (
     <div className="flex flex-col gap-3">
-      {orders.map((order) => {
-        const meta = ORDER_STATUS_META[order.status];
+      {orderPage.content.map((order) => {
+        const meta = ORDER_STATUS_META[order.orderStatus];
+        const isBusy = busyOrderId === order.orderId;
         return (
           <div
-            key={order.id}
+            key={order.orderId}
             className="flex flex-col gap-3 rounded-xl border border-[var(--color-forest)]/10 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="text-sm text-[var(--color-ink)] opacity-50">
-                {order.orderNo} · {order.date}
-              </p>
-              <p className="mt-0.5 text-sm font-medium text-[var(--color-ink)]">{order.title}</p>
+              <p className="text-sm text-[var(--color-ink)] opacity-50">주문 #{order.orderId}</p>
               <p className="font-display mt-1 text-base text-[var(--color-ink)]">
-                {order.price.toLocaleString()}원
+                {order.totalAmount.toLocaleString()}원
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}>
                 {meta.label}
               </span>
-              {order.status === "shipping" && (
+              {canViewDelivery(order.orderStatus) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  shimmer={false}
+                  onClick={() => openDelivery(order.orderId)}
+                >
+                  배송조회
+                </Button>
+              )}
+              {canCancelOrReturn(order.orderStatus) && (
                 <>
-                  <Button variant="secondary" size="sm" shimmer={false}>
-                    배송조회
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    shimmer={false}
+                    disabled={isBusy}
+                    className="text-[var(--color-coral)]"
+                    onClick={() => setCancelTarget(order.orderId)}
+                  >
+                    취소
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     shimmer={false}
-                    className="text-[var(--color-coral)]"
+                    disabled={isBusy}
+                    onClick={() => setReturnTarget(order.orderId)}
                   >
-                    취소/반품
+                    반품/교환 신청
                   </Button>
                 </>
               )}
-              {order.status === "delivered" && (
-                <>
-                  <Button variant="primary" size="sm" shimmer={false}>
-                    구매확정
-                  </Button>
-                  <Button variant="secondary" size="sm" shimmer={false}>
-                    리뷰작성
-                  </Button>
-                </>
-              )}
-              {order.status === "canceled" && (
-                <Button variant="ghost" size="sm" shimmer={false}>
-                  상세보기
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                shimmer={false}
+                onClick={() => openDetail(order.orderId)}
+              >
+                상세보기
+              </Button>
             </div>
           </div>
         );
       })}
+
+      {orderPage.totalPages > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            shimmer={false}
+            disabled={orderPage.first}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            이전
+          </Button>
+          <span className="text-sm text-[var(--color-ink)] opacity-70">
+            {orderPage.number + 1} / {orderPage.totalPages}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            shimmer={false}
+            disabled={orderPage.last}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            다음
+          </Button>
+        </div>
+      )}
+
+      <Modal
+        isOpen={!!detailOrder}
+        onClose={() => setDetailOrder(null)}
+        title={detailOrder ? `주문 #${detailOrder.orderId} 상세` : "주문 상세"}
+        footer={
+          <Button variant="ghost" onClick={() => setDetailOrder(null)}>
+            닫기
+          </Button>
+        }
+      >
+        {detailOrder && (
+          <div className="flex flex-col gap-4 text-sm">
+            <div>
+              <p className="mb-1.5 font-medium text-[var(--color-ink)] opacity-80">주문 품목</p>
+              <ul className="flex flex-col gap-1.5">
+                {detailOrder.items.map((item) => (
+                  <li
+                    key={item.orderItemId}
+                    className="flex items-center justify-between rounded-lg bg-[var(--color-forest)]/5 px-3 py-2"
+                  >
+                    <span className="text-[var(--color-ink)]">
+                      {item.bookTitle} × {item.quantity}
+                    </span>
+                    <span className="text-[var(--color-ink)] opacity-70">
+                      {(item.unitPrice * item.quantity).toLocaleString()}원
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">받는 분</p>
+              <p className="text-[var(--color-ink)] opacity-70">
+                {detailOrder.recipient?.name} · {detailOrder.recipient?.phone}
+                <br />
+                {detailOrder.recipient?.address}
+              </p>
+            </div>
+            {detailOrder.payment && (
+              <div>
+                <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">결제</p>
+                <p className="text-[var(--color-ink)] opacity-70">
+                  {detailOrder.payment.paymentMethod} · {detailOrder.payment.amount.toLocaleString()}원
+                </p>
+              </div>
+            )}
+            {detailOrder.returnReason && (
+              <div>
+                <p className="mb-1 font-medium text-[var(--color-ink)] opacity-80">반품/교환 사유</p>
+                <p className="text-[var(--color-ink)] opacity-70">{detailOrder.returnReason}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!deliveryModal}
+        onClose={() => setDeliveryModal(null)}
+        title="배송 조회"
+        footer={
+          <Button variant="ghost" onClick={() => setDeliveryModal(null)}>
+            닫기
+          </Button>
+        }
+      >
+        {!deliveryModal?.delivery ? (
+          <TabSkeleton />
+        ) : (
+          <div className="flex flex-col gap-2 text-sm text-[var(--color-ink)]">
+            <p>
+              <span className="opacity-60">배송 상태 </span>
+              <span className="font-medium">
+                {DELIVERY_STATUS_LABEL[deliveryModal.delivery.deliveryStatus]}
+              </span>
+            </p>
+            <p className="opacity-70">
+              택배사: {deliveryModal.delivery.courierCompany ?? "미배정"}
+              <br />
+              운송장번호: {deliveryModal.delivery.trackingNumber ?? "미배정"}
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        title="주문을 취소할까요?"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCancelTarget(null)}>
+              닫기
+            </Button>
+            <Button variant="coral" onClick={handleCancel} disabled={busyOrderId === cancelTarget}>
+              주문 취소
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--color-ink)] opacity-80">
+          주문 #{cancelTarget}을(를) 취소하면 되돌릴 수 없어요.
+        </p>
+      </Modal>
+
+      <Modal
+        isOpen={!!returnTarget}
+        onClose={() => {
+          setReturnTarget(null);
+          setReturnReason("");
+        }}
+        title="반품/교환 신청"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setReturnTarget(null);
+                setReturnReason("");
+              }}
+            >
+              닫기
+            </Button>
+            <Button variant="primary" onClick={handleReturn} disabled={busyOrderId === returnTarget}>
+              신청
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-[var(--color-ink)] opacity-80">주문 #{returnTarget}</p>
+          <textarea
+            value={returnReason}
+            onChange={(e) => setReturnReason(e.target.value)}
+            rows={3}
+            placeholder="반품/교환 사유를 입력해주세요"
+            className="w-full resize-none rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

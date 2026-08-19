@@ -121,6 +121,8 @@ export type OrderItemRequest = Order["OrderItemRequest"];
 export type OrderRecipient = Order["Recipient"];
 export type CreateOrderRequest = Order["CreateOrderRequest"];
 export type OrderResponse = Order["OrderResponse"];
+export type OrderSummaryResponse = Order["OrderSummaryResponse"];
+export type RequestReturnRequest = Order["RequestReturnRequest"];
 export type PaymentMethod = NonNullable<Order["CreateOrderRequest"]["paymentMethod"]>;
 export type OrderStatus = NonNullable<Order["OrderResponse"]["orderStatus"]>;
 
