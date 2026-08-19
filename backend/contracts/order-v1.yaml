@@ -385,6 +385,71 @@ paths:
         "404":
           description: 존재하지 않는 쿠폰
 
+  /api/orders/admin:
+    get:
+      summary: 관리자용 전체 주문 목록 조회
+      description: |
+        상태 필터 없이 호출하면 전체 주문을 id 내림차순으로 페이징 조회한다. 배송 레코드는
+        결제 확정 시점에만 생성되므로, PENDING_PAYMENT 상태인 주문은 deliveryStatus 가 null 이다.
+      operationId: getAdminOrders
+      tags: [admin-order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING_PAYMENT, PAID, CANCELLED, RETURN_REQUESTED, REFUNDED]
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOrderSummaryPageEnvelope"
+
+  /api/orders/admin/{orderId}/delivery-status:
+    patch:
+      summary: 배송 상태 변경 (관리자)
+      description: |
+        PENDING→SHIPPED→IN_TRANSIT→DELIVERED 순서로 한 단계씩만 전이한다 — 건너뛰기/역행은
+        409. 소유권 검증 없이 hasRole("ADMIN") 만으로 인가한다(고객용 PATCH
+        /api/orders/{orderId}/delivery/status 와 달리 요청자가 주문 당사자일 필요가 없다).
+      operationId: updateDeliveryStatusAsAdmin
+      tags: [admin-order]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeliveryStatusRequest"
+      responses:
+        "200":
+          description: 변경 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryEnvelope"
+        "404":
+          description: 배송 레코드가 없음(주문이 없거나 아직 결제 확정 전)
+        "409":
+          description: 잘못된 상태 전이(건너뛰기/역행)
+
   /api/orders:
     post:
       summary: 주문 생성 (CARD 는 결제 승인까지, KAKAOPAY 는 결제 준비까지)
@@ -662,13 +727,24 @@ components:
           example: "123456789"
         deliveryStatus:
           type: string
-          enum: [READY, SHIPPED, IN_TRANSIT, DELIVERED]
+          # 🔴 구현(DeliveryStatus)과 맞춰야 한다. READY 로 적혀 있던 건 오기였다 — 배송이
+          # 생성되는 최초 상태는 PENDING 이고, 결제 확정 시점(재고 차감과 같은 자리)에만
+          # 생성된다. PENDING_PAYMENT 주문은 아직 배송 레코드 자체가 없다.
+          enum: [PENDING, SHIPPED, IN_TRANSIT, DELIVERED]
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+
+    UpdateDeliveryStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [PENDING, SHIPPED, IN_TRANSIT, DELIVERED]
 
     AddCartItemRequest:
       type: object
@@ -1019,6 +1095,44 @@ components:
         pgToken:
           type: string
           description: 카카오페이 리다이렉트 콜백에서 받은 pg_token.
+
+    AdminOrderSummaryResponse:
+      type: object
+      required: [orderId, memberId, recipientName, orderStatus, totalAmount]
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        memberId:
+          type: string
+        recipientName:
+          type: string
+          example: 홍길동
+        orderStatus:
+          type: string
+          enum: [PENDING_PAYMENT, PAID, CANCELLED, RETURN_REQUESTED, REFUNDED]
+        deliveryStatus:
+          type: string
+          enum: [PENDING, SHIPPED, IN_TRANSIT, DELIVERED]
+          nullable: true
+          description: 결제가 아직 확정되지 않은 주문(PENDING_PAYMENT)은 배송 레코드가 없어 null.
+        totalAmount:
+          type: integer
+
+    AdminOrderSummaryPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminOrderSummaryResponse"
+            totalElements:
+              type: integer
 
     RequestReturnRequest:
       type: object

@@ -235,6 +235,49 @@ export interface paths {
         patch: operations["updateCoupon"];
         trace?: never;
     };
+    "/api/orders/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 관리자용 전체 주문 목록 조회
+         * @description 상태 필터 없이 호출하면 전체 주문을 id 내림차순으로 페이징 조회한다. 배송 레코드는
+         *     결제 확정 시점에만 생성되므로, PENDING_PAYMENT 상태인 주문은 deliveryStatus 가 null 이다.
+         */
+        get: operations["getAdminOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/admin/{orderId}/delivery-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 배송 상태 변경 (관리자)
+         * @description PENDING→SHIPPED→IN_TRANSIT→DELIVERED 순서로 한 단계씩만 전이한다 — 건너뛰기/역행은
+         *     409. 소유권 검증 없이 hasRole("ADMIN") 만으로 인가한다(고객용 PATCH
+         *     /api/orders/{orderId}/delivery/status 와 달리 요청자가 주문 당사자일 필요가 없다).
+         */
+        patch: operations["updateDeliveryStatusAsAdmin"];
+        trace?: never;
+    };
     "/api/orders": {
         parameters: {
             query?: never;
@@ -414,11 +457,15 @@ export interface components {
             /** @example 123456789 */
             trackingNumber?: string;
             /** @enum {string} */
-            deliveryStatus?: "READY" | "SHIPPED" | "IN_TRANSIT" | "DELIVERED";
+            deliveryStatus?: "PENDING" | "SHIPPED" | "IN_TRANSIT" | "DELIVERED";
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        UpdateDeliveryStatusRequest: {
+            /** @enum {string} */
+            status: "PENDING" | "SHIPPED" | "IN_TRANSIT" | "DELIVERED";
         };
         AddCartItemRequest: {
             /** Format: int64 */
@@ -608,6 +655,28 @@ export interface components {
             orderId: number;
             /** @description 카카오페이 리다이렉트 콜백에서 받은 pg_token. */
             pgToken: string;
+        };
+        AdminOrderSummaryResponse: {
+            /** Format: int64 */
+            orderId: number;
+            memberId: string;
+            /** @example 홍길동 */
+            recipientName: string;
+            /** @enum {string} */
+            orderStatus: "PENDING_PAYMENT" | "PAID" | "CANCELLED" | "RETURN_REQUESTED" | "REFUNDED";
+            /**
+             * @description 결제가 아직 확정되지 않은 주문(PENDING_PAYMENT)은 배송 레코드가 없어 null.
+             * @enum {string|null}
+             */
+            deliveryStatus?: "PENDING" | "SHIPPED" | "IN_TRANSIT" | "DELIVERED" | null;
+            totalAmount: number;
+        };
+        AdminOrderSummaryPageEnvelope: {
+            success?: boolean;
+            data?: {
+                content?: components["schemas"]["AdminOrderSummaryResponse"][];
+                totalElements?: number;
+            };
         };
         RequestReturnRequest: {
             /** @example 단순 변심 */
@@ -1115,6 +1184,70 @@ export interface operations {
             };
             /** @description 존재하지 않는 쿠폰 */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getAdminOrders: {
+        parameters: {
+            query?: {
+                status?: "PENDING_PAYMENT" | "PAID" | "CANCELLED" | "RETURN_REQUESTED" | "REFUNDED";
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 조회 성공 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderSummaryPageEnvelope"];
+                };
+            };
+        };
+    };
+    updateDeliveryStatusAsAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeliveryStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description 변경 완료 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryEnvelope"];
+                };
+            };
+            /** @description 배송 레코드가 없음(주문이 없거나 아직 결제 확정 전) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 잘못된 상태 전이(건너뛰기/역행) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

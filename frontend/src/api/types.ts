@@ -123,3 +123,11 @@ export type CreateOrderRequest = Order["CreateOrderRequest"];
 export type OrderResponse = Order["OrderResponse"];
 export type PaymentMethod = NonNullable<Order["CreateOrderRequest"]["paymentMethod"]>;
 export type OrderStatus = NonNullable<Order["OrderResponse"]["orderStatus"]>;
+
+// --- 배송 (Delivery) ---
+export type DeliveryResponse = Order["DeliveryResponse"];
+export type UpdateDeliveryStatusRequest = Order["UpdateDeliveryStatusRequest"];
+export type DeliveryStatus = NonNullable<Order["DeliveryResponse"]["deliveryStatus"]>;
+
+// --- 주문/배송 (관리자) ---
+export type AdminOrderSummaryResponse = Order["AdminOrderSummaryResponse"];

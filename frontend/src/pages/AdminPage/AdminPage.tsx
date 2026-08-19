@@ -11,6 +11,7 @@ const SECTIONS = [
   { to: "/admin/inquiries", emoji: "✉️", title: "상품문의 관리", desc: "회원 문의 조회 및 답변" },
   { to: "/admin/reviews", emoji: "⭐", title: "리뷰 조회", desc: "도서별 리뷰 열람" },
   { to: "/admin/coupons", emoji: "🎟️", title: "쿠폰 정책 관리", desc: "쿠폰 등록/조회/수정" },
+  { to: "/admin/orders", emoji: "📦", title: "주문/배송 관리", desc: "전체 주문 조회 및 배송 상태 변경" },
 ];
 
 export default function AdminPage() {

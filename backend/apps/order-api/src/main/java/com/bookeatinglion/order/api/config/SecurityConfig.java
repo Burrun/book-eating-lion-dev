@@ -37,6 +37,10 @@ public class SecurityConfig {
                         // 바뀌면 넓은 규칙이 먼저 걸려 일반 회원도 admin 쿠폰 API를 호출할 수 있다.
                         .requestMatchers("/api/coupons/admin/**")
                         .hasRole("ADMIN")
+                        // /api/orders/admin/** → authenticated() 보다 먼저 매칭돼야 한다 — 위 coupon
+                        // 규칙과 같은 이유다 (넓은 규칙이 먼저 걸리면 일반 회원도 호출할 수 있다).
+                        .requestMatchers("/api/orders/admin/**")
+                        .hasRole("ADMIN")
                         .requestMatchers("/api/orders/**")
                         .authenticated()
                         .requestMatchers("/api/cart/**")

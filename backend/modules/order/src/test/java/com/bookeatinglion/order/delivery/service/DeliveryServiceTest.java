@@ -137,4 +137,32 @@ class DeliveryServiceTest {
         assertThatThrownBy(() -> deliveryService.updateDeliveryStatus(MEMBER_ID, 100L, DeliveryStatus.PENDING))
                 .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
     }
+
+    // ---------------------------------------------------------------- updateDeliveryStatusAsAdmin
+
+    @Test
+    void 관리자는_소유권_검증_없이_배송_상태를_변경한다() {
+        Delivery delivery = Delivery.builder().orderId(100L).build(); // PENDING
+        when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.of(delivery));
+
+        DeliveryResponse response = deliveryService.updateDeliveryStatusAsAdmin(100L, DeliveryStatus.SHIPPED);
+
+        assertThat(response.deliveryStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+    }
+
+    @Test
+    void 관리자_변경도_존재하지_않는_배송이면_예외를_던진다() {
+        when(deliveryRepository.findByOrderId(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> deliveryService.updateDeliveryStatusAsAdmin(999L, DeliveryStatus.SHIPPED))
+                .isInstanceOf(DeliveryNotFoundException.class);
+    }
+
+    @Test
+    void 관리자_변경도_잘못된_상태_전이는_예외를_던진다() {
+        when(deliveryRepository.findByOrderId(100L)).thenReturn(Optional.of(delivery(100L))); // IN_TRANSIT
+
+        assertThatThrownBy(() -> deliveryService.updateDeliveryStatusAsAdmin(100L, DeliveryStatus.PENDING))
+                .isInstanceOf(InvalidDeliveryStatusTransitionException.class);
+    }
 }
