@@ -74,10 +74,20 @@ export default function ProductDetailPage() {
   const isWishlisted = wishlist.some((item) => item.id === String(id));
 
   const wishlistMutation = useMutation({
-    mutationFn: () => (isWishlisted ? removeFromWishlist(id!) : addToWishlist(id!)),
-    onSuccess: async () => {
+    mutationFn: ({
+      bookId,
+      currentlyWishlisted,
+    }: {
+      bookId: string;
+      currentlyWishlisted: boolean;
+    }) => (currentlyWishlisted ? removeFromWishlist(bookId) : addToWishlist(bookId)),
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["wishlist"] });
-      toast.success(isWishlisted ? "찜 목록에서 삭제했습니다." : "찜 목록에 추가했습니다.");
+      toast.success(
+        variables.currentlyWishlisted
+          ? "찜 목록에서 삭제했습니다."
+          : "찜 목록에 추가했습니다.",
+      );
     },
     onError: () => toast.error("찜 상태를 변경하지 못했습니다. 로그인 상태를 확인해주세요."),
   });
@@ -187,7 +197,12 @@ export default function ProductDetailPage() {
               {addToCartMutation.isPending ? "담는 중..." : "🛒 장바구니"}
             </button>
             <button
-              onClick={() => wishlistMutation.mutate()}
+              onClick={() =>
+                wishlistMutation.mutate({
+                  bookId: String(id!),
+                  currentlyWishlisted: isWishlisted,
+                })
+              }
               disabled={wishlistMutation.isPending}
               className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40 disabled:opacity-60"
             >
