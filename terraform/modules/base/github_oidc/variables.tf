@@ -4,9 +4,9 @@ variable "environment" {
 }
 
 variable "create_oidc_provider" {
-  description = "GitHub OIDC Provider(계정당 유일)를 이 호출에서 만들지 여부. dev/prod 중 하나만 true로 둘 것"
+  description = "GitHub OIDC Provider(계정당 유일)를 이 호출에서 만들지 여부. 이 계정은 여러 팀이 공유하고 있고 이미 (이 프로젝트와 무관한) Provider가 그 URL에 존재해서(2026-08-20 확인) dev/prod 둘 다 false로 두고 기존 걸 조회만 한다 - true로 두면 IAM EntityAlreadyExists로 apply가 실패한다. 이 계정을 벗어나 완전히 새 계정에서 쓸 때만 한쪽을 true로"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "github_org" {
