@@ -166,8 +166,12 @@ resource "helm_release" "ingress_nginx" {
   }
 
   set {
-    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
-    value = join(",", var.public_subnet_ids)
+    name = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
+    # Helm의 set 문법은 콤마를 "여러 key=value 쌍의 구분자"로 해석해서, 값
+    # 안의 콤마(서브넷 ID 나열)를 그냥 join(",", ...)하면 두 번째 서브넷부터
+    # "값 없는 키"로 잘못 파싱돼 apply가 실패한다(2026-08-20 실제로 겪음).
+    # \,로 이스케이프해야 Helm이 값 전체를 하나로 본다.
+    value = join("\\,", var.public_subnet_ids)
   }
 
   set {
