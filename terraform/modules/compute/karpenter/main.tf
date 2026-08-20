@@ -250,6 +250,16 @@ resource "kubernetes_manifest" "ec2_node_class" {
     }
     spec = {
       amiFamily = "AL2023"
+      # karpenter.k8s.aws/v1(GA) API부터는 amiSelectorTerms가 필수다 - 예전
+      # v1beta1처럼 amiFamily만 있으면 자동 선택되던 게 아니라서 이게 없으면
+      # "spec.amiSelectorTerms: Required value"로 EC2NodeClass 생성 자체가
+      # 거부된다(2026-08-20 실제로 겪음). alias로 최신 AL2023 AMI를 씀 - CRD
+      # 설명에 "latest는 새 AMI 나올 때마다 drift 발생, 운영엔 비권장"이라고
+      # 적혀있어서, prod에서 안정적으로 고정하고 싶으면 나중에
+      # "al2023@v20240625" 같은 특정 버전으로 바꿀 것.
+      amiSelectorTerms = [
+        { alias = "al2023@latest" }
+      ]
       # role(인스턴스 프로파일 이름이 아니라 IAM Role 이름)을 쓰면 Karpenter 컨트롤러가
       # 인스턴스 프로파일을 자기가 직접 만들고 관리한다 - 그래서 controller 정책에
       # iam:CreateInstanceProfile류 권한을 줬다. 여기서 aws_iam_instance_profile을
