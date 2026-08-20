@@ -85,6 +85,8 @@ services:
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SES_FROM_ADDRESS: ${SES_FROM_ADDRESS:-no-reply@example.com}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      EBOOK_STORAGE: ${EBOOK_STORAGE:-local}
+      EBOOK_S3_BUCKET: ${EBOOK_S3_BUCKET:-}
       # 신간 등록(EPUB) 발행 큐. ai 서비스가 같은 이름의 환경변수로 소비한다(book-ingest-queue).
       SQS_INGEST_QUEUE_URL: ${SQS_INGEST_QUEUE_URL:-}
 
