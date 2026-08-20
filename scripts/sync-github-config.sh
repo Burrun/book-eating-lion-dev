@@ -71,9 +71,7 @@ set_var "VPC_CIDR" "$VPC_CIDR"
 set_var "FRONTEND_S3_BUCKET" "$(ssm storage/frontend_bucket_id)"
 
 # ebook 전용 버킷은 따로 없다 - main-cd.yml 주석대로 media 버킷을 재사용한다
-# (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming) - 여기서 안 채우면
-# catalog 서비스가 "필수 값 EBOOK_S3_BUCKET 가 비어 있습니다"로 매번 실패한다
-# (2026-08-20 실제로 겪음 - 이 값을 채우는 로직 자체가 누락돼 있었음).
+# (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming).
 set_var "EBOOK_S3_BUCKET" "$(ssm storage/media_bucket_id)"
 
 # S3 Vectors는 provider 미지원으로 Terraform이 아직 안 만듦 (인프라구성명세.md §7.5 참고)
@@ -87,11 +85,8 @@ fi
 
 for svc in CATALOG ORDER MEMBER AI; do
   lower=$(echo "$svc" | tr '[:upper:]' '[:lower:]')
-  # main-cd.yml의 Build & push image/Render & apply 스텝이 레지스트리 주소를
-  # steps.ecr.outputs.registry(ECR_REGISTRY)로 따로 받아서 "$ECR_REGISTRY/$ECR_${svc}_REPO"로
-  # 직접 조합한다 - 여기 레지스트리 주소까지 넣으면 두 번 붙어서 존재하지 않는
-  # 리포지토리 이름이 되고 ecr:InitiateLayerUpload가 (권한이 아니라 리포 자체가
-  # 없어서) denied로 실패한다(2026-08-20 실제로 겪음). 순수 리포 이름만 넣을 것.
+  # main-cd.yml이 레지스트리 주소를 "$ECR_REGISTRY/$ECR_${svc}_REPO"로 직접
+  # 조합하므로 여기엔 순수 리포 이름만 넣는다(레지스트리 포함하면 중복됨).
   repo_name="lion-team3-${ENV}/${lower}"
   if aws ecr describe-repositories --repository-names "$repo_name" --region "$REGION" >/dev/null 2>&1; then
     set_var "ECR_${svc}_REPO" "$repo_name"
@@ -108,7 +103,17 @@ echo "  ⚠️  SKIP  AI_DB_NAME — Terraform엔 DB 하나(bookdb)뿐, AI 전�
 set_var "REDIS_HOST" "$(ssm data/valkey_endpoint)"
 set_var "SQS_PURCHASE_QUEUE_URL" "$(ssm ai/purchase_channel_url)"
 
-set_var "SPRING_PROFILE" "$ENV"
+# backend엔 application-dev.yml이 없다 - application-prod.yml이 ${DB_HOST} 등으로
+# 파라미터화돼 있어 재사용 가능하므로, AWS 환경명과 무관하게 Spring 프로필은
+# 항상 "prod"로 고정한다.
+set_var "SPRING_PROFILE" "prod"
+# application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용. dev의 EC2
+# Postgres는 SSL 미지원이라 disable, 실제 SSL을 쓰는 prod(Aurora)는 require.
+if [[ "$ENV" == "dev" ]]; then
+  set_var "DB_SSL_MODE" "disable"
+else
+  set_var "DB_SSL_MODE" "require"
+fi
 set_var "K8S_NAMESPACE" "lion-app"
 
 CF_DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items[?@=='${DOMAIN}']].Id | [0]" --output text 2>/dev/null || true)

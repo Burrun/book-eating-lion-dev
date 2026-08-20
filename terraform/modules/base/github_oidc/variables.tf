@@ -25,17 +25,17 @@ variable "ecr_repository_arns" {
 }
 
 variable "frontend_bucket_arn" {
-  description = "main-cd.yml의 Frontend → S3 & CloudFront 잡이 `aws s3 sync --delete`로 쓰는 버킷 ARN. storage 모듈과 이 모듈이 같은 계층(00-base)이라 역방향 의존 없이 바로 참조 가능"
+  description = "Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`가 쓰는 버킷 ARN (storage 모듈과 같은 계층이라 직접 참조)"
   type        = string
 }
 
 variable "media_bucket_arn" {
-  description = "catalog 서비스 등이 업로드에 쓰는 버킷 ARN - CI가 배포 과정에서 직접 쓰진 않지만 향후 자산 업로드 파이프라인을 CI에 넣을 걸 대비해 같이 부여"
+  description = "catalog 등이 업로드에 쓰는 버킷 ARN"
   type        = string
 }
 
 variable "cloudfront_distribution_arn" {
-  description = "CloudFront 캐시 무효화(invalidation) 권한 스코프용. CloudFront 배포는 02-runtime(edge_routing)에서 만들어지고 Distribution ID는 AWS가 생성 시점에 임의로 부여해서(eks_cluster_name처럼 이름을 미리 못 예측함) 00-base가 값을 미리 알 수 없다 - null이면 리소스를 * 로 열어서 하위 계층 완료 전에도 apply 가능하게 한다(계정 공유라 다른 팀 CloudFront도 무효화 가능하다는 트레이드오프 - ALB/Karpenter IAM * 와 같은 결의 accepted risk)"
+  description = "CloudFront invalidation 권한 스코프. Distribution은 02-runtime에서 만들어져 ID를 미리 예측할 수 없다 - 02-runtime 배포 후 이 값을 채우면 그 배포로 좁혀진다. null이면(부트스트랩 등) 계정 스코프로만 제한(distribution/*)"
   type        = string
   default     = null
 }

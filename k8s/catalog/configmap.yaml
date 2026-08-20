@@ -11,6 +11,8 @@ data:
   DB_HOST: "db-reader-service.lion-db.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
 
   # 서비스 간 동기 통신 주소. Eureka 없이 K8s Service DNS 가 해결한다(§4).
   SERVICES_ORDER_URL: "http://order-service.lion-app.svc.cluster.local:8080"
