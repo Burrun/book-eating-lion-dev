@@ -30,10 +30,6 @@ export const MOCK_CART_ITEMS = [
   },
 ];
 
-export const MOCK_CART_BENEFITS = {
-  availableCoupon: { label: "신규 가입 3,000원 할인 쿠폰", discount: 3000 },
-};
-
 // 비회원 장바구니 화면 표시용 — 실제로는 GET /api/books/{bookId}에서 내려오는 정보를 대신한다.
 export const MOCK_BOOK_CATALOG = {
   1: { bookId: 1, title: "자바 ORM 표준 JPA 프로그래밍", price: 38700, coverImageUrl: null },

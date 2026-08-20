@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Minus, Plus, Trash2, Ticket, BookOpen } from "lucide-react";
+import { Minus, Plus, Trash2, BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Skeleton from "../components/Skeleton.jsx";
-import { fetchCartItems, fetchCartBenefits, updateQuantity, removeFromCart } from "../api/cart.js";
+import { fetchCartItems, updateQuantity, removeFromCart } from "../api/cart.js";
 
 const FREE_SHIPPING_THRESHOLD = 30000;
 
@@ -16,25 +16,27 @@ export default function Cart() {
   const invalidateHeaderCart = () => queryClient.invalidateQueries({ queryKey: ["cart"] });
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [benefits, setBenefits] = useState({ availableCoupon: null });
-  const [couponApplied, setCouponApplied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 쿠폰 적용은 체크아웃 화면(fetchCoupons → GET /coupons/me)에서 이뤄진다 — 장바구니
+  // 단계의 "적용 가능 쿠폰" 미리보기는 백엔드에 대응 API가 없어 제거했다.
   useEffect(() => {
     let ignore = false;
-    Promise.all([fetchCartItems(), fetchCartBenefits()]).then(([fetchedItems, fetchedBenefits]) => {
-      if (ignore) return;
-      setItems(fetchedItems);
-      setSelectedIds(new Set(fetchedItems.map((i) => i.id)));
-      setBenefits(fetchedBenefits);
-      setIsLoading(false);
-    });
+    fetchCartItems()
+      .then((fetchedItems) => {
+        if (ignore) return;
+        setItems(fetchedItems);
+        setSelectedIds(new Set(fetchedItems.map((i) => i.id)));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
     return () => {
       ignore = true;
     };
   }, []);
 
-  const { availableCoupon } = benefits;
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -44,9 +46,7 @@ export default function Cart() {
     if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
     return Math.max(...selectedItems.map((item) => item.shippingFee));
   }, [selectedItems, subtotal]);
-  const couponDiscount =
-    couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
-  const finalTotal = Math.max(subtotal + shippingFee - couponDiscount, 0);
+  const finalTotal = Math.max(subtotal + shippingFee, 0);
 
   const toggleSelectAll = () => {
     setSelectedIds(allSelected ? new Set() : new Set(items.map((i) => i.id)));
@@ -140,33 +140,6 @@ export default function Cart() {
                 onRemove={() => removeItem(item.id)}
               />
             ))}
-
-            {/* 쿠폰 - 티어오프 영수증 느낌 */}
-            <div className="relative mt-2 rounded-2xl border-2 border-dashed border-[var(--color-honey)]/60 bg-[var(--color-honey)]/10 p-5 shadow-[0_2px_10px_rgba(242,169,59,0.15)]">
-              <span className="absolute top-1/2 -left-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
-              <span className="absolute top-1/2 -right-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
-
-              <div className="mb-3 flex items-center gap-2 text-[var(--color-forest)]">
-                <Ticket size={18} />
-                <h2 className="font-display text-base">쿠폰 할인 적용</h2>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
-                  <p className="text-sm text-[var(--color-ink)]">
-                    적용 가능 쿠폰: <span className="font-medium">{availableCoupon?.label}</span>
-                  </p>
-                  <Button
-                    variant={couponApplied ? "secondary" : "primary"}
-                    size="sm"
-                    shimmer={false}
-                    onClick={() => setCouponApplied((prev) => !prev)}
-                  >
-                    {couponApplied ? "적용 취소" : "쿠폰 적용"}
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* 결제 금액 요약 */}
@@ -180,11 +153,6 @@ export default function Cart() {
                 <Row
                   label="배송비"
                   value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}
-                />
-                <Row
-                  label="쿠폰 할인"
-                  value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
-                  tone={couponDiscount > 0 ? "coral" : undefined}
                 />
               </dl>
 

@@ -7,7 +7,6 @@ import {
   MOCK_ORDERS,
   MOCK_COUPON_STATE,
   MOCK_RETURN_REQUESTS,
-  MOCK_RESTOCK_REQUESTS,
   MOCK_REVIEWS,
   mockGetLionStatus,
   mockFeedLion,
@@ -90,14 +89,6 @@ export async function fetchCoupons() {
 export async function fetchReturnRequests() {
   if (USE_MOCK) return mockDelay(MOCK_RETURN_REQUESTS);
   return unwrap(apiClient.get("/mypage/returns"));
-}
-
-// GET /api/catalog/restock-alerts/me — 내가 신청한 재입고 알림
-// 응답: [{ restockAlertId, bookId, title, status, retryCount,
-//          requestedAt, notifiedAt, cancelledAt }]
-export async function fetchRestockRequests() {
-  if (USE_MOCK) return mockDelay(MOCK_RESTOCK_REQUESTS);
-  return unwrap(apiClient.get("/catalog/restock-alerts/me"));
 }
 
 // 🚧 백엔드 미구현. 리뷰 조회는 책 기준(/api/catalog/books/{id}/reviews)만 있고
