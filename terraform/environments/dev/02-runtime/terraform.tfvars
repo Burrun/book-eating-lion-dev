@@ -2,8 +2,8 @@ environment     = "dev"
 aws_region      = "ap-northeast-2"
 cluster_version = "1.30"
 
-# TODO: 00-base와 동일한 서브도메인으로 교체
-domain_name = "dev.book-eating-lion.com"
+# 00-base와 동일한 값이어야 함
+domain_name = "dev.ajttk.com"
 
 bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",

@@ -2,8 +2,8 @@ environment     = "prod"
 aws_region      = "ap-northeast-2"
 cluster_version = "1.30"
 
-# TODO: 00-base와 동일한 도메인으로 교체
-domain_name = "book-eating-lion.com"
+# 00-base와 동일한 값이어야 함
+domain_name = "book.ajttk.com"
 
 # k8s-명세.md ConfigMap 기준 (AI_LLM_MODEL_RAG/AI_LLM_MODEL_BOT) + Titan Embeddings V2.
 # global./apac. 접두사가 붙은 모델은 Cross-Region Inference Profile이라 ARN 형태가

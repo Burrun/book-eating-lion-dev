@@ -11,8 +11,11 @@ public_subnet_cidrs = ["10.1.0.0/24", "10.1.1.0/24"]
 app_subnet_cidrs    = ["10.1.10.0/24", "10.1.11.0/24"]
 data_subnet_cidrs   = ["10.1.20.0/24", "10.1.21.0/24"]
 
-# TODO: 실제 서브도메인으로 교체 (prod와 같은 Route53 Zone을 재사용하지 않고 별도 Zone)
-domain_name = "dev.book-eating-lion.com"
+# ajttk.com은 이미 이 계정에 등록된 실제 도메인(이정제님 소유, Route53 Domains).
+# apex/api/grafana는 예전 프로젝트가 쓰던 레코드라 이 프로젝트는 건드리지 않고
+# dev 전용 서브도메인만 새로 씀 (prod와 같은 Zone을 재사용하지 않고 별도 Zone).
+domain_name        = "dev.ajttk.com"
+parent_zone_domain = "ajttk.com"
 
 waf_rate_limit = 2000
 

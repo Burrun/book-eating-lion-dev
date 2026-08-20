@@ -20,6 +20,22 @@ module "dns_zone" {
   domain_name = var.domain_name
 }
 
+# var.domain_name(예: dev.ajttk.com)이 이미 등록된 도메인(var.parent_zone_domain)의
+# 서브도메인일 때, 그 부모 Zone(같은 계정에 이미 있음)에 NS 위임 레코드를 자동으로
+# 추가한다 - 콘솔에서 수동으로 안 해도 apply 한 번으로 델리게이션까지 끝나게 하기 위함.
+data "aws_route53_zone" "parent" {
+  name         = var.parent_zone_domain
+  private_zone = false
+}
+
+resource "aws_route53_record" "delegation" {
+  zone_id = data.aws_route53_zone.parent.zone_id
+  name    = var.domain_name
+  type    = "NS"
+  ttl     = 172800
+  records = module.dns_zone.route53_name_servers
+}
+
 # us-east-1 alias 필수 — CloudFront는 us-east-1 인증서만 받는다.
 module "acm_cert" {
   source = "../../../modules/base/acm_cert"

@@ -12,6 +12,5 @@ valkey_replica_count = 0
 user_pool_name        = "lion-team3-dev"
 cognito_domain_prefix = "book-eating-lion-dev" # 도메인 프리픽스는 리전 내 전역 고유 필요 - 충돌 방지 위해 유지
 
-# TODO: 실제 dev 프론트엔드 도메인으로 교체
-cognito_callback_urls = ["https://dev.book-eating-lion.com/auth/callback"]
-cognito_logout_urls   = ["https://dev.book-eating-lion.com/"]
+cognito_callback_urls = ["https://dev.ajttk.com/auth/callback"]
+cognito_logout_urls   = ["https://dev.ajttk.com/"]

@@ -34,6 +34,11 @@ variable "domain_name" {
   type = string
 }
 
+variable "parent_zone_domain" {
+  description = "domain_name이 서브도메인일 때 그 부모 도메인 (이미 이 계정 Route53에 등록돼 있어야 함) - NS 위임 레코드를 자동으로 추가하는 데 씀"
+  type        = string
+}
+
 variable "waf_rate_limit" {
   type    = number
   default = 2000
