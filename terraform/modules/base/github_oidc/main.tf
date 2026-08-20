@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "trust" {
 }
 
 resource "aws_iam_role" "github_actions" {
-  name               = "github-actions-book-eating-lion-${var.environment}"
+  name               = "github-actions-lion-team3-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.trust.json
 }
 

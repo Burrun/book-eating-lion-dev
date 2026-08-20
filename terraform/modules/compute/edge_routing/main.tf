@@ -2,7 +2,7 @@
 # 도메인이 ALB를 직접 가리키는 레코드는 만들지 않는다 (TERRAFORM_STRUCTURE.md §3.3-4).
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  name                              = "book-eating-lion-${var.environment}-frontend-oac"
+  name                              = "lion-team3-${var.environment}-frontend-oac"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -17,7 +17,7 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 # CloudFront Function으로 범위를 좁혔다. /api/* ordered_cache_behavior엔 이 함수를
 # 안 붙이므로 API 오리진은 영향 없다.
 resource "aws_cloudfront_function" "spa_routing" {
-  name    = "book-eating-lion-${var.environment}-spa-routing"
+  name    = "lion-team3-${var.environment}-spa-routing"
   runtime = "cloudfront-js-2.0"
   publish = true
   code    = <<-EOT

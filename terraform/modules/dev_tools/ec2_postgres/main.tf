@@ -27,7 +27,7 @@ resource "random_password" "master" {
 }
 
 resource "aws_secretsmanager_secret" "master" {
-  name = "book-eating-lion-${var.environment}-ec2-postgres-master"
+  name = "lion-team3-${var.environment}-ec2-postgres-master"
 }
 
 resource "aws_secretsmanager_secret_version" "master" {
@@ -39,7 +39,7 @@ resource "aws_secretsmanager_secret_version" "master" {
 }
 
 resource "aws_security_group" "this" {
-  name_prefix = "book-eating-lion-${var.environment}-ec2-postgres-"
+  name_prefix = "lion-team3-${var.environment}-ec2-postgres-"
   description = "Dev PostgreSQL SG - allows 5432 from app tier only"
   vpc_id      = var.vpc_id
 
@@ -64,13 +64,13 @@ resource "aws_security_group" "this" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-ec2-postgres-sg"
+    Name = "lion-team3-${var.environment}-ec2-postgres-sg"
   }
 }
 
 # SSH 키/포트 없이 관리 - Session Manager로만 접속한다.
 resource "aws_iam_role" "ssm" {
-  name = "book-eating-lion-${var.environment}-ec2-postgres-ssm"
+  name = "lion-team3-${var.environment}-ec2-postgres-ssm"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -105,7 +105,7 @@ resource "aws_iam_role_policy" "read_secret" {
 }
 
 resource "aws_iam_instance_profile" "this" {
-  name = "book-eating-lion-${var.environment}-ec2-postgres"
+  name = "lion-team3-${var.environment}-ec2-postgres"
   role = aws_iam_role.ssm.name
 }
 
@@ -151,6 +151,6 @@ resource "aws_instance" "this" {
   EOF
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-ec2-postgres"
+    Name = "lion-team3-${var.environment}-ec2-postgres"
   }
 }

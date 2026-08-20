@@ -1,10 +1,10 @@
 resource "aws_db_subnet_group" "this" {
-  name       = "book-eating-lion-${var.environment}-aurora"
+  name       = "lion-team3-${var.environment}-aurora"
   subnet_ids = var.data_subnet_ids
 }
 
 resource "aws_security_group" "cluster" {
-  name_prefix = "book-eating-lion-${var.environment}-aurora-"
+  name_prefix = "lion-team3-${var.environment}-aurora-"
   description = "Aurora cluster SG - allows 5432 from app tier only"
   vpc_id      = var.vpc_id
 
@@ -21,12 +21,12 @@ resource "aws_security_group" "cluster" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-aurora-sg"
+    Name = "lion-team3-${var.environment}-aurora-sg"
   }
 }
 
 resource "aws_rds_cluster" "this" {
-  cluster_identifier     = "book-eating-lion-${var.environment}"
+  cluster_identifier     = "lion-team3-${var.environment}"
   engine                 = "aurora-postgresql"
   engine_mode            = "provisioned" # Serverless v2는 provisioned 클러스터 위에서 인스턴스별로 켠다
   engine_version         = "16.4"
@@ -46,7 +46,7 @@ resource "aws_rds_cluster" "this" {
 
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "book-eating-lion-${var.environment}-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "lion-team3-${var.environment}-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
 
   # deletion_protection(AWS API 레벨, 콘솔/CLI에서도 막음)이 실제 안전장치다.
   # Terraform lifecycle.prevent_destroy는 변수를 받을 수 없어(리터럴만 허용) 환경별로
@@ -62,7 +62,7 @@ resource "aws_rds_cluster" "this" {
 resource "aws_rds_cluster_instance" "this" {
   count = 1 + var.reader_count
 
-  identifier           = "book-eating-lion-${var.environment}-${count.index}"
+  identifier           = "lion-team3-${var.environment}-${count.index}"
   cluster_identifier   = aws_rds_cluster.this.id
   instance_class       = "db.serverless"
   engine               = aws_rds_cluster.this.engine
@@ -71,7 +71,7 @@ resource "aws_rds_cluster_instance" "this" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "connections" {
-  alarm_name          = "book-eating-lion-${var.environment}-aurora-connections"
+  alarm_name          = "lion-team3-${var.environment}-aurora-connections"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   metric_name         = "DatabaseConnections"
@@ -88,7 +88,7 @@ resource "aws_cloudwatch_metric_alarm" "connections" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
-  alarm_name          = "book-eating-lion-${var.environment}-aurora-cpu"
+  alarm_name          = "lion-team3-${var.environment}-aurora-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   metric_name         = "CPUUtilization"

@@ -38,7 +38,7 @@ module "waf" {
     aws = aws.us_east_1
   }
 
-  name       = "book-eating-lion-${var.environment}"
+  name       = "lion-team3-${var.environment}"
   rate_limit = var.waf_rate_limit
 }
 
@@ -58,7 +58,7 @@ module "container_reg" {
 module "alerting" {
   source = "../../../modules/base/alerting"
 
-  name        = "book-eating-lion-${var.environment}-alerts"
+  name        = "lion-team3-${var.environment}-alerts"
   alert_email = var.alert_email
 }
 

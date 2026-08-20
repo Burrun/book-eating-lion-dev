@@ -1,6 +1,6 @@
 # ── 노드 IAM Role (Karpenter가 띄우는 EC2가 assume) ──────────────
 resource "aws_iam_role" "node" {
-  name = "book-eating-lion-${var.environment}-karpenter-node"
+  name = "lion-team3-${var.environment}-karpenter-node"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -52,7 +52,7 @@ data "aws_iam_policy_document" "controller_trust" {
 }
 
 resource "aws_iam_role" "controller" {
-  name               = "book-eating-lion-${var.environment}-karpenter-controller"
+  name               = "lion-team3-${var.environment}-karpenter-controller"
   assume_role_policy = data.aws_iam_policy_document.controller_trust.json
 }
 
@@ -149,7 +149,7 @@ resource "aws_iam_role_policy" "controller" {
 
 # ── Spot Interruption / 인스턴스 상태 변경 알림 ───────────────────
 resource "aws_sqs_queue" "interruption" {
-  name                      = "book-eating-lion-${var.environment}-karpenter-interruption"
+  name                      = "lion-team3-${var.environment}-karpenter-interruption"
   message_retention_seconds = 300 # 인터럽션 통지는 신선할 때만 의미 있음
 }
 
@@ -168,7 +168,7 @@ resource "aws_sqs_queue_policy" "interruption" {
 }
 
 resource "aws_cloudwatch_event_rule" "spot_interruption" {
-  name = "book-eating-lion-${var.environment}-karpenter-spot-interruption"
+  name = "lion-team3-${var.environment}-karpenter-spot-interruption"
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Spot Instance Interruption Warning"]
@@ -176,7 +176,7 @@ resource "aws_cloudwatch_event_rule" "spot_interruption" {
 }
 
 resource "aws_cloudwatch_event_rule" "rebalance" {
-  name = "book-eating-lion-${var.environment}-karpenter-rebalance"
+  name = "lion-team3-${var.environment}-karpenter-rebalance"
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance Rebalance Recommendation"]
@@ -184,7 +184,7 @@ resource "aws_cloudwatch_event_rule" "rebalance" {
 }
 
 resource "aws_cloudwatch_event_rule" "instance_state_change" {
-  name = "book-eating-lion-${var.environment}-karpenter-state-change"
+  name = "lion-team3-${var.environment}-karpenter-state-change"
   event_pattern = jsonencode({
     source      = ["aws.ec2"]
     detail-type = ["EC2 Instance State-change Notification"]
@@ -262,7 +262,9 @@ resource "kubernetes_manifest" "ec2_node_class" {
         { id = var.node_security_group_id }
       ]
       tags = {
-        Project     = "book-eating-lion"
+        Project     = "lion"
+        Team        = "Team3"
+        Owner       = "이정제"
         Environment = var.environment
         ManagedBy   = "karpenter"
       }

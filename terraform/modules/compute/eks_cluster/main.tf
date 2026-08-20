@@ -1,5 +1,5 @@
 locals {
-  cluster_name = coalesce(var.cluster_name, "book-eating-lion-${var.environment}")
+  cluster_name = coalesce(var.cluster_name, "lion-team3-${var.environment}")
 }
 
 # ── Cluster IAM Role ─────────────────────────────────────────────

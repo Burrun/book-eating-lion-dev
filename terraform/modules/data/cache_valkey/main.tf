@@ -1,10 +1,10 @@
 resource "aws_elasticache_subnet_group" "this" {
-  name       = "book-eating-lion-${var.environment}-valkey"
+  name       = "lion-team3-${var.environment}-valkey"
   subnet_ids = var.data_subnet_ids
 }
 
 resource "aws_security_group" "valkey" {
-  name_prefix = "book-eating-lion-${var.environment}-valkey-"
+  name_prefix = "lion-team3-${var.environment}-valkey-"
   description = "Valkey SG - allows 6379 from app tier only"
   vpc_id      = var.vpc_id
 
@@ -21,14 +21,14 @@ resource "aws_security_group" "valkey" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-valkey-sg"
+    Name = "lion-team3-${var.environment}-valkey-sg"
   }
 }
 
 # noeviction: 캐시가 아니라 Redisson 락/Streams/Pub-Sub 상태도 담기 때문에
 # 메모리가 차도 키를 조용히 지우면 안 된다 - 지우는 대신 OOM 에러로 드러나야 한다.
 resource "aws_elasticache_parameter_group" "this" {
-  name   = "book-eating-lion-${var.environment}-valkey8"
+  name   = "lion-team3-${var.environment}-valkey8"
   family = "valkey8"
 
   parameter {
@@ -38,8 +38,8 @@ resource "aws_elasticache_parameter_group" "this" {
 }
 
 resource "aws_elasticache_replication_group" "this" {
-  replication_group_id = "book-eating-lion-${var.environment}"
-  description          = "book-eating-lion ${var.environment} Valkey"
+  replication_group_id = "lion-team3-${var.environment}"
+  description          = "lion-team3 ${var.environment} Valkey"
 
   engine         = "valkey"
   engine_version = "8.2"
@@ -64,7 +64,7 @@ resource "aws_elasticache_replication_group" "this" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "memory" {
-  alarm_name          = "book-eating-lion-${var.environment}-valkey-memory"
+  alarm_name          = "lion-team3-${var.environment}-valkey-memory"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   metric_name         = "DatabaseMemoryUsagePercentage"

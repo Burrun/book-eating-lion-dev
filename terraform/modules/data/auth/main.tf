@@ -29,7 +29,7 @@ resource "aws_cognito_user_group" "admin" {
 }
 
 resource "aws_cognito_user_pool_client" "this" {
-  name         = "book-eating-lion-web"
+  name         = "lion-team3-web"
   user_pool_id = aws_cognito_user_pool.this.id
 
   explicit_auth_flows = [

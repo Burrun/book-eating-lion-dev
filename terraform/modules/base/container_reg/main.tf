@@ -1,7 +1,7 @@
 resource "aws_ecr_repository" "this" {
   for_each = toset(var.service_names)
 
-  name                 = "book-eating-lion/${each.value}"
+  name                 = "lion-team3/${each.value}"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {

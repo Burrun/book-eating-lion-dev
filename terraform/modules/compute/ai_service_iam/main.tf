@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "trust" {
 }
 
 resource "aws_iam_role" "this" {
-  name               = "book-eating-lion-${var.environment}-ai-service"
+  name               = "lion-team3-${var.environment}-ai-service"
   assume_role_policy = data.aws_iam_policy_document.trust.json
 }
 

@@ -4,7 +4,7 @@ resource "aws_vpc" "this" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-vpc"
+    Name = "lion-team3-${var.environment}-vpc"
   }
 }
 
@@ -12,7 +12,7 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-igw"
+    Name = "lion-team3-${var.environment}-igw"
   }
 }
 
@@ -25,7 +25,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                     = "book-eating-lion-${var.environment}-public-${var.availability_zones[count.index]}"
+    Name                     = "lion-team3-${var.environment}-public-${var.availability_zones[count.index]}"
     "kubernetes.io/role/elb" = "1"
   }
 }
@@ -38,7 +38,7 @@ resource "aws_subnet" "app" {
   availability_zone = var.availability_zones[count.index]
 
   tags = {
-    Name                              = "book-eating-lion-${var.environment}-app-${var.availability_zones[count.index]}"
+    Name                              = "lion-team3-${var.environment}-app-${var.availability_zones[count.index]}"
     "kubernetes.io/role/internal-elb" = "1"
   }
 }
@@ -51,7 +51,7 @@ resource "aws_subnet" "data" {
   availability_zone = var.availability_zones[count.index]
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-data-${var.availability_zones[count.index]}"
+    Name = "lion-team3-${var.environment}-data-${var.availability_zones[count.index]}"
   }
 }
 
@@ -62,7 +62,7 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-nat-eip-${var.availability_zones[count.index]}"
+    Name = "lion-team3-${var.environment}-nat-eip-${var.availability_zones[count.index]}"
   }
 
   depends_on = [aws_internet_gateway.this]
@@ -74,7 +74,7 @@ resource "aws_nat_gateway" "this" {
   subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-nat-${var.availability_zones[count.index]}"
+    Name = "lion-team3-${var.environment}-nat-${var.availability_zones[count.index]}"
   }
 
   depends_on = [aws_internet_gateway.this]
@@ -92,7 +92,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-public-rt"
+    Name = "lion-team3-${var.environment}-public-rt"
   }
 }
 
@@ -113,7 +113,7 @@ resource "aws_route_table" "app" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-app-rt-${var.availability_zones[count.index]}"
+    Name = "lion-team3-${var.environment}-app-rt-${var.availability_zones[count.index]}"
   }
 }
 
@@ -128,7 +128,7 @@ resource "aws_route_table" "data" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-data-rt"
+    Name = "lion-team3-${var.environment}-data-rt"
   }
 }
 
@@ -144,7 +144,7 @@ resource "aws_route_table_association" "data" {
 # 그 자체엔 인바운드 규칙이 없다 — 필요한 포트별 허용은 각 데이터 리소스 쪽에서 건다
 # (예: aurora_pg가 자기 보안그룹에 "5432 from app_security_group_id" 규칙을 추가).
 resource "aws_security_group" "app" {
-  name_prefix = "book-eating-lion-${var.environment}-app-"
+  name_prefix = "lion-team3-${var.environment}-app-"
   # AWS SG description은 ASCII만 허용한다(정규식 제약) - 한글 설명은 위 주석으로 남긴다.
   description = "EKS node/Pod shared SG - data-layer SGs allow inbound from this SG"
   vpc_id      = aws_vpc.this.id
@@ -162,6 +162,6 @@ resource "aws_security_group" "app" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-app-sg"
+    Name = "lion-team3-${var.environment}-app-sg"
   }
 }

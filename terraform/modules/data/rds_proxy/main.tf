@@ -1,6 +1,6 @@
 # Proxy 전용 보안그룹. app 계층에서 Proxy로(5432), Proxy에서 Aurora로(5432) 두 홉을 연다.
 resource "aws_security_group" "proxy" {
-  name_prefix = "book-eating-lion-${var.environment}-rds-proxy-"
+  name_prefix = "lion-team3-${var.environment}-rds-proxy-"
   description = "RDS Proxy SG - app tier in, Aurora cluster out"
   vpc_id      = var.vpc_id
 
@@ -25,7 +25,7 @@ resource "aws_security_group" "proxy" {
   }
 
   tags = {
-    Name = "book-eating-lion-${var.environment}-rds-proxy-sg"
+    Name = "lion-team3-${var.environment}-rds-proxy-sg"
   }
 }
 
@@ -42,7 +42,7 @@ resource "aws_security_group_rule" "cluster_allow_proxy" {
 }
 
 resource "aws_iam_role" "proxy" {
-  name = "book-eating-lion-${var.environment}-rds-proxy"
+  name = "lion-team3-${var.environment}-rds-proxy"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -69,7 +69,7 @@ resource "aws_iam_role_policy" "proxy_secrets" {
 }
 
 resource "aws_db_proxy" "this" {
-  name                   = "book-eating-lion-${var.environment}"
+  name                   = "lion-team3-${var.environment}"
   engine_family          = "POSTGRESQL"
   role_arn               = aws_iam_role.proxy.arn
   vpc_subnet_ids         = var.data_subnet_ids

@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "alb_controller_trust" {
 }
 
 resource "aws_iam_role" "alb_controller" {
-  name               = "book-eating-lion-${var.environment}-alb-controller"
+  name               = "lion-team3-${var.environment}-alb-controller"
   assume_role_policy = data.aws_iam_policy_document.alb_controller_trust.json
 }
 

@@ -3,7 +3,9 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "book-eating-lion"
+      Project     = "lion"
+      Team        = "Team3"
+      Owner       = "이정제"
       Environment = var.environment
       ManagedBy   = "terraform"
       Layer       = "base"
@@ -19,7 +21,9 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "book-eating-lion"
+      Project     = "lion"
+      Team        = "Team3"
+      Owner       = "이정제"
       Environment = var.environment
       ManagedBy   = "terraform"
       Layer       = "base"

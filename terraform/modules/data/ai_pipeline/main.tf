@@ -8,12 +8,12 @@
 # 아직 미구현)만 만들어놨다. 운영 관점에선 이 반대가 더 급하다 - purchase 큐 추가는
 # 다음 반영 대상.
 resource "aws_sqs_queue" "ingest_dlq" {
-  name                      = "book-eating-lion-${var.environment}-ai-ingest-dlq"
+  name                      = "lion-team3-${var.environment}-ai-ingest-dlq"
   message_retention_seconds = 1209600 # 14일 - 실패 메시지를 살펴볼 시간 확보
 }
 
 resource "aws_sqs_queue" "ingest" {
-  name                       = "book-eating-lion-${var.environment}-ai-ingest"
+  name                       = "lion-team3-${var.environment}-ai-ingest"
   visibility_timeout_seconds = 300 # 임베딩은 청크당 1회, 장편은 200~500청크라 넉넉히
 
   redrive_policy = jsonencode({
