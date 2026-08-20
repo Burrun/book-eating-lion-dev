@@ -11,6 +11,11 @@ data:
   DB_HOST: "db-reader-service.lion-db.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용. dev는 EC2 위에
+  # SSL 없이 띄운 임시 Postgres라 require면 접속 자체가 안 된다 - "disable"을
+  # 명시적으로 넣어서 덮어쓴다(비어있는 문자열이면 Spring이 기본값으로 안 떨어지고
+  # 그대로 빈 값을 쓰려다 실패하니 반드시 값을 채워야 한다).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
 
   # 서비스 간 동기 통신 주소. Eureka 없이 K8s Service DNS 가 해결한다(§4).
   SERVICES_ORDER_URL: "http://order-service.lion-app.svc.cluster.local:8080"

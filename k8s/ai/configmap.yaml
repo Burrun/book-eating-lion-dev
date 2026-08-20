@@ -15,6 +15,9 @@ data:
   AI_DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
   AI_DB_PORT: "5432"
   AI_DB_NAME: "${AI_DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 - catalog/configmap.yaml
+  # 주석 참고 (dev EC2 Postgres는 SSL 미지원이라 명시적으로 disable 필요).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
 
   AWS_REGION: "${AWS_REGION}"
   AWS_BEDROCK_REGION: "${AWS_REGION}"

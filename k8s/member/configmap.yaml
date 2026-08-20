@@ -10,6 +10,9 @@ data:
   DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 - catalog/configmap.yaml
+  # 주석 참고 (dev EC2 Postgres는 SSL 미지원이라 명시적으로 disable 필요).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
 
   REDIS_HOST: "${REDIS_HOST}"
 

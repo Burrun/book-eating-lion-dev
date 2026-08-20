@@ -12,6 +12,11 @@ data:
   DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용. dev는 EC2 위에
+  # SSL 없이 띄운 임시 Postgres라 require면 접속 자체가 안 된다 - "disable"을
+  # 명시적으로 넣어서 덮어쓴다(비어있는 문자열이면 Spring이 기본값으로 안 떨어지고
+  # 그대로 빈 값을 쓰려다 실패하니 반드시 값을 채워야 한다).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
 
   # 리뷰 권한 이벤트 발행 채널
   REDIS_HOST: "${REDIS_HOST}"
