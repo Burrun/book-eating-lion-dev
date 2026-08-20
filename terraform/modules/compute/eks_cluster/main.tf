@@ -49,7 +49,13 @@ resource "aws_eks_cluster" "this" {
   }
 
   access_config {
-    authentication_mode = "API" # 레거시 aws-auth ConfigMap 대신 EKS Access Entries API 사용
+    authentication_mode                         = "API" # 레거시 aws-auth ConfigMap 대신 EKS Access Entries API 사용
+    bootstrap_cluster_creator_admin_permissions = true  # 이걸 안 켜면 클러스터를 만든 사람조차 kubectl 권한이 없어서
+    # Karpenter/ALB Controller 등 kubernetes_manifest/helm_release 리소스가 전부
+    # 401 Unauthorized로 실패한다(2026-08-20 실제로 겪음). 단, 이 값은 클러스터
+    # "생성 시점"에만 평가되는 부트스트랩 옵션이라 이미 만들어진 클러스터에는
+    # 재적용해도 소급 적용이 안 된다 - 그래서 아래 admin_principal_arns로
+    # 언제든 추가/변경 가능한 Access Entry도 별도로 만든다.
   }
 
   depends_on = [aws_iam_role_policy_attachment.cluster_policy]
@@ -95,6 +101,30 @@ resource "aws_eks_access_policy_association" "github_actions" {
   # 참조하지 않아서, 명시하지 않으면 Terraform이 둘의 생성 순서를 보장 못 한다.
   # Access Entry 없이 Association만 먼저 만들려고 하면 API가 거부한다.
   depends_on = [aws_eks_access_entry.github_actions]
+}
+
+# ── EKS Access Entry — 사람(운영자)이 kubectl/terraform으로 접근 ──
+# bootstrap_cluster_creator_admin_permissions는 클러스터 "생성 시점"에만
+# 평가되는 일회성 옵션이라 기존 클러스터엔 소급 적용이 안 된다. 그래서
+# 실제로 Terraform apply를 돌리는 사람(들)은 여기 명시적으로 등록해야
+# kubernetes_manifest/helm_release 리소스가 401 Unauthorized 없이 동작한다.
+resource "aws_eks_access_entry" "admin" {
+  for_each      = toset(var.admin_principal_arns)
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+}
+
+resource "aws_eks_access_policy_association" "admin" {
+  for_each      = toset(var.admin_principal_arns)
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin]
 }
 
 # ── 시스템 노드그룹 (CoreDNS, Karpenter 컨트롤러 기동용) ─────────

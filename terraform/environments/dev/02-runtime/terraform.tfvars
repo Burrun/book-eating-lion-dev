@@ -10,3 +10,8 @@ bedrock_model_arns = [
   "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
 ]
+
+# 실제로 terraform apply를 돌리는 사람 - 없으면 클러스터 만든 사람조차 kubectl
+# 권한이 없어서 karpenter/alb_controller의 kubernetes_manifest/helm_release가
+# 401 Unauthorized로 실패한다(2026-08-20 실제로 겪음).
+admin_principal_arns = ["arn:aws:iam::061039804626:user/b-student-02"]

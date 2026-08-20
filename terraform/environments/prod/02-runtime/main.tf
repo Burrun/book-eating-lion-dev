@@ -60,6 +60,7 @@ module "eks_cluster" {
   cluster_version         = var.cluster_version
   sns_topic_arn           = data.aws_ssm_parameter.sns_topic_arn.value
   github_actions_role_arn = data.aws_ssm_parameter.github_actions_role_arn.value
+  admin_principal_arns    = var.admin_principal_arns
 }
 
 # ── 2. Karpenter ────────────────────────────────────────────────

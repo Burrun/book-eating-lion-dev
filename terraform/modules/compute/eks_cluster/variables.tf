@@ -42,6 +42,12 @@ variable "github_actions_role_arn" {
   default     = null
 }
 
+variable "admin_principal_arns" {
+  description = "kubectl/terraform으로 이 클러스터를 관리할 사람(들)의 IAM 사용자/역할 ARN 목록. bootstrap_cluster_creator_admin_permissions는 최초 생성 시점에만 적용되고 기존 클러스터에는 소급 적용이 안 되므로, 여기 등록된 principal에게 명시적으로 AmazonEKSClusterAdminPolicy를 부여한다"
+  type        = list(string)
+  default     = []
+}
+
 variable "public_access_cidrs" {
   description = "EKS API 서버 퍼블릭 엔드포인트 접근을 허용할 CIDR 목록. GitHub-hosted runner는 IP 대역이 넓어 기본값은 전체 허용이지만, self-hosted runner/VPN을 쓰게 되면 여기를 좁혀서 실제로 제한할 것"
   type        = list(string)
