@@ -92,9 +92,7 @@ export default function ProductDetailPage() {
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["wishlist"] });
       toast.success(
-        variables.currentlyWishlisted
-          ? "찜 목록에서 삭제했습니다."
-          : "찜 목록에 추가했습니다.",
+        variables.currentlyWishlisted ? "찜 목록에서 삭제했습니다." : "찜 목록에 추가했습니다.",
       );
     },
     onError: () => toast.error("찜 상태를 변경하지 못했습니다. 로그인 상태를 확인해주세요."),
@@ -291,11 +289,7 @@ export default function ProductDetailPage() {
               disabled={wishlistMutation.isPending}
               className="rounded-full bg-honey/25 px-6 py-2.5 font-semibold text-forest transition hover:bg-honey/40 disabled:opacity-60"
             >
-              {wishlistMutation.isPending
-                ? "처리 중..."
-                : isWishlisted
-                  ? "❤️ 찜 해제"
-                  : "♡ 찜하기"}
+              {wishlistMutation.isPending ? "처리 중..." : isWishlisted ? "❤️ 찜 해제" : "♡ 찜하기"}
             </button>
             {book.ebookAvailable ? (
               <div className="flex flex-col gap-1.5">
