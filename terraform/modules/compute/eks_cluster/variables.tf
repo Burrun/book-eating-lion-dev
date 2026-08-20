@@ -26,9 +26,9 @@ variable "sns_topic_arn" {
 }
 
 variable "system_node_instance_type" {
-  description = "CoreDNS/Karpenter 컨트롤러 기동용 시스템 노드그룹 인스턴스 타입"
+  description = "CoreDNS/Karpenter 컨트롤러 기동용 시스템 노드그룹 인스턴스 타입. taint가 없어 앱 워크로드 Pod도 여기 스케줄링될 수 있으므로 Karpenter NodePool의 아키텍처 요구사항(amd64)과 반드시 맞출 것 - 어긋나면 exec format error로 크래시루프"
   type        = string
-  default     = "t4g.medium"
+  default     = "t3.medium"
 }
 
 variable "system_node_desired_size" {

@@ -298,7 +298,10 @@ resource "kubernetes_manifest" "default_node_pool" {
         spec = {
           requirements = [
             { key = "karpenter.k8s.aws/instance-family", operator = "In", values = distinct([for t in var.instance_types : split(".", t)[0]]) },
-            { key = "kubernetes.io/arch", operator = "In", values = ["arm64"] },
+            # main-cd.yml의 docker build가 amd64 러너에서 --platform 없이 이미지를
+            # 만들어서 amd64로 고정 - Graviton(arm64)으로 바꾸려면 CI를 buildx
+            # 크로스컴파일로 먼저 바꿔야 한다(인프라구성명세.md §7.7 참고).
+            { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
             { key = "karpenter.sh/capacity-type", operator = "In", values = ["spot", "on-demand"] },
           ]
           nodeClassRef = {

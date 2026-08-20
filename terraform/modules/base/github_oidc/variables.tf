@@ -24,6 +24,22 @@ variable "ecr_repository_arns" {
   type        = list(string)
 }
 
+variable "frontend_bucket_arn" {
+  description = "Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`가 쓰는 버킷 ARN (storage 모듈과 같은 계층이라 직접 참조)"
+  type        = string
+}
+
+variable "media_bucket_arn" {
+  description = "catalog 등이 업로드에 쓰는 버킷 ARN"
+  type        = string
+}
+
+variable "cloudfront_distribution_arn" {
+  description = "CloudFront invalidation 권한 스코프. Distribution은 02-runtime에서 만들어져 ID를 미리 예측할 수 없다 - 02-runtime 배포 후 이 값을 채우면 그 배포로 좁혀진다. null이면(부트스트랩 등) 계정 스코프로만 제한(distribution/*)"
+  type        = string
+  default     = null
+}
+
 variable "eks_cluster_name" {
   description = "eks:DescribeCluster를 이 이름으로 스코프하기 위한 값. 02-runtime의 eks_cluster 모듈이 실제로 쓸 cluster_name과 반드시 같아야 한다 - 00-base가 02-runtime을 참조할 수 없어(계층 역방향 의존 금지) 값을 호출부에서 명시적으로 맞춰준다. 인프라구성명세.md §4.1 네이밍 패턴(lion-team3-{environment})을 따를 것"
   type        = string

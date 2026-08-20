@@ -47,7 +47,14 @@ data "aws_iam_policy_document" "trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      # GitHub이 repojacking 방지를 위해 sub claim에 불변 숫자 ID를 붙이는 신규
+      # 형식(repo:OWNER@id/REPO@id:*)을 기본값으로 전환했다(2026-08-20). 신규/구
+      # 형식을 둘 다 허용해 GitHub이 포맷을 또 바꾸거나 일부 이벤트에서 예전
+      # 형식을 쓰는 경우에도 깨지지 않게 한다.
+      values = [
+        "repo:${var.github_org}/${var.github_repo}:*",
+        "repo:${var.github_org}@*/${var.github_repo}@*:*",
+      ]
     }
   }
 }
@@ -98,6 +105,39 @@ data "aws_iam_policy_document" "permissions" {
     effect    = "Allow"
     actions   = ["eks:ListClusters"]
     resources = ["*"]
+  }
+
+  # Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`용. ListBucket은 버킷
+  # 자체, 나머지는 객체(/*) 스코프.
+  statement {
+    sid       = "FrontendBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [var.frontend_bucket_arn, var.media_bucket_arn]
+  }
+
+  statement {
+    sid    = "FrontendBucketObjects"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      "${var.frontend_bucket_arn}/*",
+      "${var.media_bucket_arn}/*",
+    ]
+  }
+
+  statement {
+    sid       = "CloudFrontInvalidate"
+    effect    = "Allow"
+    actions   = ["cloudfront:CreateInvalidation"]
+    # cloudfront_distribution_arn이 알려지면(02-runtime 배포 후 tfvars에 채워 넣으면)
+    # 그 배포로만 좁힌다. 모르는 동안(최초 부트스트랩 등)도 최소한 이 계정으로는
+    # 스코프를 좁혀서, 계정을 공유하는 다른 팀 CloudFront 배포까지 열리지 않게 한다.
+    resources = var.cloudfront_distribution_arn != null ? [var.cloudfront_distribution_arn] : ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
   }
 }
 

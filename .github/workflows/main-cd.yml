@@ -239,6 +239,7 @@ jobs:
           ECR_AI_REPO: ${{ vars.ECR_AI_REPO }}
           IMAGE_TAG: ${{ env.DEPLOY_SHA }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
+          DB_SSL_MODE: ${{ vars.DB_SSL_MODE || 'require' }}
           DB_NAME: ${{ vars.DB_NAME }}
           AI_DB_NAME: ${{ vars.AI_DB_NAME }}
           AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
@@ -261,7 +262,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $EBOOK_S3_BUCKET'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $EBOOK_S3_BUCKET'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

@@ -39,7 +39,7 @@ variable "karpenter_version" {
 }
 
 variable "instance_types" {
-  description = "Karpenter가 선택할 수 있는 인스턴스 패밀리 (스팟 가용성을 위해 여러 개 지정)"
+  description = "Karpenter가 선택할 수 있는 인스턴스 패밀리 (스팟 가용성을 위해 여러 개 지정). amd64 패밀리로 지정할 것 - NodePool의 kubernetes.io/arch 요구사항과 반드시 맞춰야 한다(아래 주석 참고)"
   type        = list(string)
-  default     = ["t4g.medium", "t4g.large", "m6g.large"]
+  default     = ["t3.medium", "t3.large", "m6i.large"]
 }
