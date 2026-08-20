@@ -10,7 +10,7 @@ variable "aws_region" {
 
 variable "cluster_version" {
   type    = string
-  default = "1.30"
+  default = "1.34" # 1.30은 지원 종료(2026-08-20 확인)
 }
 
 variable "domain_name" {

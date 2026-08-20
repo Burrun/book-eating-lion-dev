@@ -1,6 +1,6 @@
 environment     = "prod"
 aws_region      = "ap-northeast-2"
-cluster_version = "1.30"
+cluster_version = "1.34" # 1.30은 표준+연장 지원(26개월) 다 지나서 신규 생성 불가(2026-08-20 확인) - 표준 지원 중 가장 오래된 버전으로 교체
 
 # 00-base와 동일한 값이어야 함
 domain_name = "book.ajttk.com"

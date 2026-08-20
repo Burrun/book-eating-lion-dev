@@ -18,7 +18,7 @@ variable "cluster_name" {
 
 variable "cluster_version" {
   type    = string
-  default = "1.30"
+  default = "1.34" # 1.30은 지원 종료(2026-08-20 확인) - 신규 클러스터는 EKS 표준/연장 지원 목록에 있는 버전만 가능
 }
 
 variable "sns_topic_arn" {
