@@ -11,7 +11,9 @@ bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
 ]
 
-# 실제로 terraform apply를 돌리는 사람 - 없으면 클러스터 만든 사람조차 kubectl
-# 권한이 없어서 karpenter/alb_controller의 kubernetes_manifest/helm_release가
-# 401 Unauthorized로 실패한다(2026-08-20 실제로 겪음).
-admin_principal_arns = ["arn:aws:iam::061039804626:user/b-student-02"]
+# 클러스터를 실제로 만든 사람(b-student-02)은 access_config의
+# bootstrap_cluster_creator_admin_permissions=true로 AWS가 자동으로 Access
+# Entry를 만들어줘서 여기 또 넣으면 EKS API가 ResourceInUseException(409)로
+# 거부한다(2026-08-20 실제로 겪음). 여기(admin_principal_arns)는 클러스터를
+# "만들지 않은" 다른 팀원/역할한테 나중에 kubectl 권한을 추가로 줄 때만 쓸 것.
+admin_principal_arns = []
