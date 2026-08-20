@@ -26,9 +26,9 @@ variable "sns_topic_arn" {
 }
 
 variable "system_node_instance_type" {
-  description = "CoreDNS/Karpenter 컨트롤러 기동용 시스템 노드그룹 인스턴스 타입"
+  description = "CoreDNS/Karpenter 컨트롤러 기동용 시스템 노드그룹 인스턴스 타입. 이 노드그룹엔 taint가 없어서 앱 워크로드 Pod도 여기 스케줄링될 수 있다 - Karpenter NodePool의 amd64 요구사항과 아키텍처를 반드시 맞출 것(안 맞으면 시스템 노드그룹에 뜬 Pod만 exec format error로 크래시루프, 2026-08-20 실제로 겪음: karpenter NodePool은 고쳤는데 이 시스템 노드그룹이 여전히 arm64라 order/member Pod가 계속 여기 스케줄링돼서 안 풀렸었다)"
   type        = string
-  default     = "t4g.medium"
+  default     = "t3.medium"
 }
 
 variable "system_node_desired_size" {

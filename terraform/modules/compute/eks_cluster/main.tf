@@ -88,10 +88,15 @@ resource "aws_eks_access_policy_association" "github_actions" {
   # 객체 4개)도 같이 적용한다 - EditPolicy는 secrets 리소스 권한을 의도적으로
   # 뺀 정책(edit 롤의 시크릿 읽기를 통한 권한 상승을 막으려는 AWS 설계)이라
   # 그 순간부터 Secret apply가 Forbidden으로 깨진다. 그래서 AdminPolicy로
-  # 되돌림. 진짜 최소권한화하려면 AWS 관리형 access policy 대신 이 Role
-  # 전용 K8s ClusterRole(딱 필요한 리소스/네임스페이스만)을 따로 만들어
+  # 올렸었는데(2026-08-20), AmazonEKSAdminPolicy는 K8s 내장 "admin"
+  # ClusterRole에 매핑되고 이건 네임스페이스 "안"의 리소스만 관리할 뿐
+  # Namespace 객체 자체 같은 cluster-scoped 리소스는 못 만든다 -
+  # k8s/base/01-namespace.yaml apply가 Forbidden으로 실제로 깨졌다. 그래서
+  # admin_principal_arns(사람)과 같은 ClusterAdminPolicy("cluster-admin"
+  # 매핑)로 다시 올림. 최소권한화하려면 AWS 관리형 access policy 대신 이
+  # Role 전용 K8s ClusterRole(딱 필요한 리소스/네임스페이스만)을 따로 만들어
   # access_scope를 그걸로 바꿔야 하는데, 이번 스코프 밖이라 보류.
-  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
+  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 
   access_scope {
     type = "cluster"
@@ -158,7 +163,9 @@ resource "aws_eks_node_group" "system" {
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.app_subnet_ids
   instance_types  = [var.system_node_instance_type]
-  ami_type        = "AL2023_ARM_64_STANDARD"
+  # instance_types(위)의 아키텍처와 반드시 맞춰야 한다 - ami_type만 안 바꾸고
+  # instance_type만 amd64로 바꾸면 노드 자체가 뜨지 못한다.
+  ami_type = "AL2023_x86_64_STANDARD"
 
   scaling_config {
     desired_size = var.system_node_desired_size

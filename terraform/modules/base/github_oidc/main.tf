@@ -47,7 +47,12 @@ data "aws_iam_policy_document" "trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      # GitHub이 repojacking 방지를 위해 sub claim 기본 형식을 owner/repo 뒤에
+      # 불변 숫자 ID를 붙이는 걸로 바꿨다 - 실제 토큰은
+      # "repo:Burrun@127071470/book-eating-lion-dev@1318056441:ref:refs/heads/dev"
+      # 처럼 온다(2026-08-20 CloudTrail AccessDenied 로그로 확인). 순수
+      # "repo:OWNER/REPO:*"만 매치하던 옛 조건은 이제 아무 실행도 통과 못 시킨다.
+      values = ["repo:${var.github_org}@*/${var.github_repo}@*:*"]
     }
   }
 }
@@ -98,6 +103,37 @@ data "aws_iam_policy_document" "permissions" {
     effect    = "Allow"
     actions   = ["eks:ListClusters"]
     resources = ["*"]
+  }
+
+  # main-cd.yml의 Frontend → S3 & CloudFront 잡이 `aws s3 sync --delete`를
+  # 쓴다 - 이 권한이 없어서 2026-08-20 실제로 AccessDenied(s3:ListBucket)로
+  # 배포가 막혔다. ListBucket은 버킷 자체, 나머지는 객체(/*) 스코프.
+  statement {
+    sid       = "FrontendBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [var.frontend_bucket_arn, var.media_bucket_arn]
+  }
+
+  statement {
+    sid    = "FrontendBucketObjects"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      "${var.frontend_bucket_arn}/*",
+      "${var.media_bucket_arn}/*",
+    ]
+  }
+
+  statement {
+    sid       = "CloudFrontInvalidate"
+    effect    = "Allow"
+    actions   = ["cloudfront:CreateInvalidation"]
+    resources = var.cloudfront_distribution_arn != null ? [var.cloudfront_distribution_arn] : ["*"]
   }
 }
 

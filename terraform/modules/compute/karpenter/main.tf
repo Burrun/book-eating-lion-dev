@@ -298,7 +298,14 @@ resource "kubernetes_manifest" "default_node_pool" {
         spec = {
           requirements = [
             { key = "karpenter.k8s.aws/instance-family", operator = "In", values = distinct([for t in var.instance_types : split(".", t)[0]]) },
-            { key = "kubernetes.io/arch", operator = "In", values = ["arm64"] },
+            # 원래 비용 절감 목적으로 Graviton(arm64)만 허용했었는데, main-cd.yml의
+            # docker build가 ubuntu-latest 러너(amd64)에서 --platform 지정 없이
+            # 이미지를 만들어서 amd64 이미지가 arm64 노드에서 "exec format error"로
+            # 계속 크래시루프를 돌았다(2026-08-20 실제로 겪음). CI를 buildx로
+            # 크로스컴파일하게 바꾸는 대신(Dockerfile 4개+워크플로 수정 필요) 노드
+            # 아키텍처를 CI 산출물에 맞춰 amd64로 바꿔서 즉시 해결 - Graviton 비용
+            # 절감은 포기하는 트레이드오프(인프라구성명세.md §7.7 참고).
+            { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
             { key = "karpenter.sh/capacity-type", operator = "In", values = ["spot", "on-demand"] },
           ]
           nodeClassRef = {

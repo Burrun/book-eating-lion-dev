@@ -70,6 +70,12 @@ set_var "VPC_CIDR" "$VPC_CIDR"
 
 set_var "FRONTEND_S3_BUCKET" "$(ssm storage/frontend_bucket_id)"
 
+# ebook 전용 버킷은 따로 없다 - main-cd.yml 주석대로 media 버킷을 재사용한다
+# (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming) - 여기서 안 채우면
+# catalog 서비스가 "필수 값 EBOOK_S3_BUCKET 가 비어 있습니다"로 매번 실패한다
+# (2026-08-20 실제로 겪음 - 이 값을 채우는 로직 자체가 누락돼 있었음).
+set_var "EBOOK_S3_BUCKET" "$(ssm storage/media_bucket_id)"
+
 # S3 Vectors는 provider 미지원으로 Terraform이 아직 안 만듦 (인프라구성명세.md §7.5 참고)
 # - §7.5 가이드대로 aws s3vectors create-vector-bucket을 먼저 돌렸다면 아래 이름으로 채워짐
 AI_VECTOR_BUCKET="lion-team3-${ENV}-vectors"
@@ -81,9 +87,14 @@ fi
 
 for svc in CATALOG ORDER MEMBER AI; do
   lower=$(echo "$svc" | tr '[:upper:]' '[:lower:]')
-  repo_uri="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/lion-team3-${ENV}/${lower}"
-  if aws ecr describe-repositories --repository-names "lion-team3-${ENV}/${lower}" --region "$REGION" >/dev/null 2>&1; then
-    set_var "ECR_${svc}_REPO" "$repo_uri"
+  # main-cd.yml의 Build & push image/Render & apply 스텝이 레지스트리 주소를
+  # steps.ecr.outputs.registry(ECR_REGISTRY)로 따로 받아서 "$ECR_REGISTRY/$ECR_${svc}_REPO"로
+  # 직접 조합한다 - 여기 레지스트리 주소까지 넣으면 두 번 붙어서 존재하지 않는
+  # 리포지토리 이름이 되고 ecr:InitiateLayerUpload가 (권한이 아니라 리포 자체가
+  # 없어서) denied로 실패한다(2026-08-20 실제로 겪음). 순수 리포 이름만 넣을 것.
+  repo_name="lion-team3-${ENV}/${lower}"
+  if aws ecr describe-repositories --repository-names "$repo_name" --region "$REGION" >/dev/null 2>&1; then
+    set_var "ECR_${svc}_REPO" "$repo_name"
   else
     echo "  ⚠️  SKIP  ECR_${svc}_REPO — ECR 레포가 아직 없음"
   fi
