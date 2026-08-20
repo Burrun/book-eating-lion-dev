@@ -1,7 +1,6 @@
 import { apiClient, unwrap } from "./client.ts";
 import { isLoggedIn } from "./authStorage.js";
 import {
-  MOCK_CART_BENEFITS,
   MOCK_BOOK_CATALOG,
   mockGetCart,
   mockAddToCart,
@@ -149,10 +148,4 @@ function toDisplayItem(cartItem) {
 export async function fetchCartItems() {
   const { items } = await getCart();
   return items.map(toDisplayItem);
-}
-
-export async function fetchCartBenefits() {
-  if (USE_MOCK) return MOCK_CART_BENEFITS;
-  const { data } = await apiClient.get("/cart/benefits");
-  return data;
 }

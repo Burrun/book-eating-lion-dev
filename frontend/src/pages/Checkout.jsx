@@ -90,17 +90,21 @@ export default function Checkout() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getMyCards(), getMyAddresses(), fetchCoupons()]).then(
-      ([cardsData, addressesData, couponsData]) => {
-        if (ignore) return;
-        setCards(cardsData);
-        setAddresses(addressesData);
-        setCoupons(couponsData);
-        // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
-        const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
-        if (preselected) applyAddress(preselected);
-      },
-    );
+    // 카드/배송지/쿠폰은 서로 독립적인 조회다 — 하나가 실패해도(예: 카드 미등록 상태에서의
+    // 서버 오류) 나머지 둘로 화면은 계속 렌더링돼야 하므로 개별 catch로 빈 배열 폴백한다.
+    Promise.all([
+      getMyCards().catch(() => []),
+      getMyAddresses().catch(() => []),
+      fetchCoupons().catch(() => []),
+    ]).then(([cardsData, addressesData, couponsData]) => {
+      if (ignore) return;
+      setCards(cardsData);
+      setAddresses(addressesData);
+      setCoupons(couponsData);
+      // 저장된 배송지가 있으면 기본 배송지(없으면 첫 번째)로 미리 채워둔다.
+      const preselected = addressesData.find((a) => a.isDefault) ?? addressesData[0];
+      if (preselected) applyAddress(preselected);
+    });
     return () => {
       ignore = true;
     };
@@ -223,8 +227,11 @@ export default function Checkout() {
           name: form.receiver,
           phone: form.phone,
           postalCode: form.zipcode,
-          // 백엔드 Recipient에 상세주소 전용 필드가 없어 주소에 합쳐 보낸다.
-          address: form.addressDetail ? `${form.address} ${form.addressDetail}` : form.address,
+          // 백엔드 Recipient(addressDetail, deliveryRequest 둘 다 별도 필드로 받는다)에
+          // 맞춰 합치지 않고 그대로 각각 실어 보낸다.
+          address: form.address,
+          addressDetail: form.addressDetail || null,
+          deliveryRequest: form.request || null,
         },
         paymentMethod,
         cardId: paymentMethod === "VIRTUAL_CARD" ? Number(selectedCardId) : null,

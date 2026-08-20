@@ -170,30 +170,6 @@ export const MOCK_RETURN_REQUESTS = [
   },
 ];
 
-// GET /api/catalog/restock-alerts/me 응답 형태 — RestockAlertResponse[]
-export const MOCK_RESTOCK_REQUESTS = [
-  {
-    restockAlertId: 1,
-    bookId: 21,
-    title: "도메인 주도 설계",
-    status: "REQUESTED",
-    retryCount: 0,
-    requestedAt: "2026-07-22T14:03:00",
-    notifiedAt: null,
-    cancelledAt: null,
-  },
-  {
-    restockAlertId: 2,
-    bookId: 22,
-    title: "리팩터링 2판",
-    status: "REQUESTED",
-    retryCount: 0,
-    requestedAt: "2026-07-18T09:41:00",
-    notifiedAt: null,
-    cancelledAt: null,
-  },
-];
-
 export const MOCK_REVIEWS = [
   {
     id: 1,

@@ -16,7 +16,6 @@ import {
   askLion,
   fetchCoupons,
   fetchReturnRequests,
-  fetchRestockRequests,
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
@@ -36,17 +35,21 @@ import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
-// 프로필(GET /api/members/me)과 사자 성장/먹이기(GET·POST /api/ai/lion/**)는 실API가 있어
-// mock 여부와 무관하게 항상 노출한다. 그 외 나머지(RAG 물어보기 카드, 주문목록/쿠폰/반품/
-// 재입고/내 리뷰 목록)는 아직 실제 API가 없거나(계약에 없음) 이번 스코프가 아니라, 존재하지
-// 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
+// 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), 주문목록,
+// 쿠폰현황, 재입고 알림은 실API가 있어 mock 여부와 무관하게 항상 노출한다. 그 외 나머지
+// (RAG 물어보기 카드, 반품/내 리뷰 목록)는 아직 실제 API가 없거나(계약에 없음) 이번
+// 스코프가 아니라, 존재하지 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock
+// 모드에서만 노출한다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
+// 재입고 알림 신청 목록은 여기 탭으로 따로 두지 않는다 — "내 도서 활동"
+// (BookActivitySection)의 재입고 알림 탭이 같은 API(GET /catalog/restock-alerts/me)로
+// 이미 신청 취소까지 정상 동작해서, 이 탭은 중복이자 죽은 사본이었다(취소 버튼이 서버
+// 호출 없이 화면에서만 지우는 가짜 구현이었다). 하나로 통일했다.
 const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
   { id: "coupons", label: "쿠폰 현황" },
   { id: "returns", label: "취소/교환/반품/환불" },
-  { id: "restock", label: "재입고 알림 신청" },
   { id: "cards", label: "카드 관리" },
   { id: "addresses", label: "배송지 관리" },
 ];
@@ -885,7 +888,6 @@ function OrdersSection() {
         {activeTab === "orders" && <OrdersTab />}
         {activeTab === "coupons" && <CouponsTab />}
         {activeTab === "returns" && <ReturnsTab />}
-        {activeTab === "restock" && <RestockTab />}
       </div>
     </section>
   );
@@ -1250,20 +1252,31 @@ function OrdersTab() {
 
 function CouponsTab() {
   const [state, setState] = useState(null);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
-    if (!USE_MOCK) return;
     let ignore = false;
-    fetchCoupons().then((data) => {
-      if (!ignore) setState(data);
-    });
+    fetchCoupons()
+      .then((data) => {
+        if (!ignore) setState(data);
+      })
+      .catch(() => {
+        if (!ignore) setIsError(true);
+      });
     return () => {
       ignore = true;
     };
   }, []);
 
-  if (!USE_MOCK) return <EmptyState message="쿠폰 현황 기능은 준비 중이에요" />;
-  if (!state) return <TabSkeleton />;
+  if (!state && !isError) return <TabSkeleton />;
+  if (isError) {
+    return (
+      <p className="py-10 text-center text-sm text-[var(--color-coral)]">
+        쿠폰 목록을 불러오지 못했어요.
+      </p>
+    );
+  }
+  if (state.length === 0) return <EmptyState message="사용 가능한 쿠폰이 없어요" />;
 
   // 만료/사용 분기는 없앴다. 백엔드가 미사용 + 미만료 쿠폰만 내려주므로
   // 만료된 항목이 이 목록에 도달할 경로가 없다.
@@ -1329,60 +1342,6 @@ function ReturnsTab() {
           </li>
         );
       })}
-    </ul>
-  );
-}
-
-function RestockTab() {
-  const [requests, setRequests] = useState(null);
-
-  useEffect(() => {
-    if (!USE_MOCK) return;
-    let ignore = false;
-    fetchRestockRequests().then((data) => {
-      if (!ignore) setRequests(data);
-    });
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  if (!USE_MOCK) return <EmptyState message="재입고 알림 신청 기능은 준비 중이에요" />;
-  if (!requests) return <TabSkeleton />;
-  if (requests.length === 0) {
-    return <EmptyState message="신청한 재입고 알림이 없어요" />;
-  }
-
-  return (
-    <ul className="flex flex-col gap-3">
-      {requests.map((item) => (
-        <li
-          key={item.restockAlertId}
-          className="flex items-center justify-between rounded-xl border border-[var(--color-forest)]/10 p-4"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-forest)]/5 text-[var(--color-forest)] opacity-40">
-              <BookOpen size={18} />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-[var(--color-ink)]">{item.title}</p>
-              <p className="text-sm text-[var(--color-ink)] opacity-50">
-                {item.requestedAt?.slice(0, 10)} 신청
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            shimmer={false}
-            onClick={() =>
-              setRequests((prev) => prev.filter((r) => r.restockAlertId !== item.restockAlertId))
-            }
-          >
-            신청 취소
-          </Button>
-        </li>
-      ))}
     </ul>
   );
 }
