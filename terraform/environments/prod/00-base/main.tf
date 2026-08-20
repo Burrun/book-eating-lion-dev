@@ -7,12 +7,14 @@ module "vpc" {
   public_subnet_cidrs = var.public_subnet_cidrs
   app_subnet_cidrs    = var.app_subnet_cidrs
   data_subnet_cidrs   = var.data_subnet_cidrs
+  single_nat_gateway  = var.single_nat_gateway
 }
 
 module "dns_zone" {
   source = "../../../modules/base/dns_zone"
 
-  domain_name = var.domain_name
+  domain_name        = var.domain_name
+  parent_zone_domain = var.parent_zone_domain
 }
 
 # us-east-1 alias 필수 — CloudFront는 us-east-1 인증서만 받는다.
@@ -61,8 +63,14 @@ module "alerting" {
 module "github_oidc" {
   source = "../../../modules/base/github_oidc"
 
-  environment          = var.environment
-  create_oidc_provider = true # OIDC Provider는 계정당 유일 - prod가 소유. dev는 false로 조회만 함
+  environment = var.environment
+  # 이 공유 계정엔 이미 다른(우리 프로젝트와 무관한, 2025-12-23 생성) GitHub OIDC
+  # Provider가 있어서 여기서 새로 만들면 EntityAlreadyExists로 충돌한다 - 그래서
+  # prod도 dev와 똑같이 false로 두고 기존 걸 조회만 한다. 원래는 "계정당 유일
+  # 리소스라 prod가 소유"하는 모델이었는데, 이 계정은 여러 팀이 공유해서 그
+  # 가정 자체가 안 맞았다(2026-08-20 확인). 결과적으로 dev/prod 사이의 apply
+  # 순서 의존성도 이제 없다.
+  create_oidc_provider = false
   github_org           = var.github_org
   github_repo          = var.github_repo
   ecr_repository_arns  = values(module.container_reg.repository_arns)

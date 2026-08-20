@@ -32,3 +32,9 @@ variable "data_subnet_cidrs" {
   description = "Private Data 서브넷 CIDR 목록 (Aurora/Valkey용, 2개)"
   type        = list(string)
 }
+
+variable "single_nat_gateway" {
+  description = "true면 NAT Gateway/EIP를 1개(첫 AZ)만 만들어 두 AZ가 공유한다 - AZ 장애 격리를 포기하는 대신 비용을 절반으로 줄인다(NAT Gateway는 시간당 고정 과금). 비용에 민감한 dev 등에서만 true로 켤 것, prod는 기본값(false, AZ별 NAT) 유지"
+  type        = bool
+  default     = false
+}

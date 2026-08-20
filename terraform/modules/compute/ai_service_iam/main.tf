@@ -55,6 +55,13 @@ data "aws_iam_policy_document" "permissions" {
     resources = [var.ingest_channel_arn]
   }
 
+  statement {
+    sid       = "PurchaseChannelConsume"
+    effect    = "Allow"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
+    resources = [var.purchase_channel_arn]
+  }
+
   dynamic "statement" {
     for_each = length(local.vector_index_arns) > 0 ? [1] : []
     content {

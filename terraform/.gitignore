@@ -10,6 +10,11 @@
 crash.log
 crash.*.log
 
+# plan -out 결과물 - 재생성 가능하고 리소스 상세정보(민감할 수 있음)를 담음
+tfplan
+*.tfplan
+destroy.tfplan
+
 # 로컬 override (개인 실험용, 커밋하지 않음)
 override.tf
 override.tf.json

@@ -10,7 +10,7 @@ variable "aws_region" {
 
 variable "cluster_version" {
   type    = string
-  default = "1.30"
+  default = "1.34" # 1.30은 지원 종료(2026-08-20 확인)
 }
 
 variable "domain_name" {
@@ -19,4 +19,10 @@ variable "domain_name" {
 
 variable "bedrock_model_arns" {
   type = list(string)
+}
+
+variable "admin_principal_arns" {
+  description = "kubectl/terraform으로 이 클러스터를 관리할 사람(들)의 IAM 사용자/역할 ARN 목록 (eks_cluster 모듈로 그대로 전달)"
+  type        = list(string)
+  default     = []
 }

@@ -18,7 +18,7 @@ variable "cluster_name" {
 
 variable "cluster_version" {
   type    = string
-  default = "1.30"
+  default = "1.34" # 1.30은 지원 종료(2026-08-20 확인) - 신규 클러스터는 EKS 표준/연장 지원 목록에 있는 버전만 가능
 }
 
 variable "sns_topic_arn" {
@@ -40,6 +40,12 @@ variable "github_actions_role_arn" {
   description = "CI가 kubectl로 배포할 수 있도록 EKS Access Entry를 부여할 역할 (00-base SSM 출력). null이면 Access Entry를 만들지 않음"
   type        = string
   default     = null
+}
+
+variable "admin_principal_arns" {
+  description = "kubectl/terraform으로 이 클러스터를 관리할 사람(들)의 IAM 사용자/역할 ARN 목록. bootstrap_cluster_creator_admin_permissions는 최초 생성 시점에만 적용되고 기존 클러스터에는 소급 적용이 안 되므로, 여기 등록된 principal에게 명시적으로 AmazonEKSClusterAdminPolicy를 부여한다"
+  type        = list(string)
+  default     = []
 }
 
 variable "public_access_cidrs" {

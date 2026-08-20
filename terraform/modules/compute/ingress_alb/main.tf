@@ -38,7 +38,11 @@ resource "aws_iam_role" "alb_controller" {
 }
 
 # AWS 공식 게시 정책 요약본. 실제 apply 전 aws-load-balancer-controller 릴리스 노트의
-# iam_policy.json과 대조할 것 - 버전마다 조금씩 늘어난다.
+# iam_policy.json과 대조할 것 - 버전마다 조금씩 늘어난다. 실제로 겪음(2026-08-20):
+# helm_release가 chart 버전을 안 고정해서 최신 컨트롤러가 설치됐는데, 그 버전이
+# 요구하는 elasticloadbalancing:DescribeListenerAttributes/ModifyListenerAttributes가
+# 이 요약본엔 없어서 ingress-nginx Service가 NLB를 못 만들고 FailedDeployModel
+# 이벤트만 반복됐다.
 data "aws_iam_policy_document" "alb_controller" {
   statement {
     sid    = "AllowReadOnly"
@@ -53,6 +57,7 @@ data "aws_iam_policy_document" "alb_controller" {
       "elasticloadbalancing:DescribeListenerCertificates", "elasticloadbalancing:DescribeSSLPolicies",
       "elasticloadbalancing:DescribeRules", "elasticloadbalancing:DescribeTargetGroups",
       "elasticloadbalancing:DescribeTargetGroupAttributes", "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:DescribeListenerAttributes",
       "elasticloadbalancing:DescribeTags", "acm:ListCertificates", "acm:DescribeCertificate",
       "iam:ListServerCertificates", "iam:GetServerCertificate", "waf-regional:GetWebACL",
       "wafv2:GetWebACL", "wafv2:GetWebACLForResource", "shield:GetSubscriptionState",
@@ -97,6 +102,7 @@ data "aws_iam_policy_document" "alb_controller" {
       "elasticloadbalancing:ModifyTargetGroupAttributes", "elasticloadbalancing:DeleteTargetGroup",
       "elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets",
       "elasticloadbalancing:SetWebAcl", "elasticloadbalancing:ModifyListener",
+      "elasticloadbalancing:ModifyListenerAttributes",
       "elasticloadbalancing:AddListenerCertificates", "elasticloadbalancing:RemoveListenerCertificates",
       "elasticloadbalancing:ModifyRule", "elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags",
     ]
@@ -117,6 +123,9 @@ resource "helm_release" "alb_controller" {
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
+  # 버전을 안 고정하면 업그레이드 때마다 IAM 정책이 안 맞아 배포가 깨질 수 있다
+  # (2026-08-20 실제로 겪음) - 지금 IAM 정책/Helm set 값으로 검증된 버전에 고정.
+  version = var.alb_controller_chart_version
 
   set {
     name  = "clusterName"
@@ -148,6 +157,12 @@ resource "helm_release" "ingress_nginx" {
   create_namespace = true
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
+  version          = var.ingress_nginx_chart_version
+  # wait=true 기본 타임아웃(300초)이 최초 NLB 프로비저닝엔 빠듯하다 - 리소스
+  # 자체는 정상 생성됐는데 helm_release만 타임아웃으로 실패 처리된 걸 실제로
+  # 겪음(2026-08-20, NLB는 살아있고 helm status도 deployed인데 Terraform만
+  # 에러). 여유 있게 늘림.
+  timeout = 600
 
   set {
     name  = "controller.service.type"
@@ -166,8 +181,12 @@ resource "helm_release" "ingress_nginx" {
   }
 
   set {
-    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
-    value = join(",", var.public_subnet_ids)
+    name = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
+    # Helm의 set 문법은 콤마를 "여러 key=value 쌍의 구분자"로 해석해서, 값
+    # 안의 콤마(서브넷 ID 나열)를 그냥 join(",", ...)하면 두 번째 서브넷부터
+    # "값 없는 키"로 잘못 파싱돼 apply가 실패한다(2026-08-20 실제로 겪음).
+    # \,로 이스케이프해야 Helm이 값 전체를 하나로 본다.
+    value = join("\\,", var.public_subnet_ids)
   }
 
   set {

@@ -50,6 +50,10 @@ data "aws_ssm_parameter" "ai_ingest_channel_arn" {
   name = "${local.ssm_prefix}/ai/ingest_channel_arn"
 }
 
+data "aws_ssm_parameter" "ai_purchase_channel_arn" {
+  name = "${local.ssm_prefix}/ai/purchase_channel_arn"
+}
+
 # ── 1. EKS 클러스터 (최초 apply 시 -target으로 먼저 만들 것) ────────
 module "eks_cluster" {
   source = "../../../modules/compute/eks_cluster"
@@ -60,6 +64,7 @@ module "eks_cluster" {
   cluster_version         = var.cluster_version
   sns_topic_arn           = data.aws_ssm_parameter.sns_topic_arn.value
   github_actions_role_arn = data.aws_ssm_parameter.github_actions_role_arn.value
+  admin_principal_arns    = var.admin_principal_arns
 }
 
 # ── 2. Karpenter ────────────────────────────────────────────────
@@ -124,6 +129,7 @@ module "ai_service_iam" {
   oidc_provider_arn            = module.eks_cluster.oidc_provider_arn
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.ai_ingest_channel_arn.value
+  purchase_channel_arn         = data.aws_ssm_parameter.ai_purchase_channel_arn.value
   recommendation_index_arn     = null # S3 Vectors provider 지원 전까지 null
   purchased_book_rag_index_arn = null
   bedrock_model_arns           = var.bedrock_model_arns

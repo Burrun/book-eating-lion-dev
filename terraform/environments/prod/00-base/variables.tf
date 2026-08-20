@@ -29,9 +29,20 @@ variable "data_subnet_cidrs" {
   type = list(string)
 }
 
+variable "single_nat_gateway" {
+  description = "true면 NAT Gateway 1개로 두 AZ가 공유 (AZ 장애 격리 포기, 비용 절반). prod는 기본값(false)을 유지할 것 - 격리가 비용보다 중요"
+  type        = bool
+  default     = false
+}
+
 # ── DNS / ACM / WAF ──────────────────────────────────────────────
 variable "domain_name" {
   type = string
+}
+
+variable "parent_zone_domain" {
+  description = "domain_name이 서브도메인일 때 그 부모 도메인 (이미 이 계정 Route53에 등록돼 있어야 함) - NS 위임 레코드를 자동으로 추가하는 데 씀"
+  type        = string
 }
 
 variable "waf_rate_limit" {

@@ -22,8 +22,9 @@ variable "instance_type" {
 }
 
 variable "root_volume_size_gb" {
-  type    = number
-  default = 20
+  description = "AL2023 arm64 AMI의 스냅샷이 요구하는 최소 크기 이상이어야 함 - 20GB로는 부족해서 apply가 실패했었다(2026-08-20, AWS가 시간이 지나며 AMI 기본 이미지 크기를 키워옴). AMI가 더 커지면 이 값도 같이 올려야 할 수 있음"
+  type        = number
+  default     = 30
 }
 
 variable "database_name" {

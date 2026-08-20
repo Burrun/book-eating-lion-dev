@@ -55,10 +55,17 @@ resource "aws_subnet" "data" {
   }
 }
 
-# ── NAT Gateway — AZ당 1개, 그 AZ의 App Subnet만 담당 ─────────────
+# ── NAT Gateway — 기본은 AZ당 1개, 그 AZ의 App Subnet만 담당 ───────
 # 두 AZ가 같은 NAT를 공유하면 그 AZ가 죽을 때 다른 AZ까지 아웃바운드를 잃는다.
+# var.single_nat_gateway=true면 이 격리를 포기하고 NAT 1개(첫 AZ)로 비용을 아낀다 -
+# NAT Gateway가 시간당 고정 과금이라(2개 기준 월 ~$86) dev처럼 격리보다 비용이
+# 중요한 환경에서만 켤 것. prod는 기본값(false, AZ별 NAT) 유지.
+locals {
+  nat_gateway_count = var.single_nat_gateway ? 1 : length(var.availability_zones)
+}
+
 resource "aws_eip" "nat" {
-  count  = length(var.availability_zones)
+  count  = local.nat_gateway_count
   domain = "vpc"
 
   tags = {
@@ -69,7 +76,7 @@ resource "aws_eip" "nat" {
 }
 
 resource "aws_nat_gateway" "this" {
-  count         = length(var.availability_zones)
+  count         = local.nat_gateway_count
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
 
@@ -109,7 +116,7 @@ resource "aws_route_table" "app" {
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this[count.index].id
+    nat_gateway_id = var.single_nat_gateway ? aws_nat_gateway.this[0].id : aws_nat_gateway.this[count.index].id
   }
 
   tags = {
