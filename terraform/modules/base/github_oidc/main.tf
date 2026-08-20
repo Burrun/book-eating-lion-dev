@@ -81,15 +81,16 @@ data "aws_iam_policy_document" "permissions" {
   }
 
   # kubeconfig 구성을 위한 읽기 권한. 실제 배포 권한은 K8s RBAC가 따로 통제한다.
-  # DescribeCluster는 02-runtime을 참조하지 않고도(위 §변수 설명 참고) eks_cluster
-  # 모듈과 동일한 네이밍 규칙(lion-team3-{environment})으로 ARN을 예측해 리소스를
-  # 좁힐 수 있다. ListClusters는 계정 전체를 나열하는 액션이라 AWS가 리소스 수준
-  # 권한 자체를 지원하지 않으므로 "*"가 아닌 다른 선택지가 없다.
+  # DescribeCluster는 02-runtime을 참조하지 않고도(위 §변수 설명 참고) 리소스를
+  # 좁힐 수 있다. 다만 이 모듈이 eks_cluster 모듈의 네이밍 규칙을 스스로 다시
+  # 추측하면 두 모듈이 각자 따로 문자열을 하드코딩하게 돼 한쪽만 바뀌어도 조용히
+  # 어긋난다(리뷰에서 지적됨) - 그래서 이름 자체는 var.eks_cluster_name로 환경
+  # 계층(00-base main.tf)에서 명시적으로 받는다.
   statement {
     sid       = "EksDescribeCluster"
     effect    = "Allow"
     actions   = ["eks:DescribeCluster"]
-    resources = ["arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/lion-team3-${var.environment}"]
+    resources = ["arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/${var.eks_cluster_name}"]
   }
 
   statement {

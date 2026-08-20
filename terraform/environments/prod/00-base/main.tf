@@ -66,6 +66,9 @@ module "github_oidc" {
   github_org           = var.github_org
   github_repo          = var.github_repo
   ecr_repository_arns  = values(module.container_reg.repository_arns)
+  # eks_cluster 모듈의 cluster_name 기본값(coalesce(var.cluster_name, "lion-team3-${var.environment}"))과
+  # 반드시 같아야 한다 - 02-runtime에서 cluster_name을 override하면 여기도 같이 바꿀 것.
+  eks_cluster_name = "lion-team3-${var.environment}"
 }
 
 # ── 하위 계층(01-data, 02-runtime)이 조회할 SSM 파라미터 ──────────

@@ -77,10 +77,15 @@ resource "aws_eks_access_policy_association" "github_actions" {
   count         = var.github_actions_role_arn != null ? 1 : 0
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = var.github_actions_role_arn
-  # AmazonEKSAdminPolicy(클러스터 전체 관리자)는 과도한 권한이라, 배포에 필요한
-  # 워크로드/리소스 CRUD만 허용하는 EditPolicy로 최소화한다. RBAC 세부 조정은
-  # AmazonEKSEditPolicy로도 충분히 커버됨(다른 사용자 접근권한 관리 등만 제외).
-  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
+  # AmazonEKSEditPolicy로 좁혀봤지만(2026-08-20) main-cd.yml이 이 Role로
+  # `kubectl apply -f rendered/`를 실행할 때 k8s/base/03-secret.yaml(Secret
+  # 객체 4개)도 같이 적용한다 - EditPolicy는 secrets 리소스 권한을 의도적으로
+  # 뺀 정책(edit 롤의 시크릿 읽기를 통한 권한 상승을 막으려는 AWS 설계)이라
+  # 그 순간부터 Secret apply가 Forbidden으로 깨진다. 그래서 AdminPolicy로
+  # 되돌림. 진짜 최소권한화하려면 AWS 관리형 access policy 대신 이 Role
+  # 전용 K8s ClusterRole(딱 필요한 리소스/네임스페이스만)을 따로 만들어
+  # access_scope를 그걸로 바꿔야 하는데, 이번 스코프 밖이라 보류.
+  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
 
   access_scope {
     type = "cluster"

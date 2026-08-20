@@ -136,9 +136,12 @@ resource "aws_instance" "this" {
   user_data = <<-EOF
     #!/bin/bash
     set -euxo pipefail
-    # awscli/python3는 AL2023 기본 이미지에 보통 포함돼 있지만, 커스텀 AMI나
-    # 이미지 버전에 따라 빠질 수 있어 명시적으로 설치해 부팅 실패를 방지한다.
-    dnf install -y postgresql16-server postgresql16 awscli python3
+    # AL2023 dnf 레포에는 "awscli"라는 패키지 자체가 없다(AWS CLI v2는 AL2023
+    # 기본 AMI에 이미 preinstall돼 있고, 리포로 배포되지 않는다) - dnf install에
+    # 넣으면 "No match for argument" 에러로 postgresql 설치 전에 부팅이 죽는다.
+    # 그래서 설치를 시도하지 않고 존재 여부만 확인해 실패를 명확하게 만든다.
+    dnf install -y postgresql16-server postgresql16 python3
+    command -v aws >/dev/null 2>&1 || { echo "aws cli not found on this AMI" >&2; exit 1; }
     postgresql-setup --initdb
     systemctl enable --now postgresql
 
