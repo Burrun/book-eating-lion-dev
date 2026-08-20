@@ -2,13 +2,15 @@
 # 단일 인스턴스라 reader_endpoint도 같은 주소를 가리킨다.
 # rds_proxy는 Aurora 전용 기능이라 dev에서는 아예 호출하지 않는다 - 그래서
 # 01-data/main.tf가 rds_proxy_endpoint SSM 파라미터에도 이 값을 그대로 쓴다.
+# aurora_pg.cluster_endpoint(aws_rds_cluster.this.endpoint)와 포맷을 맞추기 위해
+# 포트 없이 호스트만 반환한다 - 두 모듈 다 포트는 5432로 소비자가 알고 있다고 가정.
 
 output "cluster_endpoint" {
-  value = "${aws_instance.this.private_ip}:5432"
+  value = aws_instance.this.private_ip
 }
 
 output "reader_endpoint" {
-  value = "${aws_instance.this.private_ip}:5432"
+  value = aws_instance.this.private_ip
 }
 
 output "cluster_identifier" {

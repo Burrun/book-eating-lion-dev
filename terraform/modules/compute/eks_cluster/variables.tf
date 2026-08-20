@@ -41,3 +41,9 @@ variable "github_actions_role_arn" {
   type        = string
   default     = null
 }
+
+variable "public_access_cidrs" {
+  description = "EKS API 서버 퍼블릭 엔드포인트 접근을 허용할 CIDR 목록. GitHub-hosted runner는 IP 대역이 넓어 기본값은 전체 허용이지만, self-hosted runner/VPN을 쓰게 되면 여기를 좁혀서 실제로 제한할 것"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

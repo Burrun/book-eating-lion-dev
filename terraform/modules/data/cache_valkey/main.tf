@@ -42,7 +42,7 @@ resource "aws_elasticache_replication_group" "this" {
   description          = "lion-team3 ${var.environment} Valkey"
 
   engine         = "valkey"
-  engine_version = "8.2"
+  engine_version = var.engine_version
   node_type      = var.node_type
 
   subnet_group_name    = aws_elasticache_subnet_group.this.name

@@ -80,7 +80,7 @@ data "aws_iam_policy_document" "controller" {
     ]
     resources = ["*"]
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "aws:ResourceTag/karpenter.sh/nodepool"
       values   = ["*"]
     }

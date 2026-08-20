@@ -29,7 +29,7 @@ resource "aws_rds_cluster" "this" {
   cluster_identifier     = "lion-team3-${var.environment}"
   engine                 = "aurora-postgresql"
   engine_mode            = "provisioned" # Serverless v2는 provisioned 클러스터 위에서 인스턴스별로 켠다
-  engine_version         = "16.4"
+  engine_version         = var.engine_version
   database_name          = var.database_name
   master_username        = var.master_username
   db_subnet_group_name   = aws_db_subnet_group.this.name
@@ -38,6 +38,9 @@ resource "aws_rds_cluster" "this" {
   # 마스터 비밀번호를 tfvars/state에 평문으로 두지 않기 위해 AWS가 Secrets Manager에
   # 자동 발급하게 한다 (TERRAFORM_STRUCTURE.md §3.2-1 참고).
   manage_master_user_password = true
+
+  # 기본값이 false라 명시하지 않으면 저장 데이터가 암호화되지 않는다.
+  storage_encrypted = true
 
   serverlessv2_scaling_configuration {
     min_capacity = var.min_capacity

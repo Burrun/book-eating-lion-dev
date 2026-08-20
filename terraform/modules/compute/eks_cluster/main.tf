@@ -44,7 +44,8 @@ resource "aws_eks_cluster" "this" {
     subnet_ids              = var.app_subnet_ids
     security_group_ids      = [aws_security_group.cluster.id]
     endpoint_private_access = true
-    endpoint_public_access  = true # true로 두되 CI/개발자 kubectl 접근용. 운영에서 IP 제한하려면 public_access_cidrs 추가
+    endpoint_public_access  = true # CI/개발자 kubectl 접근용. 허용 대역은 var.public_access_cidrs로 제한
+    public_access_cidrs     = var.public_access_cidrs
   }
 
   access_config {
@@ -76,7 +77,10 @@ resource "aws_eks_access_policy_association" "github_actions" {
   count         = var.github_actions_role_arn != null ? 1 : 0
   cluster_name  = aws_eks_cluster.this.name
   principal_arn = var.github_actions_role_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
+  # AmazonEKSAdminPolicy(클러스터 전체 관리자)는 과도한 권한이라, 배포에 필요한
+  # 워크로드/리소스 CRUD만 허용하는 EditPolicy로 최소화한다. RBAC 세부 조정은
+  # AmazonEKSEditPolicy로도 충분히 커버됨(다른 사용자 접근권한 관리 등만 제외).
+  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
 
   access_scope {
     type = "cluster"

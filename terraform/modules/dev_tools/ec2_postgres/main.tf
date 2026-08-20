@@ -122,6 +122,11 @@ resource "aws_instance" "this" {
     encrypted   = true
   }
 
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required" # IMDSv1 비활성화
+  }
+
   # PostgreSQL 16 설치 + 마스터 계정 생성. 스키마(00-init.sql, 01~04-*.sql) 적용은
   # 이 모듈의 책임이 아니다 - db/postgres/*.sql을 psql로 실행하는 건 배포 파이프라인/
   # 애플리케이션 쪽 몫이다 (docker-compose가 로컬에서 하는 것과 같은 역할).
@@ -131,7 +136,9 @@ resource "aws_instance" "this" {
   user_data = <<-EOF
     #!/bin/bash
     set -euxo pipefail
-    dnf install -y postgresql16-server postgresql16
+    # awscli/python3는 AL2023 기본 이미지에 보통 포함돼 있지만, 커스텀 AMI나
+    # 이미지 버전에 따라 빠질 수 있어 명시적으로 설치해 부팅 실패를 방지한다.
+    dnf install -y postgresql16-server postgresql16 awscli python3
     postgresql-setup --initdb
     systemctl enable --now postgresql
 
@@ -140,6 +147,14 @@ resource "aws_instance" "this" {
       --region ${data.aws_region.current.name} \
       --query SecretString --output text \
       | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
+
+    # Secrets Manager 조회/파싱이 실패하면 빈 비밀번호로 계속 진행하지 않고
+    # 여기서 바로 중단한다 - psql 자체는 성공 종료 코드를 반환할 수 있어
+    # set -e만으로는 이 실패를 못 잡는다.
+    if [ -z "$DB_PASSWORD" ]; then
+      echo "Failed to retrieve DB password from Secrets Manager" >&2
+      exit 1
+    fi
 
     sudo -u postgres psql -c "ALTER USER postgres PASSWORD '$DB_PASSWORD';"
     sudo -u postgres psql -c "CREATE ROLE ${var.master_username} LOGIN SUPERUSER PASSWORD '$DB_PASSWORD';"

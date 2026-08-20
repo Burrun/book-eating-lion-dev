@@ -47,6 +47,7 @@ module "storage" {
 module "container_reg" {
   source = "../../../modules/base/container_reg"
 
+  environment   = var.environment
   service_names = var.service_names
 }
 

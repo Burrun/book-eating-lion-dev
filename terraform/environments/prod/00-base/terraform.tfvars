@@ -24,6 +24,10 @@ service_names = ["catalog", "order", "member", "ai"]
 # TODO: 실제 운영자 이메일로 교체
 alert_email = "ops@book-eating-lion.com"
 
-# github.com/Burrun/book-eating-lion-dev 기준
+# github.com/Burrun/book-eating-lion-dev 기준. dev/prod가 별도 repo가 아니라
+# 이 저장소 하나를 같이 쓴다(확인 완료 - 계정에 별도 prod repo 없음) - 그래서 prod도
+# 여기(dev 리포지토리명)를 그대로 신뢰 대상으로 지정한다. IAM Role 자체는 환경별로
+# 분리돼 있으므로(github_oidc 모듈이 이름에 environment를 넣음) repo가 같아도
+# dev/prod 배포 권한은 섞이지 않는다.
 github_org  = "Burrun"
 github_repo = "book-eating-lion-dev"

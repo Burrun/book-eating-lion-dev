@@ -2,6 +2,9 @@
 # 호출하지만 Provider 자체는 딱 한 환경(create_oidc_provider = true)에서만 만든다.
 # 나머지 환경은 데이터소스로 기존 것을 조회해서 쓴다.
 
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
 data "tls_certificate" "github" {
   count = var.create_oidc_provider ? 1 : 0
   url   = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
@@ -78,10 +81,21 @@ data "aws_iam_policy_document" "permissions" {
   }
 
   # kubeconfig 구성을 위한 읽기 권한. 실제 배포 권한은 K8s RBAC가 따로 통제한다.
+  # DescribeCluster는 02-runtime을 참조하지 않고도(위 §변수 설명 참고) eks_cluster
+  # 모듈과 동일한 네이밍 규칙(lion-team3-{environment})으로 ARN을 예측해 리소스를
+  # 좁힐 수 있다. ListClusters는 계정 전체를 나열하는 액션이라 AWS가 리소스 수준
+  # 권한 자체를 지원하지 않으므로 "*"가 아닌 다른 선택지가 없다.
   statement {
-    sid       = "EksDescribe"
+    sid       = "EksDescribeCluster"
     effect    = "Allow"
-    actions   = ["eks:DescribeCluster", "eks:ListClusters"]
+    actions   = ["eks:DescribeCluster"]
+    resources = ["arn:aws:eks:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster/lion-team3-${var.environment}"]
+  }
+
+  statement {
+    sid       = "EksListClusters"
+    effect    = "Allow"
+    actions   = ["eks:ListClusters"]
     resources = ["*"]
   }
 }
