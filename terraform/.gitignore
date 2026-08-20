@@ -1,0 +1,21 @@
+# Terraform 로컬 캐시 - 프로바이더 바이너리, init 시 매번 재생성됨
+**/.terraform/
+
+# State 파일 - S3 backend를 쓰므로 로컬엔 있으면 안 됨 (민감정보 포함)
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# 크래시 로그
+crash.log
+crash.*.log
+
+# 로컬 override (개인 실험용, 커밋하지 않음)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI 설정에 자격증명이 들어갈 수 있음
+.terraformrc
+terraform.rc
