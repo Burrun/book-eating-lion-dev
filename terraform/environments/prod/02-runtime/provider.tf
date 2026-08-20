@@ -5,7 +5,7 @@ provider "aws" {
     tags = {
       Project     = "lion"
       Team        = "Team3"
-      Owner       = "이정제"
+      Owner       = "book-eating-lion-team3"
       Environment = var.environment
       ManagedBy   = "terraform"
       Layer       = "runtime"

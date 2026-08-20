@@ -264,7 +264,7 @@ resource "kubernetes_manifest" "ec2_node_class" {
       tags = {
         Project     = "lion"
         Team        = "Team3"
-        Owner       = "이정제"
+        Owner       = "book-eating-lion-team3"
         Environment = var.environment
         ManagedBy   = "karpenter"
       }
