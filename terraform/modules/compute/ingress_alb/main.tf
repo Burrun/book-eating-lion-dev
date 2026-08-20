@@ -38,7 +38,11 @@ resource "aws_iam_role" "alb_controller" {
 }
 
 # AWS 공식 게시 정책 요약본. 실제 apply 전 aws-load-balancer-controller 릴리스 노트의
-# iam_policy.json과 대조할 것 - 버전마다 조금씩 늘어난다.
+# iam_policy.json과 대조할 것 - 버전마다 조금씩 늘어난다. 실제로 겪음(2026-08-20):
+# helm_release가 chart 버전을 안 고정해서 최신 컨트롤러가 설치됐는데, 그 버전이
+# 요구하는 elasticloadbalancing:DescribeListenerAttributes/ModifyListenerAttributes가
+# 이 요약본엔 없어서 ingress-nginx Service가 NLB를 못 만들고 FailedDeployModel
+# 이벤트만 반복됐다.
 data "aws_iam_policy_document" "alb_controller" {
   statement {
     sid    = "AllowReadOnly"
@@ -53,6 +57,7 @@ data "aws_iam_policy_document" "alb_controller" {
       "elasticloadbalancing:DescribeListenerCertificates", "elasticloadbalancing:DescribeSSLPolicies",
       "elasticloadbalancing:DescribeRules", "elasticloadbalancing:DescribeTargetGroups",
       "elasticloadbalancing:DescribeTargetGroupAttributes", "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:DescribeListenerAttributes",
       "elasticloadbalancing:DescribeTags", "acm:ListCertificates", "acm:DescribeCertificate",
       "iam:ListServerCertificates", "iam:GetServerCertificate", "waf-regional:GetWebACL",
       "wafv2:GetWebACL", "wafv2:GetWebACLForResource", "shield:GetSubscriptionState",
@@ -97,6 +102,7 @@ data "aws_iam_policy_document" "alb_controller" {
       "elasticloadbalancing:ModifyTargetGroupAttributes", "elasticloadbalancing:DeleteTargetGroup",
       "elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets",
       "elasticloadbalancing:SetWebAcl", "elasticloadbalancing:ModifyListener",
+      "elasticloadbalancing:ModifyListenerAttributes",
       "elasticloadbalancing:AddListenerCertificates", "elasticloadbalancing:RemoveListenerCertificates",
       "elasticloadbalancing:ModifyRule", "elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags",
     ]
