@@ -1,7 +1,8 @@
-# ⚠️ 순서 의존성: github_oidc 모듈이 create_oidc_provider = false라서, 이 dev/00-base는
-# prod/00-base가 최소 한 번 apply되어 GitHub OIDC Provider를 만들어둔 뒤에만 apply할 수 있다.
-# (OIDC Provider가 계정당 유일한 전역 리소스라 생기는 유일한 예외 - 나머지 계층 순서는
-# TERRAFORM_STRUCTURE.md §5.1과 동일하게 00-base -> 01-data -> 02-runtime.)
+# github_oidc 모듈의 create_oidc_provider는 dev/prod 둘 다 false다 - 이 공유 계정에
+# 이미 다른 프로젝트가 만들어둔 GitHub OIDC Provider가 있어서(2026-08-20 확인,
+# 2025-12-23 생성) 우리 쪽에서 새로 만들 필요도 없고 만들면 충돌한다. 그래서
+# dev/prod 사이에 apply 순서 의존성이 없다 - 계층 순서만 지키면 됨(00-base ->
+# 01-data -> 02-runtime, TERRAFORM_STRUCTURE.md §5.1).
 
 module "vpc" {
   source = "../../../modules/base/vpc"
@@ -83,7 +84,7 @@ module "github_oidc" {
   source = "../../../modules/base/github_oidc"
 
   environment          = var.environment
-  create_oidc_provider = false # OIDC Provider는 prod/00-base가 소유. 여기선 데이터소스로 조회만 함
+  create_oidc_provider = false # 이미 계정에 있는 (남의) Provider를 데이터소스로 조회만 함 - 위 주석 참고
   github_org           = var.github_org
   github_repo          = var.github_repo
   ecr_repository_arns  = values(module.container_reg.repository_arns)
