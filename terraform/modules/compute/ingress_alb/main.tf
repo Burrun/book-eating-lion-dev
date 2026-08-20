@@ -123,6 +123,9 @@ resource "helm_release" "alb_controller" {
   namespace  = "kube-system"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
+  # 버전을 안 고정하면 업그레이드 때마다 IAM 정책이 안 맞아 배포가 깨질 수 있다
+  # (2026-08-20 실제로 겪음) - 지금 IAM 정책/Helm set 값으로 검증된 버전에 고정.
+  version = var.alb_controller_chart_version
 
   set {
     name  = "clusterName"
@@ -154,6 +157,7 @@ resource "helm_release" "ingress_nginx" {
   create_namespace = true
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
+  version          = var.ingress_nginx_chart_version
   # wait=true 기본 타임아웃(300초)이 최초 NLB 프로비저닝엔 빠듯하다 - 리소스
   # 자체는 정상 생성됐는데 helm_release만 타임아웃으로 실패 처리된 걸 실제로
   # 겪음(2026-08-20, NLB는 살아있고 helm status도 deployed인데 Terraform만
