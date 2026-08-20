@@ -154,6 +154,11 @@ resource "helm_release" "ingress_nginx" {
   create_namespace = true
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
+  # wait=true 기본 타임아웃(300초)이 최초 NLB 프로비저닝엔 빠듯하다 - 리소스
+  # 자체는 정상 생성됐는데 helm_release만 타임아웃으로 실패 처리된 걸 실제로
+  # 겪음(2026-08-20, NLB는 살아있고 helm status도 deployed인데 Terraform만
+  # 에러). 여유 있게 늘림.
+  timeout = 600
 
   set {
     name  = "controller.service.type"
