@@ -15,6 +15,11 @@ variable "ingest_channel_arn" {
   type = string
 }
 
+variable "purchase_channel_arn" {
+  description = "구매 확정 이벤트 SQS 큐 ARN (01-data ai_pipeline 출력) - ai-api SqsPurchaseListener가 소비"
+  type        = string
+}
+
 variable "recommendation_index_arn" {
   description = "S3 Vectors provider 지원 전까지 null (01-data ai_pipeline 참고)"
   type        = string
