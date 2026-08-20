@@ -22,6 +22,6 @@ resource "aws_route53_record" "delegation" {
   zone_id = data.aws_route53_zone.parent[0].zone_id
   name    = var.domain_name
   type    = "NS"
-  ttl     = 172800
+  ttl     = 300 # 초기 구축/테스트 단계라 변경 시 빠르게 전파·롤백되도록 짧게 유지 (기본 NS TTL 172800은 안정화된 뒤 고려)
   records = aws_route53_zone.this.name_servers
 }

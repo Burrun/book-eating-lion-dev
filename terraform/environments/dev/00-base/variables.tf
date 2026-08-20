@@ -29,6 +29,12 @@ variable "data_subnet_cidrs" {
   type = list(string)
 }
 
+variable "single_nat_gateway" {
+  description = "true면 NAT Gateway 1개로 두 AZ가 공유 (AZ 장애 격리 포기, 비용 절반). dev는 비용 절감이 격리보다 중요하면 tfvars에서 true로 켤 수 있음"
+  type        = bool
+  default     = false
+}
+
 # ── DNS / ACM / WAF ──────────────────────────────────────────────
 variable "domain_name" {
   type = string

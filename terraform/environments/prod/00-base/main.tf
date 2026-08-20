@@ -7,6 +7,7 @@ module "vpc" {
   public_subnet_cidrs = var.public_subnet_cidrs
   app_subnet_cidrs    = var.app_subnet_cidrs
   data_subnet_cidrs   = var.data_subnet_cidrs
+  single_nat_gateway  = var.single_nat_gateway
 }
 
 module "dns_zone" {
