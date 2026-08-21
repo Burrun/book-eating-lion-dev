@@ -50,6 +50,7 @@
 
 ```text
 terraform/
+├── bootstrap/                                     # [최초 1회] dev/prod 공용 S3 tfstate 버킷 + DynamoDB lock 테이블 생성. local state로 관리(§6.1 후반부 참고)
 ├── modules/                                      # [재사용 모듈 원형] 환경 독립적 HCL
 │   ├── base/                                      # 모듈 이름은 맡고 있는 역할 그대로 (기능 혼합 금지)
 │   │   ├── vpc/                                  # VPC, 서브넷(Public/App/Data), NAT GW, 라우팅 테이블
@@ -329,6 +330,17 @@ module "aurora" {
 ### 5.1 최초 프로비저닝 순서
 
 ```bash
+# 0. State 백엔드 부트스트랩 (dev/prod의 모든 계층이 쓸 S3 tfstate 버킷 +
+#    DynamoDB lock 테이블 생성) — 계정에 이미 있으면(2번째 이후 사람) 생략.
+#    terraform/bootstrap/README나 §6.1 후반부 참고. 이 모듈 자체는 local
+#    state로 관리하므로 -out 확인 절차를 생략하지 않는다(되돌리기 어려운
+#    리소스라 §5.1 전체와 같은 원칙 적용).
+cd terraform/bootstrap
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+cd ../..
+
 # 1. Base 계층 배포 (VPC, 서브넷, ECR, S3, Route53, ACM, WAF, SNS, GitHub OIDC) — 고정자원
 cd terraform/environments/prod/00-base
 terraform init
@@ -392,6 +404,35 @@ terraform {
 }
 
 ```
+
+> **왜 이전엔 이 단계 없이도 `terraform init`이 됐었나:** `terraform/bootstrap`이
+> 생기기 전에도(2026-08-20 이전) 이 버킷/테이블은 이미 존재해서 `init`이
+> 문제없이 됐다 — 이 저장소의 어떤 terraform 코드로도 만들어진 적이 없고,
+> 처음에 누군가 콘솔/AWS CLI로 수동 생성해둔 것이었기 때문이다. `backend.tf`의
+> `backend "s3" { bucket = "..." }`는 그 이름의 버킷이 이미 있다고 가정하고
+> 거기 연결만 할 뿐, 없으면 만들어주지 않는다. 2026-08-20 저녁 인프라 정리
+> 중 이 버킷들까지 콘솔에서 같이 삭제되면서 그다음 `init`부터 `S3 bucket ...
+> does not exist` 에러가 났고, 그래서 이 부트스트랩 모듈을 코드로 만들어
+> 재생성 가능하게 했다.
+>
+> **이 버킷/테이블은 어디서 만드나:** `terraform/bootstrap`이 dev/prod 각각의
+> `book-eating-lion-tfstate-{env}` S3 버킷(버저닝+암호화+public access
+> block)과 `book-eating-lion-tflock-{env}` DynamoDB 테이블(PAY_PER_REQUEST)을
+> 만든다. 다른 계층들의 backend가 될 버킷을 만드는 것이라 원격 backend를 쓸
+> 수 없어(닭-달걀 문제) 이 모듈만 예외적으로 **local state**로 관리한다 —
+> 실행한 사람이 `terraform/bootstrap/terraform.tfstate`를 잃어버리지 않게
+> 보관할 것. 계정에 이미 버킷/테이블이 있으면(팀 두 번째 이후 사람) 이 단계는
+> 생략한다. §5.1의 0단계 참고.
+>
+> 2026-08-20에 이 버킷/테이블을 인프라 정리 중 콘솔에서 실수로 같이 지운
+> 적이 있다 — 그래서 `bootstrap`의 리소스에는 `lifecycle.prevent_destroy`
+> (terraform 레벨)와 DynamoDB `deletion_protection_enabled`(AWS 레벨)를
+> 걸어 재사고를 막는다. 만약 이 버킷/테이블이 다시 사라져 있다면(콘솔에서
+> 실수로 지웠거나 계정이 바뀌었거나) `terraform/bootstrap`을 다시 apply해
+> 재생성하면 된다 — 단, tfstate 버킷이 사라지면 그 안에 있던 각 계층의
+> state도 함께 사라지므로, 재생성 후에는 각 계층에서 `terraform import`로
+> 실제 AWS 리소스를 다시 끌어오거나 해당 환경을 처음부터 다시 배포해야
+> 한다.
 
 ### 6.2 공통 태깅 전략 (Unified Tagging)
 

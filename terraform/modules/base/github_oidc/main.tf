@@ -76,6 +76,7 @@ data "aws_iam_policy_document" "permissions" {
     sid    = "EcrPush"
     effect = "Allow"
     actions = [
+      "ecr:DescribeImages", # 재실행 시 SHA 태그가 이미 push됐는지 확인하는 데 씀 (.github/workflows/main-cd.yml)
       "ecr:BatchCheckLayerAvailability",
       "ecr:GetDownloadUrlForLayer",
       "ecr:BatchGetImage",
@@ -131,9 +132,9 @@ data "aws_iam_policy_document" "permissions" {
   }
 
   statement {
-    sid       = "CloudFrontInvalidate"
-    effect    = "Allow"
-    actions   = ["cloudfront:CreateInvalidation"]
+    sid     = "CloudFrontInvalidate"
+    effect  = "Allow"
+    actions = ["cloudfront:CreateInvalidation"]
     # cloudfront_distribution_arn이 알려지면(02-runtime 배포 후 tfvars에 채워 넣으면)
     # 그 배포로만 좁힌다. 모르는 동안(최초 부트스트랩 등)도 최소한 이 계정으로는
     # 스코프를 좁혀서, 계정을 공유하는 다른 팀 CloudFront 배포까지 열리지 않게 한다.

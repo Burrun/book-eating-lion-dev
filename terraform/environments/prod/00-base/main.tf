@@ -1,12 +1,19 @@
+# dev/prod VPC CIDR 플랜의 단일 소스 - modules/base/network_plan/main.tf 참고.
+module "network_plan" {
+  source = "../../../modules/base/network_plan"
+
+  environment = var.environment
+}
+
 module "vpc" {
   source = "../../../modules/base/vpc"
 
   environment         = var.environment
-  vpc_cidr            = var.vpc_cidr
-  availability_zones  = var.availability_zones
-  public_subnet_cidrs = var.public_subnet_cidrs
-  app_subnet_cidrs    = var.app_subnet_cidrs
-  data_subnet_cidrs   = var.data_subnet_cidrs
+  vpc_cidr            = module.network_plan.vpc_cidr
+  availability_zones  = module.network_plan.availability_zones
+  public_subnet_cidrs = module.network_plan.public_subnet_cidrs
+  app_subnet_cidrs    = module.network_plan.app_subnet_cidrs
+  data_subnet_cidrs   = module.network_plan.data_subnet_cidrs
   single_nat_gateway  = var.single_nat_gateway
 }
 

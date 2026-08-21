@@ -9,25 +9,8 @@ variable "aws_region" {
 }
 
 # ── VPC ──────────────────────────────────────────────────────────
-variable "vpc_cidr" {
-  type = string
-}
-
-variable "availability_zones" {
-  type = list(string)
-}
-
-variable "public_subnet_cidrs" {
-  type = list(string)
-}
-
-variable "app_subnet_cidrs" {
-  type = list(string)
-}
-
-variable "data_subnet_cidrs" {
-  type = list(string)
-}
+# vpc_cidr/availability_zones/subnet_cidrs는 modules/base/network_plan에서
+# environment로 조회해서 쓴다(main.tf 참고) - 여기서 변수로 받지 않는다.
 
 variable "single_nat_gateway" {
   description = "true면 NAT Gateway 1개로 두 AZ가 공유 (AZ 장애 격리 포기, 비용 절반). prod는 기본값(false)을 유지할 것 - 격리가 비용보다 중요"
