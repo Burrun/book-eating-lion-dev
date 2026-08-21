@@ -33,11 +33,6 @@ variable "node_security_group_id" {
   type        = string
 }
 
-variable "app_security_group_id" {
-  description = "modules/base/vpc가 만드는 EKS 노드/Pod 공용 SG - Aurora/RDS Proxy/Valkey/EC2 Postgres 등 데이터 계층 SG가 이 SG발 트래픽만 허용하므로, 이걸 안 붙이면 노드가 DB에 연결하지 못한다(2026-08-21 실제로 겪음)."
-  type        = string
-}
-
 variable "karpenter_version" {
   type    = string
   default = "1.0.6"

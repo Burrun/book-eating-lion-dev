@@ -121,12 +121,6 @@ resource "aws_ssm_parameter" "ai_ingest_channel_arn" {
   value = module.ai_pipeline.ingest_channel_arn
 }
 
-resource "aws_ssm_parameter" "ai_ingest_channel_url" {
-  name  = "${local.ssm_prefix}/ai/ingest_channel_url"
-  type  = "String"
-  value = module.ai_pipeline.ingest_channel_url
-}
-
 resource "aws_ssm_parameter" "ai_purchase_channel_arn" {
   name  = "${local.ssm_prefix}/ai/purchase_channel_arn"
   type  = "String"
