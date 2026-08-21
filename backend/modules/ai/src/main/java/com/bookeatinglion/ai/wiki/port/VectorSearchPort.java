@@ -29,5 +29,11 @@ public interface VectorSearchPort {
      * @param memberId user_summary일 때만 값이 있다 — 다른 회원의 메모를 걸러내는 근거다.
      */
     record Match(
-            long bookId, String bookTitle, int page, String text, double distance, String sourceType, String memberId) {}
+            long bookId,
+            String bookTitle,
+            int page,
+            String text,
+            double distance,
+            String sourceType,
+            String memberId) {}
 }

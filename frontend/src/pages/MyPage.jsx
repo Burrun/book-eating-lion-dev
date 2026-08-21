@@ -37,9 +37,10 @@ import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
 // 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), RAG 물어보기
-// (POST /api/ai/lion/ask), 주문목록, 쿠폰현황, 재입고 알림은 실API가 있어 mock 여부와
-// 무관하게 항상 노출한다. 반품/내 리뷰 목록은 여전히 백엔드 미구현(조회 엔드포인트 없음)이라
-// 존재하지 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
+// (POST /api/ai/lion/ask), 주문목록, 쿠폰현황, 재입고 알림, 내가 작성한 리뷰(GET·PATCH·DELETE
+// /api/catalog/reviews/**)는 실API가 있어 mock 여부와 무관하게 항상 노출한다. 반품 목록
+// 조회만 여전히 백엔드 미구현(조회 엔드포인트 없음)이라 존재하지 않는 엔드포인트를 실서버
+// 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
 //
 // LionRagCard 안의 "내가 먹인 요약 메모" 목록은 GET /api/catalog/members/me/memos/fed
 // (book_memos, ProductDetailPage에서 쓰는 완독 요약 메모와 같은 테이블 — fedAt이 있는

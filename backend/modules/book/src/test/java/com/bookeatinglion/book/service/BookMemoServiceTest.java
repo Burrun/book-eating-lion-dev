@@ -18,7 +18,6 @@ import com.bookeatinglion.book.repository.BookMemoRepository;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -76,8 +75,11 @@ class BookMemoServiceTest {
     @Test
     void 기존_메모가_있으면_새로_저장하지_않고_텍스트만_덮어쓴다() throws Exception {
         Book book = book(1L);
-        BookMemo existing =
-                BookMemo.builder().memberSub(MEMBER_SUB).book(book).memoText("옛 요약").build();
+        BookMemo existing = BookMemo.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book)
+                .memoText("옛 요약")
+                .build();
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book));
         when(bookMemoRepository.findByMemberSubAndBook_BookId(MEMBER_SUB, 1L)).thenReturn(Optional.of(existing));
 
@@ -106,8 +108,11 @@ class BookMemoServiceTest {
     @Test
     void 아직_안_먹인_메모만_피더블_목록에_나온다() throws Exception {
         Book book = book(1L);
-        BookMemo unfed =
-                BookMemo.builder().memberSub(MEMBER_SUB).book(book).memoText("요약").build();
+        BookMemo unfed = BookMemo.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book)
+                .memoText("요약")
+                .build();
         when(bookMemoRepository.findByMemberSubAndFedAtIsNullOrderByUpdatedAtDesc(MEMBER_SUB))
                 .thenReturn(List.of(unfed));
 
@@ -120,7 +125,11 @@ class BookMemoServiceTest {
     @Test
     void 이미_먹인_메모만_먹인_목록에_나온다() throws Exception {
         Book book = book(1L);
-        BookMemo fed = BookMemo.builder().memberSub(MEMBER_SUB).book(book).memoText("요약").build();
+        BookMemo fed = BookMemo.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book)
+                .memoText("요약")
+                .build();
         fed.markFed(java.time.LocalDateTime.now());
         when(bookMemoRepository.findByMemberSubAndFedAtIsNotNullOrderByFedAtDesc(MEMBER_SUB))
                 .thenReturn(List.of(fed));
@@ -135,7 +144,11 @@ class BookMemoServiceTest {
     @Test
     void 먹인_뒤에는_fedAt이_지금_시각으로_채워진다() throws Exception {
         Book book = book(1L);
-        BookMemo memo = BookMemo.builder().memberSub(MEMBER_SUB).book(book).memoText("요약").build();
+        BookMemo memo = BookMemo.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book)
+                .memoText("요약")
+                .build();
         when(bookMemoRepository.findByMemberSubAndBook_BookId(MEMBER_SUB, 1L)).thenReturn(Optional.of(memo));
 
         bookMemoService.markFed(1L, MEMBER_SUB);

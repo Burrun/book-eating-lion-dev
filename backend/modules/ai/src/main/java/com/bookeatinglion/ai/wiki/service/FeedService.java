@@ -113,7 +113,8 @@ public class FeedService {
      * 이미 안전 강등해서 돌려주므로 여기서 예외를 따로 잡지 않는다.
      */
     private long expMultiplier(String memberId) {
-        boolean subscribed = memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
+        boolean subscribed =
+                memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
         return subscribed ? SUBSCRIBER_EXP_MULTIPLIER : 1;
     }
 

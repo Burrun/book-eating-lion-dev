@@ -68,8 +68,7 @@ class BookMemoControllerTest {
     @Test
     void 존재하지_않는_책에_메모_저장은_404를_반환한다() throws Exception {
         when(memberIdentity.requiredMemberId()).thenReturn(MEMBER_SUB);
-        when(bookMemoService.upsertMemo(eq(999L), eq(MEMBER_SUB), eq("요약")))
-                .thenThrow(new BookNotFoundException(999L));
+        when(bookMemoService.upsertMemo(eq(999L), eq(MEMBER_SUB), eq("요약"))).thenThrow(new BookNotFoundException(999L));
 
         mockMvc.perform(put("/api/catalog/books/999/memo")
                         .contentType(MediaType.APPLICATION_JSON)
