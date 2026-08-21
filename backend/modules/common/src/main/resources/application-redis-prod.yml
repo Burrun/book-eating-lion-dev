@@ -11,3 +11,10 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: 6379
+      # cache_valkey 모듈이 transit_encryption_enabled=true(TLS 강제)로 만든다 -
+      # 이 설정 없이는 클라이언트가 평문 TCP로 연결해서 TLS 핸드셰이크를 기대하는
+      # 서버가 응답을 안 하고, 타임아웃 설정도 없어 앱이 기동 중 영원히 멈춘다
+      # (2026-08-21 catalog/order/ai 전부 겪음 - 로그가 Hibernate 초기화 이후
+      # 조용히 끊기고 Startup probe 180초 뒤 kubelet이 강제 종료).
+      ssl:
+        enabled: true

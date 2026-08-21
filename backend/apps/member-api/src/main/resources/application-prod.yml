@@ -1,6 +1,6 @@
 spring:
   config:
-    import: classpath:application-security-prod.yml
+    import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
 
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=member_db&sslmode=${DB_SSL_MODE:require}
@@ -22,14 +22,8 @@ spring:
         default_batch_fetch_size: 100
         default_schema: member_db
 
-  # ElastiCache. k8s configmap 이 주는 이름은 REDIS_HOST 이고 Boot 가 읽는 키는
-  # spring.data.redis.host 다. 이 매핑이 없어서 prod 파드가 컨테이너 안
-  # localhost:6379 를 찾고 있었다.
-  # 기본값을 주지 않는다 — 미설정이면 조용히 로컬로 붙는 대신 기동이 실패해야 한다.
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
+  # Redis(ElastiCache) 설정은 application-redis-prod.yml import 로 온다
+  # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
 
   flyway:
     enabled: false
