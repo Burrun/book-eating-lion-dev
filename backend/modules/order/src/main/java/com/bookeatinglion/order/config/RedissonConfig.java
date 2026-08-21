@@ -31,8 +31,10 @@ public class RedissonConfig {
     @Bean(destroyMethod = "shutdown")
     public RedissonClient redissonClient() {
         if (!sslEnabled) {
-            log.warn("Redisson이 TLS 없이(redis://) {}에 연결합니다 - TLS를 강제하는 Redis 서버라면 "
-                    + "연결이 조용히 멎을 수 있습니다. spring.data.redis.ssl.enabled 설정을 확인하세요.", host);
+            log.warn(
+                    "Redisson이 TLS 없이(redis://) {}에 연결합니다 - TLS를 강제하는 Redis 서버라면 "
+                            + "연결이 조용히 멎을 수 있습니다. spring.data.redis.ssl.enabled 설정을 확인하세요.",
+                    host);
         }
         Config config = new Config();
         String scheme = sslEnabled ? "rediss://" : "redis://";
