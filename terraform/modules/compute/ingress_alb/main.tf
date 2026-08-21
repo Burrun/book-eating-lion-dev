@@ -181,9 +181,8 @@ resource "helm_release" "ingress_nginx" {
   }
 
   # AWS LB Controller의 scheme 기본값은 internal이라, 이 어노테이션 없이는
-  # public 서브넷에 둬도 비공개 NLB가 된다 - CloudFront가 공인 인터넷으로
-  # 붙어야 하므로 명시적으로 internet-facing을 지정한다(2026-08-21 dev
-  # 점검 중 발견 - 이게 빠져서 CloudFront -> /api/* 경로가 전부 막혀있었음).
+  # public 서브넷에 둬도 비공개 NLB가 된다. CloudFront가 공인 인터넷으로
+  # 붙어야 하므로 명시적으로 internet-facing을 지정한다.
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
     value = "internet-facing"

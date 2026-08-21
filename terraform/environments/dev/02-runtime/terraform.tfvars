@@ -11,6 +11,10 @@ bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
 ]
 
+# 인프라구성명세.md §7.5대로 AWS CLI로 수동 생성한 값 (lion-team3-dev-vectors 버킷)
+recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/recommendation"
+purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/purchased-book-rag"
+
 # 클러스터를 실제로 만든 사람(b-student-02)은 access_config의
 # bootstrap_cluster_creator_admin_permissions=true로 AWS가 자동으로 Access
 # Entry를 만들어줘서 여기 또 넣으면 EKS API가 ResourceInUseException(409)로

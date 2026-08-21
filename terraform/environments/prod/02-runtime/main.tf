@@ -130,7 +130,7 @@ module "ai_service_iam" {
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.ai_ingest_channel_arn.value
   purchase_channel_arn         = data.aws_ssm_parameter.ai_purchase_channel_arn.value
-  recommendation_index_arn     = null # S3 Vectors provider 지원 전까지 null
-  purchased_book_rag_index_arn = null
+  recommendation_index_arn     = var.recommendation_index_arn
+  purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
 }

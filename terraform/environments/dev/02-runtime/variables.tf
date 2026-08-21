@@ -26,3 +26,15 @@ variable "admin_principal_arns" {
   type        = list(string)
   default     = []
 }
+
+# S3 Vectors는 Terraform provider 미지원이라 AWS CLI로 수동 생성 후 ARN을
+# 여기 값으로 채운다 (인프라구성명세.md §7.5). 아직 안 만들었으면 null로 둔다.
+variable "recommendation_index_arn" {
+  type    = string
+  default = null
+}
+
+variable "purchased_book_rag_index_arn" {
+  type    = string
+  default = null
+}
