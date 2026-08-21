@@ -32,3 +32,9 @@ data:
   # 주문은 거부된다. 로그를 안 보면 원인이 안 드러나므로 반드시 넣을 것.
   SERVICES_CATALOG_URL: "http://catalog-service:8080"
   SERVICES_MEMBER_URL: "http://member-service:8080"
+
+  # 결제 완료 후 카카오가 사용자를 돌려보낼 프론트엔드 콜백 페이지. 이 값이
+  # 없으면 코드 기본값(localhost:5173)으로 떨어져 실제 결제 후 사용자가
+  # localhost로 리다이렉트된다(인프라-트러블슈팅.md ⑲, 2026-08-21 실제로
+  # 배선 누락 상태였음 - 결제 자체는 되지만 완료 화면을 못 봄).
+  KAKAOPAY_FRONTEND_CALLBACK_URL: "${KAKAOPAY_FRONTEND_CALLBACK_URL}"

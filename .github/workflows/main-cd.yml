@@ -300,6 +300,11 @@ jobs:
           # 절대 매치되지 않아 핸드셰이크가 전부 거절된다 — FRONTEND_ORIGIN 과 같은 값이어야
           # 하므로 별도 GH Variable 없이 재사용한다.
           CHAT_ALLOWED_ORIGINS: ${{ vars.FRONTEND_ORIGIN }}
+          # 카카오페이 결제 완료 후 되돌아올 프론트엔드 콜백 페이지. 이 VARS 목록에
+          # 빠져 있으면(과거 실제로 그랬음) order-api 코드 기본값(localhost:5173)이
+          # 그대로 쓰여 실결제 후 사용자가 localhost로 리다이렉트된다 — FRONTEND_ORIGIN에
+          # 경로만 붙인 값이라 별도 GH Variable 없이 재사용한다(인프라-트러블슈팅.md ⑲).
+          KAKAOPAY_FRONTEND_CALLBACK_URL: ${{ vars.FRONTEND_ORIGIN }}/payments/kakao/callback
         run: |
           set -euo pipefail
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
@@ -319,7 +324,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
