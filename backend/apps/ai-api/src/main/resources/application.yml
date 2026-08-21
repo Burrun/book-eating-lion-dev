@@ -3,9 +3,20 @@ spring:
     active: local
   application:
     name: ai-service
+  cloud:
+    openfeign:
+      circuitbreaker:
+        # fallback이 동작하려면 Feign이 CircuitBreaker를 태워야 한다.
+        # 꺼져 있으면 @FeignClient의 fallback 속성이 조용히 무시된다(order-service와 동일 이슈).
+        enabled: true
 
 server:
   port: 8084
+
+# 서비스 간 동기 통신 대상. 유일한 outbound인 구독 상태 조회용이다. 운영에서는 ConfigMap이 덮어쓴다.
+services:
+  member:
+    url: ${SERVICES_MEMBER_URL:http://localhost:8083}
 
 # 외부 API(임베딩·LLM) 호출 격리 — 판단 ④가 "필수"로 지정한 항목.
 # 봇이 폭주해도 RAG 가 스레드를 확보할 수 있어야 한다.
@@ -29,6 +40,17 @@ resilience4j:
       aiLlm:
         maxConcurrentCalls: 10
         maxWaitDuration: 100ms
+  circuitbreaker:
+    instances:
+      member-subscription:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      member-subscription:
+        # 먹이기 전체가 이걸 기다린다 — EXP 배율 하나 때문에 응답이 늘어지면 안 된다.
+        timeoutDuration: 800ms
 
 app:
   ai:

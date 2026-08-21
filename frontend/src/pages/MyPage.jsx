@@ -20,6 +20,7 @@ import {
 import { getFeedableMemos, getFedMemos, markMemoFed } from "../api/bookMemo.ts";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
+import { cancelSubscription, getMySubscription, subscribe } from "../api/member.ts";
 import {
   cancelOrder,
   getMyOrders,
@@ -53,6 +54,7 @@ const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
   { id: "coupons", label: "쿠폰 현황" },
   { id: "returns", label: "취소/교환/반품/환불" },
+  { id: "subscription", label: "구독 관리" },
   { id: "cards", label: "카드 관리" },
   { id: "addresses", label: "배송지 관리" },
 ];
@@ -892,6 +894,7 @@ function OrdersSection() {
         {activeTab === "orders" && <OrdersTab />}
         {activeTab === "coupons" && <CouponsTab />}
         {activeTab === "returns" && <ReturnsTab />}
+        {activeTab === "subscription" && <SubscriptionTab />}
       </div>
     </section>
   );
@@ -1302,6 +1305,121 @@ function CouponsTab() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const SUBSCRIPTION_PLAN_LABELS = { MONTHLY: "월간 구독", YEARLY: "연간 구독" };
+const SUBSCRIPTION_STATUS_LABELS = { ACTIVE: "구독 중", CANCELLED: "해지됨", EXPIRED: "만료됨" };
+
+// ProductListPage/ProductDetailPage의 구독 CTA와 같은 subscribe("MONTHLY")/cancelSubscription()
+// 을 그대로 쓴다. 저 두 화면은 react-query로 ["mySubscription"]을 관리하지만, 이 파일은
+// 다른 탭(OrdersTab/CouponsTab 등) 전부 useState+수동 refetch라 그 컨벤션을 따른다 — 페이지를
+// 이동하면 어차피 새로 mount되어 새로 조회하므로 캐시를 공유하지 않아도 불일치가 남지 않는다.
+function SubscriptionTab() {
+  const toast = useToast();
+  const [subscription, setSubscription] = useState(null);
+  const [isError, setIsError] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+
+  const loadSubscription = useCallback(() => {
+    getMySubscription()
+      .then((data) => {
+        setSubscription(data);
+        setIsError(false);
+      })
+      .catch(() => setIsError(true));
+  }, []);
+
+  useEffect(() => {
+    loadSubscription();
+  }, [loadSubscription]);
+
+  // 성공/실패 둘 다 toast로 알리고, 성공 시엔 응답으로 받은 최신 상태를 바로 반영한다
+  // (재조회 왕복 없이도 화면이 즉시 바뀐다 — "구독하기 눌러도 반응 없음" 버그의 재발 방지).
+  const handleSubscribe = async () => {
+    setIsMutating(true);
+    try {
+      const data = await subscribe("MONTHLY");
+      setSubscription(data);
+      toast.success("구독이 시작되었습니다");
+    } catch {
+      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    setIsMutating(true);
+    try {
+      const data = await cancelSubscription();
+      setSubscription(data);
+      toast.success("구독을 취소했습니다");
+    } catch {
+      toast.error("구독 취소에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  if (!subscription && !isError) return <TabSkeleton />;
+  if (isError) {
+    return (
+      <p className="py-10 text-center text-sm text-[var(--color-coral)]">
+        구독 정보를 불러오지 못했어요.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed border-[var(--color-honey)]/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-ink)]">🎁 정기 구독</p>
+          {subscription.status ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-ink)] opacity-70">
+              <span className={subscription.isActive ? "font-medium text-[var(--color-forest)]" : ""}>
+                {SUBSCRIPTION_STATUS_LABELS[subscription.status] ?? subscription.status}
+              </span>
+              <span>{SUBSCRIPTION_PLAN_LABELS[subscription.planType] ?? subscription.planType}</span>
+              {subscription.startedAt && <span>시작일 {subscription.startedAt.slice(0, 10)}</span>}
+              {subscription.expiresAt && (
+                <span>
+                  {subscription.isActive ? "다음 결제일" : "만료일"} {subscription.expiresAt.slice(0, 10)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="mt-1.5 text-sm text-[var(--color-ink)] opacity-50">
+              아직 구독 중이 아니에요. 구독하면 웹툰 요약 컷 열람 + 사자 먹이 2배 적립 혜택을 받을 수 있어요.
+            </p>
+          )}
+        </div>
+        {subscription.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            shimmer={false}
+            loading={isMutating}
+            className="shrink-0 text-[var(--color-coral)]"
+            onClick={handleCancel}
+          >
+            구독 취소
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            shimmer={false}
+            loading={isMutating}
+            className="shrink-0"
+            onClick={handleSubscribe}
+          >
+            구독하기 &gt;
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

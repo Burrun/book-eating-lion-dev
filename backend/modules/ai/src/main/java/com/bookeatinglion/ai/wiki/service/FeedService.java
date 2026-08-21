@@ -1,6 +1,7 @@
 package com.bookeatinglion.ai.wiki.service;
 
 import com.bookeatinglion.ai.client.EmbeddingClient;
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
@@ -39,6 +40,10 @@ public class FeedService {
     private final FedBookCache fedBookCache;
     private final EmbeddingClient embedding;
     private final VectorIndexPort vectorIndex;
+    private final MemberSubscriptionClient memberSubscriptionClient;
+
+    /** 구독 회원 EXP 배율. "사자 먹이 2배 적립" 배너 문구와 같은 값이어야 한다. */
+    private static final long SUBSCRIBER_EXP_MULTIPLIER = 2;
 
     /**
      * 사자 상태. {@code feed} 와 {@code me} 가 같은 형태를 돌려준다.
@@ -95,12 +100,21 @@ public class FeedService {
         boolean alreadyFed = fedBookRepository.existsById(new FedBook.Key(memberId, bookId));
         if (!alreadyFed) {
             fedBookRepository.save(new FedBook(memberId, bookId, LocalDateTime.now()));
-            lion.gainExp(Lion.EXP_PER_FEED);
+            lion.gainExp(Lion.EXP_PER_FEED * expMultiplier(memberId));
             cacheAfterCommit(memberId, bookId);
         }
 
         return new LionStatus(
                 lion.getExp(), lion.getLevel(), lion.getGrowthStage(), fedBookRepository.countByMemberId(memberId));
+    }
+
+    /**
+     * 구독 중이면 2배, 조회 실패(장애/타임아웃)면 1배 — {@link MemberSubscriptionClientFallback}가
+     * 이미 안전 강등해서 돌려주므로 여기서 예외를 따로 잡지 않는다.
+     */
+    private long expMultiplier(String memberId) {
+        boolean subscribed = memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
+        return subscribed ? SUBSCRIBER_EXP_MULTIPLIER : 1;
     }
 
     /**

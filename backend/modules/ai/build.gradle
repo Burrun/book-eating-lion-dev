@@ -7,6 +7,10 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
+    // 먹이기 EXP 2배 판정을 위해 member-service 구독 상태를 조회하는 MemberSubscriptionClient가
+    // 이 모듈에 있다(order 모듈의 CardClient와 동일 배치).
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
     // 문의봇 WebSocket 채널. STOMP 브로커는 쓰지 않는다 — 요청/응답 한 쌍이라
     // 구독 모델이 필요 없고, 브로커를 넣으면 Redis Pub/Sub 까지 딸려온다.
     implementation 'org.springframework.boot:spring-boot-starter-websocket'

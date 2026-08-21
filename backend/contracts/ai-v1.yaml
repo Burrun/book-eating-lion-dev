@@ -38,7 +38,11 @@ info:
     HPA 메트릭과 타임아웃 정책이 다르기 때문이다 — 임베딩·LLM 이 전부 외부 API 라
     I/O 바운드고, CPU HPA 로는 확장되지 않아 동시 요청 수로 간다.
 
-    이 서비스는 다른 서비스와 통신하지 않는다. 자기 스키마(ai_db)에만 붙는다.
+    이 서비스는 원래 다른 서비스와 통신하지 않고 자기 스키마(ai_db)에만 붙는다. 유일한
+    예외는 먹이기(POST /api/ai/lion/feed)의 EXP 2배 판정이다 — member-service 의
+    /internal/members/{memberId}/subscription-status 를 동기 조회하되, 실패하면 1배로
+    안전 강등될 뿐 먹이기 자체는 계속 성공한다(fail-safe, order-service 의 CardClient와
+    동일 패턴).
 
 servers:
   - url: http://localhost:8084

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bookeatinglion.ai.client.EmbeddingClient;
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
@@ -34,6 +35,7 @@ class FeedServiceTest {
     private FedBookCache fedBookCache;
     private EmbeddingClient embedding;
     private VectorIndexPort vectorIndex;
+    private MemberSubscriptionClient memberSubscriptionClient;
     private FeedService service;
     private Lion lion;
 
@@ -44,12 +46,16 @@ class FeedServiceTest {
         fedBookCache = mock(FedBookCache.class);
         embedding = mock(EmbeddingClient.class);
         vectorIndex = mock(VectorIndexPort.class);
+        memberSubscriptionClient = mock(MemberSubscriptionClient.class);
         lion = new Lion(MEMBER_ID);
 
         when(lionRepository.findByMemberId(MEMBER_ID)).thenReturn(Optional.of(lion));
         when(embedding.embed(anyString())).thenReturn(new float[EmbeddingClient.DIMENSION]);
+        when(memberSubscriptionClient.getSubscriptionStatus(anyString()))
+                .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, false));
 
-        service = new FeedService(fedBookRepository, lionRepository, fedBookCache, embedding, vectorIndex);
+        service = new FeedService(
+                fedBookRepository, lionRepository, fedBookCache, embedding, vectorIndex, memberSubscriptionClient);
     }
 
     @Test
@@ -63,6 +69,32 @@ class FeedServiceTest {
         assertThat(result.fedBookCount()).isEqualTo(1L);
         verify(fedBookRepository).save(any(FedBook.class));
         verify(fedBookCache).add(MEMBER_ID, BOOK_ID);
+    }
+
+    /** 구독 회원은 member-service 조회 결과에 따라 EXP가 2배로 들어가야 한다. */
+    @Test
+    void 구독_회원이_처음_먹이면_경험치가_2배로_오른다() {
+        when(fedBookRepository.existsById(any())).thenReturn(false);
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
+        when(memberSubscriptionClient.getSubscriptionStatus(MEMBER_ID))
+                .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, true));
+
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+
+        assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED * 2);
+    }
+
+    /** member-service 조회 실패(폴백)는 항상 1배로 강등된다 — 폴백이 그 값을 흉내 낸다. */
+    @Test
+    void 구독_조회가_실패로_강등되면_경험치는_1배다() {
+        when(fedBookRepository.existsById(any())).thenReturn(false);
+        when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
+        when(memberSubscriptionClient.getSubscriptionStatus(MEMBER_ID))
+                .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, false));
+
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+
+        assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
     }
 
     /** 메모는 임베딩 1회 + 결정적 키(회원×도서)로 바로 적재된다 — 책 본문과 달리 배치가 없다. */

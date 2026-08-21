@@ -86,7 +86,13 @@ export function toMember(dto: MemberResponse): Member {
 
 // 구독 이력이 없으면 dto가 null(=비구독)이다.
 export function toSubscription(dto: SubscriptionResponse | null): Subscription {
-  return { isActive: dto?.status === "ACTIVE" };
+  return {
+    isActive: dto?.status === "ACTIVE",
+    planType: dto?.planType ?? null,
+    status: dto?.status ?? null,
+    startedAt: dto?.startedAt ?? null,
+    expiresAt: dto?.expiresAt ?? null,
+  };
 }
 
 export function toAddress(dto: AddressResponse): Address {
