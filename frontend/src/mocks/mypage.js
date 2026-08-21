@@ -39,8 +39,7 @@ function growthStageOf(level) {
   return "ADULT";
 }
 
-// 120 → 이미 3권을 먹인 것으로 시작(level 2, BABY). MOCK_FED_BOOKS(아래 8권)를 다 먹이면
-// 120 + 320 = 440 → level 5(ADULT)까지 전 구간을 확인할 수 있다.
+// 120 → 이미 3권을 먹인 것으로 시작(level 2, BABY).
 let lionState = { exp: 120, level: 2, growthStage: growthStageOf(2), fedBookCount: 3 };
 const fedBookIds = new Set();
 
@@ -64,30 +63,8 @@ export function mockFeedLion(bookId) {
   return lionState;
 }
 
-// GET /api/ai/lion/feedable-books 응답 형태 — { bookId, title, pages }
-//
-// 책마다 다른 exp 를 주던 예전 형태를 버렸다. 백엔드는 책 종류·페이지 수와 무관하게
-// Lion.EXP_PER_FEED(40)를 고정으로 주며(FeedService), 그래서 이 응답에 exp 가 없다.
-// 8권을 다 먹이면 누적 120 + 320 = 440 → level = 1 + 440/100 = 5.
-export const MOCK_FED_BOOKS = [
-  { bookId: 1, title: "클린 코드", pages: 42 },
-  { bookId: 2, title: "해리 포터와 마법사의 돌", pages: 61 },
-  { bookId: 3, title: "역행자", pages: 38 },
-  { bookId: 4, title: "언어의 온도", pages: 29 },
-  { bookId: 5, title: "부의 추월차선", pages: 47 },
-  { bookId: 6, title: "사피엔스", pages: 88 },
-  { bookId: 7, title: "미드나잇 라이브러리", pages: 35 },
-  { bookId: 8, title: "이펙티브 자바", pages: 54 },
-];
-
-export const MOCK_READING_NOTES = [
-  { id: 1, book: "클린 코드", quote: "“단순함은 모든 것의 시작이다.”" },
-  {
-    id: 2,
-    book: "자바 ORM 표준 JPA 프로그래밍",
-    quote: "“영속성 컨텍스트는 1차 캐시를 제공한다.”",
-  },
-];
+// "먹일 수 있는 메모" 목록은 이제 mocks/bookMemo.ts(GET /api/catalog/members/me/memos/feedable)
+// 소관이다 — LionFeedingCard가 그리는 카드가 책이 아니라 완독 후 작성한 메모로 바뀌었다.
 
 // POST /api/ai/lion/ask 응답 형태 — AskResult
 // citations[].score 는 0~1 이고 클수록 유사하다(S3 Vectors 의 거리를 1-distance 로 뒤집은 값).

@@ -7,9 +7,8 @@ info:
 
     | 경로                      | 하는 일                        | 자료                  |
     |---------------------------|--------------------------------|--------------------|
-    | /api/ai/lion/ask          | 구매한 책 내용에 답하기        | S3 Vectors (wiki-v1)  |
-    | /api/ai/lion/feed, /me    | 책 먹이기, 사자 상태           | ai_db (lions/fed_books)|
-    | /api/ai/lion/feedable-books | 먹을 수 있는 책 목록         | ai_db (wiki_books)    |
+    | /api/ai/lion/ask          | 구매한 책 내용 + 내 완독 메모에 답하기 | S3 Vectors (wiki-v1)  |
+    | /api/ai/lion/feed, /me    | 메모 먹이기(임베딩+적재+EXP), 사자 상태 | ai_db (lions/fed_books)|
     | /api/ai/bot/ask           | 고객상담 — FAQ 기반 1차 응답   | ai_db (faqs)          |
     | /api/ai/bot/chat/ticket   | 상담 웹소켓 1회성 교환권 발급  | Redis (tickets)       |
     | /ws/ai/chat                | 1:1 라이브/AI 상담 실시간 채널 | Redis Pub/Sub / ZSet  |
@@ -20,11 +19,16 @@ info:
     🔴 **검색 권한의 근거는 "구매"다.** 라이언에게 먹였는지(게이미피케이션)와는 별개다 —
     사자를 안 키워도 산 책은 읽을 수 있어야 하고, 먹였다고 안 산 책을 읽을 수는 없다.
 
-    벡터는 **공용, 권한은 관계형**이다. 책 본문 벡터는 누가 샀든 1벌만 존재하고
-    (키가 {bookId}#{page}#{seq} 로 결정적), "누가 무엇을 샀는가"는 purchased_books 가
+    벡터는 **책 본문은 공용, 완독 메모는 회원 전용**이다. 책 본문 벡터는 누가 샀든 1벌만
+    존재하고(키가 {bookId}#{page}#{seq} 로 결정적), "누가 무엇을 샀는가"는 purchased_books 가
     들고 있다. 질의 시 그 목록이 그대로 검색 필터가 되므로 안 산 책은 나오지 않는다.
     이 표는 order-service 가 결제 확정 후 SQS 로 보내는 이벤트로 채워진다
     (계약: docs/ai-integration.md).
+
+    완독 메모(`sourceType: user_summary`)는 회원×도서로 결정적인 키(`memo#{bookId}#{memberId}`)를
+    쓰고, 메타데이터의 `memberId`로 작성자 본인만 검색 결과에서 볼 수 있게 한 번 더 거른다 —
+    같은 책을 산 다른 회원이라도 남의 메모는 보이면 안 되므로, bookId 필터만으로는 부족한
+    유일한 경우다.
 
     1:1 문의 등록(`POST /api/ai/bot/inquiries`)은 없앴다. 받아 두기만 하고 답변할 수단이
     없었다 — 사용자는 답을 기다리는데 아무도 그 행의 존재를 모르는 상태였다. 상담사가
@@ -99,17 +103,22 @@ paths:
 
   /api/ai/lion/feed:
     post:
-      summary: 라이언에게 책 먹이기
+      summary: 라이언에게 완독 요약 메모 먹이기
       description: |
-        인제스트는 관리자 배치에서 이미 끝나 있다. 여기서 하는 일은
-        `fed_books` 행 추가 + exp 갱신 + Redis Set 갱신뿐이라 200ms 안에 끝난다.
+        "먹일 수 있는지"(완독 + 메모 작성 여부) 판단은 catalog-service(book_memos)가
+        끝낸 뒤의 호출이다 — 여기는 그걸 다시 확인하지 않고, 받은 메모 텍스트를 그대로
+        믿고 임베딩 → 벡터 적재 → `fed_books` 행 추가 + exp 갱신 + Redis Set 갱신까지
+        전부 동기로 끝낸다.
 
-        인제스트를 이 요청 안에서 하지 않는 이유: 책 1권이 12~46청크라
-        임베딩 + PutVectors 에 수 초~수십 초가 걸린다. 동기로 하면 타임아웃이고,
-        비동기로 하면 진행중/완료/실패 상태 머신과 폴링이 필요해진다.
+        🔴 책 본문 인제스트(관리자 배치)와 다른 결정이다. 그쪽은 책 1권이 12~46청크라
+        동기로 하면 타임아웃이 나지만, 메모는 텍스트 하나 = 벡터 하나라 임베딩 1회로
+        끝나 동기로도 충분하다(느리면 프론트가 로딩 표시로 흡수한다).
 
-        같은 책을 다시 먹여도 안전하다 — `fed_books` 의 PK 가 (member_id, book_id) 라
-        멱등이고 exp 도 중복으로 오르지 않는다.
+        exp는 멱등하다 — `fed_books` 의 PK 가 (member_id, book_id) 라 같은 책을 다시
+        먹여도 중복으로 오르지 않는다. 벡터 적재는 멱등이 아니라 **항상 최신으로
+        덮어쓴다** — 메모를 고쳐 쓴 뒤 다시 먹이면 exp는 그대로지만 RAG가 아는 내용은
+        갱신된다(벡터 키가 `memo#{bookId}#{memberId}` 로 회원×도서당 결정적이라 재적재가
+        곧 갱신이다).
       operationId: feedLion
       tags: [ai-lion]
       security:
@@ -120,13 +129,21 @@ paths:
           application/json:
             schema:
               type: object
-              required: [bookId]
+              required: [bookId, bookTitle, memoText]
               properties:
                 bookId: { type: integer, format: int64, example: 1 }
+                bookTitle:
+                  type: string
+                  example: 운수 좋은 날
+                  description: 인용 표시용 스냅샷. catalog-service를 다시 호출하지 않기 위해 클라이언트가 함께 싣는다.
+                memoText:
+                  type: string
+                  maxLength: 4000
+                  description: 완독 후 사용자가 쓴 책 내용 요약. "사자에게 물어보기"의 지식 소스가 된다.
       responses:
         "200":
           description: |
-            먹이기 완료 (이미 먹인 책이면 상태 변화 없이 현재 값 반환).
+            먹이기 완료(벡터 적재 + exp 반영, 이미 먹인 메모의 재작성이면 exp는 그대로).
 
             응답은 `GET /api/ai/lion/me` 와 같은 형태다 — 먹이기 결과도 결국 "먹인 뒤의
             사자"라 값이 같다. 프론트는 두 응답을 같은 타입으로 다루면 된다.
@@ -136,8 +153,6 @@ paths:
                 $ref: "#/components/schemas/LionStatusEnvelope"
         "401":
           description: 인증 없음/만료
-        "409":
-          description: 아직 인제스트되지 않은 책. ebook 본문이 없으면 먹일 수 없다
 
   /api/ai/lion/me:
     get:
@@ -161,27 +176,6 @@ paths:
                 $ref: "#/components/schemas/LionStatusEnvelope"
         "401":
           description: 인증 없음/만료
-
-  /api/ai/lion/feedable-books:
-    get:
-      summary: 먹일 수 있는 책 목록
-      description: |
-        인제스트가 끝났고(`wiki_books` 에 있고) 아직 안 먹은 책.
-
-        **catalog-service 를 호출하지 않는다.** "먹일 수 있다"는 곧 "우리 인덱스에
-        있다"이고 그건 `ai_db` 가 안다. ebook 본문을 뽑을 수 없는 책은 애초에
-        인제스트되지 않으므로 여기 나오지 않는다.
-      operationId: listFeedableBooks
-      tags: [ai-lion]
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: 목록
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FeedableBooksEnvelope"
 
   /api/ai/bot/ask:
     post:
@@ -353,7 +347,7 @@ components:
 
     Citation:
       type: object
-      required: [ref, bookId, bookTitle, page, snippet, score]
+      required: [ref, bookId, bookTitle, page, snippet, score, sourceType]
       properties:
         ref:
           type: integer
@@ -381,6 +375,11 @@ components:
             뒤집어 내보낸다. 이 부호를 반대로 구현하면 관련 질문엔 "모르겠다"고 하고
             무관한 질문엔 자신 있게 답하는, 예외도 로그도 없는 버그가 된다.
           example: 0.87
+        sourceType:
+          type: string
+          enum: [book_content, user_summary]
+          description: book_content면 책 원문, user_summary면 이 회원 본인이 완독 후 쓴 요약 메모.
+          example: book_content
 
     TextEnvelope:
       type: object
@@ -422,19 +421,3 @@ components:
               description: 먹인 책 수(라이언 경험치용). 검색 가능 여부와는 무관하다 — 그건 구매가 정한다.
               example: 3
 
-    FeedableBooksEnvelope:
-      type: object
-      properties:
-        success: { type: boolean }
-        data:
-          type: array
-          items:
-            type: object
-            required: [bookId, title, pages]
-            properties:
-              bookId: { type: integer, format: int64, example: 1 }
-              title: { type: string, example: 운수 좋은 날 }
-              pages:
-                type: integer
-                description: 인제스트 시 900자를 1페이지로 나눈 결과. 인용에 쓰이는 페이지 번호의 범위다.
-                example: 12

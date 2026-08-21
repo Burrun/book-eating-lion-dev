@@ -3,6 +3,7 @@ package com.bookeatinglion.ai.api.client;
 import com.bookeatinglion.ai.api.config.AiProperties;
 import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -77,11 +78,24 @@ public class S3VectorIndexAdapter implements VectorIndexPort {
     /**
      * 키는 호출자가 주지만 그대로 믿지 않는다. 접두사 삭제가 키 규칙에 의존하므로, 규칙이
      * 깨진 키가 하나라도 섞이면 그 책의 옛 벡터가 영원히 안 지워진다 — 조용히 고아가 된다.
+     *
+     * <p>메모({@link VectorIndexPort#SOURCE_USER_SUMMARY})는 {@code memo#{bookId}#{memberId}}
+     * 형식이라 책 본문의 {@code {bookId}#{page}#{chunkSeq}} 검증을 적용하지 않는다 — 메모는
+     * wiki_book_chunks로 추적하지 않고(회원×도서당 항상 1개, 같은 키로 덮어씀) delete-then-put
+     * 대상이 아니기 때문이다.
      */
     private static PutInputVector toInput(VectorRecord record) {
-        String expected = VectorIndexPort.key(record.bookId(), record.page(), seqOf(record.key()));
-        if (!expected.equals(record.key())) {
-            throw new IllegalStateException("키 규칙 위반: 기대 %s, 실제 %s".formatted(expected, record.key()));
+        boolean isMemo = VectorIndexPort.SOURCE_USER_SUMMARY.equals(record.sourceType());
+        if (isMemo) {
+            String expected = VectorIndexPort.memoKey(record.bookId(), record.memberId());
+            if (!expected.equals(record.key())) {
+                throw new IllegalStateException("메모 키 규칙 위반: 기대 %s, 실제 %s".formatted(expected, record.key()));
+            }
+        } else {
+            String expected = VectorIndexPort.key(record.bookId(), record.page(), seqOf(record.key()));
+            if (!expected.equals(record.key())) {
+                throw new IllegalStateException("키 규칙 위반: 기대 %s, 실제 %s".formatted(expected, record.key()));
+            }
         }
 
         List<Float> data = new ArrayList<>(record.embedding().length);
@@ -89,15 +103,21 @@ public class S3VectorIndexAdapter implements VectorIndexPort {
             data.add(f);
         }
 
+        Map<String, Document> metadata = new HashMap<>(Map.of(
+                "bookId", Document.fromNumber(record.bookId()),
+                "bookTitle", Document.fromString(record.bookTitle()),
+                "category", Document.fromString(record.category()),
+                "page", Document.fromNumber(record.page()),
+                "text", Document.fromString(record.text()),
+                "sourceType", Document.fromString(record.sourceType())));
+        if (record.memberId() != null) {
+            metadata.put("memberId", Document.fromString(record.memberId()));
+        }
+
         return PutInputVector.builder()
                 .key(record.key())
                 .data(VectorData.fromFloat32(data))
-                .metadata(Document.fromMap(Map.of(
-                        "bookId", Document.fromNumber(record.bookId()),
-                        "bookTitle", Document.fromString(record.bookTitle()),
-                        "category", Document.fromString(record.category()),
-                        "page", Document.fromNumber(record.page()),
-                        "text", Document.fromString(record.text()))))
+                .metadata(Document.fromMap(metadata))
                 .build();
     }
 

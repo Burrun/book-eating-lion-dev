@@ -1,8 +1,6 @@
 import { apiClient, unwrap } from "./client.ts";
 import {
   MOCK_PROFILE,
-  MOCK_FED_BOOKS,
-  MOCK_READING_NOTES,
   MOCK_RAG_ANSWER,
   MOCK_ORDERS,
   MOCK_COUPON_STATE,
@@ -39,34 +37,27 @@ export async function fetchLionStatus() {
   return unwrap(apiClient.get("/ai/lion/me"));
 }
 
-// GET /api/ai/lion/feedable-books — 인제스트가 끝났고 아직 안 먹은 책
-// 응답: [{ bookId, title, pages }]
-export async function fetchFedBooks() {
-  if (USE_MOCK) return mockDelay(MOCK_FED_BOOKS);
-  return unwrap(apiClient.get("/ai/lion/feedable-books"));
-}
-
-// POST /api/ai/lion/feed — 책 먹이기. 응답은 GET /api/ai/lion/me 와 같은 형태(LionStatus)다.
-// 같은 책을 다시 먹여도 안전(멱등) — exp 가 중복으로 오르지 않는다.
-export async function feedLion(bookId) {
+// POST /api/ai/lion/feed — 완독 요약 메모 먹이기(임베딩+적재+EXP, 동기).
+// 응답은 GET /api/ai/lion/me 와 같은 형태(LionStatus)다.
+// exp는 멱등(같은 책 다시 먹여도 중복 안 오름)이지만 벡터는 항상 최신 memoText로 갱신된다 —
+// 메모를 고쳐 쓴 뒤 다시 먹이면 RAG가 아는 내용도 최신으로 바뀐다.
+export async function feedLion(bookId, bookTitle, memoText) {
   if (USE_MOCK) return mockDelay(mockFeedLion(bookId));
-  return unwrap(apiClient.post("/ai/lion/feed", { bookId }));
+  return unwrap(apiClient.post("/ai/lion/feed", { bookId, bookTitle, memoText }));
 }
 
-// 🚧 백엔드 미구현. 독서 노트 기능 자체가 없다.
-// docs/frontend/mypage-unimplemented.md §2
-export async function fetchReadingNotes() {
-  if (USE_MOCK) return mockDelay(MOCK_READING_NOTES);
-  return unwrap(apiClient.get("/mypage/reading-notes"));
-}
-
-// POST /api/ai/lion/ask — 구매한 책 본문에 대한 RAG 질의
+// POST /api/ai/lion/ask — 구매한 책 본문/완독 메모에 대한 RAG 질의
 // 🔴 요청 필드는 question 이 아니라 query 다(AskRequest).
 // 응답: { mode, grounded, answer, citations[] } — 근거를 못 찾아도 200 이고
 // grounded: false 에 answer 는 고정 문구다.
+//
+// 🔴 mode를 생략하면 서버 QueryRouter가 "왜/이유/설명/알려줘" 같은 키워드가 없는 질문을
+// 전부 search로 내려버린다 — 그러면 LLM을 안 부르고 answer가 "구매한 책에서 근거
+// N곳을 찾았습니다"라는 정형 문구로만 온다(citations 유사도%만 의미 있어 보이는 이유).
+// "사자에게 물어보기"는 대화형 UX라 항상 answer 모드로 명시해 실제 문장 답변을 받는다.
 export async function askLion(question) {
   if (USE_MOCK) return mockDelay(MOCK_RAG_ANSWER, 800);
-  return unwrap(apiClient.post("/ai/lion/ask", { query: question }));
+  return unwrap(apiClient.post("/ai/lion/ask", { query: question, mode: "answer" }));
 }
 
 // 🚧 백엔드 미구현. /api/orders (목록)는 있으나 마이페이지 전용 형태가 필요한지 미확정.

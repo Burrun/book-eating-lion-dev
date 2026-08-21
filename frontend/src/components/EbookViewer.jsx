@@ -5,15 +5,6 @@ import { X } from "lucide-react";
 import { useReadingProgress } from "../hooks/useReadingProgress.js";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 
-// epubjs Locations.percentageFromCfi()는 진짜 CFI("epubcfi(...)")만 받는다. react-reader의
-// 좌우 페이지 이동은 실제 CFI를 주지만, 목차(TOC) 클릭은 TocItem이 setLocation(data.href)를
-// 불러 스파인 href("OPS/chapter7.xhtml" 등)를 그대로 locationChanged에 넘긴다 — 그 href를
-// percentageFromCfi에 넣으면 epubjs의 EpubCFI 생성자가 "not a valid argument for EpubCFI"를
-// 던지고, 이걸 잡아주는 ErrorBoundary가 없으면 리액트 트리 전체가 흰 화면이 된다.
-function isEpubCfi(value) {
-  return typeof value === "string" && value.startsWith("epubcfi(");
-}
-
 const LOCATIONS_KEY_PREFIX = "locations:";
 
 function safeGetItem(key) {
@@ -39,7 +30,7 @@ function safeSetItem(key, value) {
  * 실 API(GET /api/catalog/books/{bookId}/ebook) 연동 시에도 이 컴포넌트는 그대로 두고
  * 호출부(ProductDetailPage)에서 응답으로 받은 URL을 넘기기만 하면 된다.
  */
-export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
+export default function EbookViewer({ isOpen, onClose, url, title, bookId, onProgressChange }) {
   const { initialCfi, saveLocation } = useReadingProgress(bookId);
   // 저장된 이어읽기 위치(없으면 처음부터)로 시작한다. 이후로는 locationChanged가 갱신한다.
   const [location, setLocation] = useState(initialCfi);
@@ -105,6 +96,31 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
 
       if (cacheKey) safeSetItem(cacheKey, book.locations.save());
     });
+
+    // react-reader의 locationChanged prop은 epub.js "locationChanged" 이벤트를 거치며 현재
+    // 페이지의 "시작 지점" CFI/퍼센트만 넘겨준다 — 끝까지 다 읽어도 마지막 페이지의 시작
+    // 지점은 항상 책의 진짜 끝보다 앞이라 100%가 절대 안 찍히는 구조적 한계가 있다(그래서
+    // 98%에서 멈춰 보였다). raw rendition의 "relocated" 이벤트는 페이지 끝(end) 기준 퍼센트와
+    // "스파인 마지막 + 그 안에서도 마지막 페이지"를 뜻하는 atEnd 플래그를 함께 주므로, 진행률/
+    // 완독 판정은 이 이벤트를 직접 구독해서 처리한다.
+    rendition.on("relocated", (located) => {
+      const cfi = located?.start?.cfi;
+      if (!cfi) return;
+      hasUserNavigatedRef.current = true;
+      const atEnd = Boolean(located.atEnd);
+      const rawPercentage = located.end?.percentage ?? located.start?.percentage;
+      const percentage = atEnd
+        ? 100
+        : typeof rawPercentage === "number"
+          ? Math.round(rawPercentage * 100)
+          : undefined;
+      saveLocation(cfi, percentage);
+      // saveLocation의 로컬 저장은 500ms 디바운스라, 뷰어를 닫는 시점엔 아직 반영 전일 수
+      // 있다 — ProductDetailPage가 useReadingProgress를 별도 인스턴스로 호출해 쓰는 상태라
+      // (훅 인스턴스가 달라 서로 리렌더를 안 일으킴) 디바운스와 무관하게 부모에 즉시 알려
+      // 완독 요약 메모 UI가 새로고침 없이 바로 뜨게 한다.
+      if (typeof percentage === "number") onProgressChange?.(percentage);
+    });
   };
 
   useEffect(() => {
@@ -165,14 +181,10 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
             title={title}
             location={location}
             locationChanged={(cfi) => {
+              // 위치(북마크) 동기화만 담당한다 — 진행률/완독 판정은 handleGetRendition이
+              // 구독한 "relocated" 이벤트(더 정확한 end 퍼센트 + atEnd)가 처리한다.
               hasUserNavigatedRef.current = true;
               setLocation(cfi);
-              // 목차 클릭은 CFI가 아니라 스파인 href를 넘겨준다 — 그럴 땐 진행률 계산을 건너뛴다.
-              const raw = isEpubCfi(cfi)
-                ? epubBookRef.current?.locations?.percentageFromCfi(cfi)
-                : undefined;
-              const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;
-              saveLocation(cfi, percentage);
             }}
             getRendition={handleGetRendition}
             showToc

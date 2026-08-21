@@ -83,7 +83,15 @@ public class S3VectorSearchAdapter implements VectorSearchPort {
                 required(meta, "bookTitle", vector.key()).asString(),
                 required(meta, "page", vector.key()).asNumber().intValue(),
                 required(meta, "text", vector.key()).asString(),
-                vector.distance());
+                vector.distance(),
+                optionalString(meta, "sourceType"),
+                optionalString(meta, "memberId"));
+    }
+
+    /** sourceType/memberId는 이 필드들이 생기기 전에 적재된 옛 벡터엔 없을 수 있어 optional이다. */
+    private static String optionalString(Map<String, Document> meta, String key) {
+        Document value = meta.get(key);
+        return value == null || value.isNull() ? null : value.asString();
     }
 
     private static Document required(Map<String, Document> meta, String key, String vectorKey) {
