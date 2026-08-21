@@ -101,7 +101,12 @@ set_var "DB_NAME" "bookdb"
 echo "  ⚠️  SKIP  AI_DB_NAME — Terraform엔 DB 하나(bookdb)뿐, AI 전용 DB명이 따로 있으면 직접 등록할 것"
 
 set_var "REDIS_HOST" "$(ssm data/valkey_endpoint)"
+# 아래 ssm() 인자("ai/...")는 terraform/environments/{env}/01-data/main.tf의
+# locals.ai_channel_ssm_values 키와 정확히 같아야 한다 - 두 값이 각각 따로
+# 하드코딩돼 있어서, 한쪽만 바꾸면 여기가 조용히 빈 값을 등록한다(/code-review
+# 지적사항). 이 SSM 키를 바꿀 땐 반드시 그 locals도 같이 바꿀 것.
 set_var "SQS_PURCHASE_QUEUE_URL" "$(ssm ai/purchase_channel_url)"
+set_var "SQS_INGEST_QUEUE_URL" "$(ssm ai/ingest_channel_url)"
 
 # backend엔 application-dev.yml이 없다 - application-prod.yml이 ${DB_HOST} 등으로
 # 파라미터화돼 있어 재사용 가능하므로, AWS 환경명과 무관하게 Spring 프로필은
