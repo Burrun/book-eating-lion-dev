@@ -130,7 +130,9 @@ module "ai_service_iam" {
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.ai_ingest_channel_arn.value
   purchase_channel_arn         = data.aws_ssm_parameter.ai_purchase_channel_arn.value
-  recommendation_index_arn     = null # S3 Vectors provider 지원 전까지 null
-  purchased_book_rag_index_arn = null
+  # S3 Vectors는 Terraform provider 미지원이라 AWS CLI로 수동 생성 후 ARN을
+  # 여기 직접 채워 넣는다 (인프라구성명세.md §7.5 참고).
+  recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/recommendation"
+  purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/purchased-book-rag"
   bedrock_model_arns           = var.bedrock_model_arns
 }
