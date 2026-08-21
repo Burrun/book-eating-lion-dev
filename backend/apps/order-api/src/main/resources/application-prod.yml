@@ -1,6 +1,6 @@
 spring:
   config:
-    import: classpath:application-redis-prod.yml
+    import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
 
   datasource:
     # 쓰기 서비스라 Aurora Writer 로 간다. RDS Proxy 는 이쪽에만 붙인다
@@ -31,13 +31,6 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
-  # JWT 검증. issuer-uri 가 local 프로필에만 있어서 prod 로 뜨면 JwtDecoder 빈이
-  # 만들어지지 않고 SecurityConfig 가 기동 단계에서 터진다.
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
 
@@ -45,16 +38,8 @@ spring:
   # 요구한다 — 없으면 기동 자체가 실패한다. 값 자체는 위 application-redis-prod.yml
   # import 로 온다(공유 파일 참고).
 
-  # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
-  # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
-  # application-local.yml 과 동일한 패턴이며, 기본값을 두지 않은 것도 의도적이다 —
-  # kakaopay.secret-key 와 같은 원칙으로, 값이 없으면 기동 자체가 실패해야 잘못된
-  # 설정으로 조용히 뜨는 사고를 막는다.
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
+  # JWT(Cognito) 검증 설정은 application-security-prod.yml import 로 온다
+  # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
 
 management:
   endpoints:
