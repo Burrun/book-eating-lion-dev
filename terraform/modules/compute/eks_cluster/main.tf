@@ -1,5 +1,12 @@
 locals {
   cluster_name = coalesce(var.cluster_name, "lion-team3-${var.environment}")
+
+  # k8s taint effect 표기 -> aws_eks_node_group이 요구하는 AWS API 표기.
+  eks_taint_effect_map = {
+    NoSchedule       = "NO_SCHEDULE"
+    NoExecute        = "NO_EXECUTE"
+    PreferNoSchedule = "PREFER_NO_SCHEDULE"
+  }
 }
 
 # ── Cluster IAM Role ─────────────────────────────────────────────
@@ -181,9 +188,9 @@ resource "aws_eks_node_group" "system" {
   # CrashLoopBackOff). taint를 견디는 toleration이 없는 파드는 스케줄러가
   # 자동으로 Karpenter 노드로 보낸다 - 앱 매니페스트 쪽은 손댈 필요 없음.
   taint {
-    key    = "CriticalAddonsOnly"
-    value  = "true"
-    effect = "NO_SCHEDULE"
+    key    = var.system_pool_taint_key
+    value  = var.system_pool_taint_value
+    effect = local.eks_taint_effect_map[var.system_pool_taint_effect]
   }
 
   depends_on = [aws_iam_role_policy_attachment.node]
@@ -211,9 +218,9 @@ resource "aws_eks_addon" "coredns" {
   # 찾아야 하는 부트스트랩 문제가 생길 수 있음) 클러스터 DNS 전체가 멎는다.
   configuration_values = jsonencode({
     tolerations = [{
-      key      = "CriticalAddonsOnly"
+      key      = var.system_pool_taint_key
       operator = "Exists"
-      effect   = "NoSchedule"
+      effect   = var.system_pool_taint_effect
     }]
   })
 }

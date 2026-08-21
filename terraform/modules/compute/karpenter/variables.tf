@@ -48,3 +48,17 @@ variable "instance_types" {
   type        = list(string)
   default     = ["t3.medium", "t3.large", "m6i.large"]
 }
+
+# 시스템 노드그룹(eks_cluster 모듈)에 걸린 taint를 Karpenter 컨트롤러가 견뎌야
+# 자기 자신이 만드는 노드가 아니라 그 노드그룹에 고정된다. 호출부가
+# eks_cluster에 넘기는 값과 정확히 같은 값을 여기에도 넘겨야 하므로 기본값을
+# 두지 않는다 - 값이 어긋나면(예: 호출부가 taint는 바꿨는데 여기는 깜빡함)
+# 그냥 조용히 스케줄이 안 되는 대신, 호출부에서 값을 명시하도록 강제한다.
+variable "system_pool_taint_key" {
+  type = string
+}
+
+variable "system_pool_taint_effect" {
+  description = "Kubernetes 표기(NoSchedule 등) - toleration.effect에 그대로 쓴다."
+  type        = string
+}
