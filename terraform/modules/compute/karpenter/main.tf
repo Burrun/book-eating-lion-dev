@@ -280,6 +280,31 @@ resource "helm_release" "karpenter" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.controller.arn
   }
+
+  # 시스템 노드그룹(eks_cluster 모듈이 붙인 taint)에 고정한다 - Karpenter
+  # 컨트롤러는 자기 자신이 만드는 노드에서 돌면 안 된다(그 노드가
+  # consolidation으로 사라지면 컨트롤러도 같이 죽는 닭-달걀 문제).
+  # nodeSelector로 강제 배치하고, taint를 견디도록 toleration도 같이 준다.
+  #
+  # tolerations는 통짜 values(YAML) 블록으로 넣는다 - `set { name =
+  # "tolerations[0].key" ... }`처럼 인덱스로 넣으면, 차트가 나중에 기본
+  # toleration 목록을 갖게 될 경우 그 목록과 위치 기준으로 뒤섞여 병합되는
+  #깨지기 쉬운 동작이 된다(/code-review 지적사항). values 블록은 그 키를
+  # 통째로 덮어써서 항상 예측 가능하다.
+  values = [
+    yamlencode({
+      nodeSelector = {
+        "book-eating-lion.io/pool" = "system"
+      }
+      tolerations = [
+        {
+          key      = var.system_pool_taint_key
+          operator = "Exists"
+          effect   = var.system_pool_taint_effect
+        }
+      ]
+    })
+  ]
 }
 
 # ── NodePool / EC2NodeClass ────────────────────────────────────────

@@ -1,5 +1,12 @@
 locals {
   cluster_name = coalesce(var.cluster_name, "lion-team3-${var.environment}")
+
+  # k8s taint effect 표기 -> aws_eks_node_group이 요구하는 AWS API 표기.
+  eks_taint_effect_map = {
+    NoSchedule       = "NO_SCHEDULE"
+    NoExecute        = "NO_EXECUTE"
+    PreferNoSchedule = "PREFER_NO_SCHEDULE"
+  }
 }
 
 # ── Cluster IAM Role ─────────────────────────────────────────────
@@ -173,6 +180,19 @@ resource "aws_eks_node_group" "system" {
     "book-eating-lion.io/pool" = "system"
   }
 
+  # 클러스터 애드온(CoreDNS, Karpenter 컨트롤러) 전용 노드로 격리한다 - 이 taint가
+  # 없으면 앱 워크로드가 스케줄러에 의해 이 노드에도 자유롭게 앉을 수 있는데,
+  # 이 노드그룹엔 app_security_group_id가 안 붙어 있어서(Karpenter EC2NodeClass만
+  # 붙임) 그렇게 뜬 파드는 DB/Redis에 연결하지 못한다(2026-08-21 실제로 겪음 -
+  # ai-bot 등 nodeSelector/toleration 없는 Deployment가 이 노드에 앉아 계속
+  # CrashLoopBackOff). taint를 견디는 toleration이 없는 파드는 스케줄러가
+  # 자동으로 Karpenter 노드로 보낸다 - 앱 매니페스트 쪽은 손댈 필요 없음.
+  taint {
+    key    = var.system_pool_taint_key
+    value  = var.system_pool_taint_value
+    effect = local.eks_taint_effect_map[var.system_pool_taint_effect]
+  }
+
   depends_on = [aws_iam_role_policy_attachment.node]
 }
 
@@ -191,6 +211,18 @@ resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "coredns"
   depends_on   = [aws_eks_node_group.system] # CoreDNS Pod가 뜨려면 노드가 먼저 있어야 함
+
+  # 시스템 노드그룹의 CriticalAddonsOnly taint를 견디게 한다 - 이게 없으면
+  # CoreDNS Pod가 어디에도 스케줄 못 되고(taint 있는 시스템 노드는 못 견디고,
+  # Karpenter 노드는 애초에 CoreDNS가 있어야 쓸 수 있는 DNS로 자기 자신을
+  # 찾아야 하는 부트스트랩 문제가 생길 수 있음) 클러스터 DNS 전체가 멎는다.
+  configuration_values = jsonencode({
+    tolerations = [{
+      key      = var.system_pool_taint_key
+      operator = "Exists"
+      effect   = var.system_pool_taint_effect
+    }]
+  })
 }
 
 # Pod/Node CPU·메모리를 CloudWatch Container Insights로 수집
