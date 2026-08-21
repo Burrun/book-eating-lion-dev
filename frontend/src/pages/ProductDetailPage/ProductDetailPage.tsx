@@ -396,8 +396,8 @@ export default function ProductDetailPage() {
         <section className="flex flex-col gap-3 rounded-2xl border border-forest/10 bg-white p-6">
           <h2 className="text-xl font-bold">🦁 완독 요약 메모</h2>
           <p className="text-sm text-forest/60">
-            이 책의 내용을 요약해서 남겨주세요. 사자에게 먹이면 나중에 "사자에게 물어보기"에서
-            이 요약을 근거로 답해줘요.
+            이 책의 내용을 요약해서 남겨주세요. 사자에게 먹이면 나중에 "사자에게 물어보기"에서 이
+            요약을 근거로 답해줘요.
           </p>
           <textarea
             value={summaryText}

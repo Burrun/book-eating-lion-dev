@@ -686,7 +686,9 @@ function DraggableMemo({ id, bookTitle, memoText }) {
     >
       <BookOpen size={20} className="text-[var(--color-forest)]/50" />
       <span className="text-sm font-medium text-[var(--color-ink)]">{bookTitle}</span>
-      <span className="line-clamp-1 text-[11px] text-[var(--color-ink)] opacity-50">{memoText}</span>
+      <span className="line-clamp-1 text-[11px] text-[var(--color-ink)] opacity-50">
+        {memoText}
+      </span>
       <span className="text-[11px] text-[var(--color-ink)] opacity-40">Drag me</span>
     </button>
   );
@@ -768,9 +770,7 @@ function LionRagCard() {
               >
                 <Quote size={13} className="mt-0.5 shrink-0 text-[var(--color-forest)]/40" />
                 <span className="text-[var(--color-ink)]">
-                  <span className="font-medium text-[var(--color-forest)]">
-                    [{memo.bookTitle}]
-                  </span>{" "}
+                  <span className="font-medium text-[var(--color-forest)]">[{memo.bookTitle}]</span>{" "}
                   <span className="line-clamp-1">{memo.memoText}</span>
                 </span>
               </li>
@@ -1381,20 +1381,26 @@ function SubscriptionTab() {
           <p className="text-sm font-medium text-[var(--color-ink)]">🎁 정기 구독</p>
           {subscription.status ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-ink)] opacity-70">
-              <span className={subscription.isActive ? "font-medium text-[var(--color-forest)]" : ""}>
+              <span
+                className={subscription.isActive ? "font-medium text-[var(--color-forest)]" : ""}
+              >
                 {SUBSCRIPTION_STATUS_LABELS[subscription.status] ?? subscription.status}
               </span>
-              <span>{SUBSCRIPTION_PLAN_LABELS[subscription.planType] ?? subscription.planType}</span>
+              <span>
+                {SUBSCRIPTION_PLAN_LABELS[subscription.planType] ?? subscription.planType}
+              </span>
               {subscription.startedAt && <span>시작일 {subscription.startedAt.slice(0, 10)}</span>}
               {subscription.expiresAt && (
                 <span>
-                  {subscription.isActive ? "다음 결제일" : "만료일"} {subscription.expiresAt.slice(0, 10)}
+                  {subscription.isActive ? "다음 결제일" : "만료일"}{" "}
+                  {subscription.expiresAt.slice(0, 10)}
                 </span>
               )}
             </div>
           ) : (
             <p className="mt-1.5 text-sm text-[var(--color-ink)] opacity-50">
-              아직 구독 중이 아니에요. 구독하면 웹툰 요약 컷 열람 + 사자 먹이 2배 적립 혜택을 받을 수 있어요.
+              아직 구독 중이 아니에요. 구독하면 웹툰 요약 컷 열람 + 사자 먹이 2배 적립 혜택을 받을
+              수 있어요.
             </p>
           )}
         </div>

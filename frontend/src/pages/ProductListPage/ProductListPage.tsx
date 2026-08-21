@@ -19,7 +19,10 @@ export default function ProductListPage() {
   const queryClient = useQueryClient();
   // Toast.jsx는 checkJs:false라 createContext(null)+throw 패턴이 TS 쪽에서 반환 타입을
   // never로 좁힌다(ProductDetailPage.tsx와 동일 이슈). 여기서만 실제 형태로 타입을 명시한다.
-  const toast = useToast() as { success: (message: string) => void; error: (message: string) => void };
+  const toast = useToast() as {
+    success: (message: string) => void;
+    error: (message: string) => void;
+  };
 
   const { data: categories = [] } = useQuery({
     queryKey: ["catalog-categories"],
@@ -98,7 +101,11 @@ export default function ProductListPage() {
             disabled={isSubscribed || subscribeMutation.isPending}
             className="shrink-0 rounded-full bg-forest px-5 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubscribed ? "구독 중" : subscribeMutation.isPending ? "구독 처리 중..." : "구독하기 >"}
+            {isSubscribed
+              ? "구독 중"
+              : subscribeMutation.isPending
+                ? "구독 처리 중..."
+                : "구독하기 >"}
           </button>
         </section>
 
