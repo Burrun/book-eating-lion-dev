@@ -61,10 +61,10 @@ spec:
               path: /actuator/health/readiness
               port: http
             periodSeconds: 5
-            # 원래 무거운 초기화가 없다는 이유로 1분(12)으로 짧게 잡았으나, OTel Java
-            # 자동계측 에이전트(JMX bean 스캔 등)의 부팅 오버헤드가 모든 서비스에 공통으로
-            # 붙어 실측 60초를 넘기고 있었다(2026-08-21 CrashLoopBackOff로 실제로 겪음) —
-            # 다른 서비스들과 동일하게 180초로 맞춘다.
+            # OTel Java 자동계측 에이전트(JMX bean 스캔 등)의 부팅 오버헤드가 모든
+            # 서비스에 공통으로 붙어 무거운 초기화가 없는 서비스도 짧은 상한을 안정적으로
+            # 못 넘긴다 - 다른 서비스와 동일하게 180초로 맞춘다 (docs/개발 문서/k8s-명세.md §2.2가
+            # canonical source이니 여길 바꿀 땐 그 표도 같이 갱신할 것).
             failureThreshold: 36
           readinessProbe:
             httpGet:
