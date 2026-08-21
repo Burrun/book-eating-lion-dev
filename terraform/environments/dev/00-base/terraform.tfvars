@@ -4,13 +4,9 @@
 environment = "dev"
 aws_region  = "ap-northeast-2"
 
-# dev는 10.13.0.0/16 대역 사용(2026-08-21 별도 승인받음). prod(10.14.0.0/16)와
-# 겹치지 않게 분리해서 dev/prod 동시 운영도 가능.
-vpc_cidr            = "10.13.0.0/16"
-availability_zones  = ["ap-northeast-2a", "ap-northeast-2c"]
-public_subnet_cidrs = ["10.13.0.0/24", "10.13.1.0/24"]
-app_subnet_cidrs    = ["10.13.10.0/24", "10.13.11.0/24"]
-data_subnet_cidrs   = ["10.13.20.0/24", "10.13.21.0/24"]
+# VPC CIDR 플랜(dev=10.13.0.0/16, prod=10.14.0.0/16 - 서로 안 겹쳐서 동시 운영
+# 가능)은 modules/base/network_plan에서 environment로 조회해서 쓴다. 값을
+# 바꾸려면 여기가 아니라 그 모듈의 locals를 고칠 것.
 
 # ajttk.com은 이미 이 계정에 등록된 실제 도메인(계정 소유자 명의, Route53 Domains).
 # apex/api/grafana는 예전 프로젝트가 쓰던 레코드라 이 프로젝트는 건드리지 않고
