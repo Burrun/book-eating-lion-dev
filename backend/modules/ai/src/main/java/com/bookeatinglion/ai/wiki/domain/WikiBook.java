@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 /**
  * 인제스트가 끝난 책. "먹일 수 있는 책"의 정의가 곧 이 테이블이다.
  *
- * <p>이게 있어서 feedable-books 가 catalog-service 를 호출하지 않는다 — "먹일 수 있다"는
- * 곧 "우리 인덱스에 있다"이고 그건 ai_db 가 안다.
+ * <p>"먹일 수 있는 메모" 판단(완독 + 메모 작성)은 이제 catalog-service(book_memos)가 한다 —
+ * 이 테이블은 책 본문이 검색 가능한 상태인지만 나타낸다.
  *
  * <p>쓰기는 관리자 인제스트 Job 만 한다. 서빙 경로는 읽기 전용이라 updated_at 은 매핑하지 않는다.
  */

@@ -6,18 +6,42 @@ import { createReview, deleteReview, getReviews, updateReview } from "../../api/
 import { addToWishlist, getWishlist, removeFromWishlist } from "../../api/wishlist.ts";
 import { getMyProfile, getMySubscription, subscribe } from "../../api/member.ts";
 import { addToCart } from "../../api/cart.js";
+import { feedLion } from "../../api/mypage.js";
+import { getBookMemo, markMemoFed, saveBookMemo } from "../../api/bookMemo.ts";
 import { useToast } from "../../components/Toast.jsx";
 import EbookViewer from "../../components/EbookViewer.jsx";
 import { useReadingProgress } from "../../hooks/useReadingProgress.js";
 
 const REVIEW_CONTENT_MAX_LENGTH = 1000;
 
+// 완독 판정 임계값. epub.js의 atEnd(파일의 물리적 끝)를 단독 기준으로 쓰면, 구텐베르크
+// 소스 EPUB처럼 소설 본문 뒤에 라이선스 고지문이 같은 스파인 항목에 이어붙은 책에서는
+// 사용자가 라이선스 텍스트까지 넘기지 않는 한 영영 100%가 안 된다(실제로 프랑켄슈타인/
+// 이상한 나라의 앨리스 둘 다 이 구조를 확인함). 라이선스 재배포 요건상 EPUB 파일은 못
+// 건드리므로, "본문을 사실상 다 읽었다"고 볼 수 있는 95% 이상이면 atEnd 여부와 무관하게
+// 완독으로 취급한다. EbookViewer.jsx가 atEnd일 때 percentage를 100으로 저장하므로, 이
+// 임계값 하나로 "percentage >= 95 OR atEnd" 조건이 그대로 구현된다(atEnd → 항상 100 →
+// 95 이상).
+const COMPLETION_PERCENTAGE_THRESHOLD = 95;
+
 export default function ProductDetailPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
-  const { initialPercentage: readingPercentage } = useReadingProgress(id) as {
+  const { initialPercentage: storedReadingPercentage } = useReadingProgress(id) as {
     initialPercentage: number | null;
   };
+  // EbookViewer는 useReadingProgress를 별도 훅 인스턴스로 호출한다 — 뷰어 안에서 저장해도
+  // 이 페이지의 훅 인스턴스는 리렌더되지 않고, 로컬 저장도 500ms 디바운스라 뷰어를 바로
+  // 닫으면 그마저 반영 전일 수 있다. EbookViewer가 relocated마다 즉시 넘겨주는 값을 여기
+  // 저장해두고, 있으면 그 값을(없으면 훅이 읽어온 저장값을) 쓴다 — 새로고침 없이 뷰어를
+  // 닫자마자 완독 요약 메모가 뜨게 하기 위해서다.
+  const [livePercentage, setLivePercentage] = useState<number | null>(null);
+  const [livePercentageBookId, setLivePercentageBookId] = useState(id);
+  if (livePercentageBookId !== id) {
+    setLivePercentageBookId(id);
+    setLivePercentage(null);
+  }
+  const readingPercentage = livePercentage ?? storedReadingPercentage;
   // Toast.jsx는 checkJs:false라 createContext(null)+throw 패턴이 TS 쪽에서 반환 타입을
   // never로 좁힌다(CardsPage.tsx와 동일한 이슈). 여기서만 실제 형태로 타입을 명시한다.
   const toast = useToast() as {
@@ -74,6 +98,50 @@ export default function ProductDetailPage() {
   const [editText, setEditText] = useState("");
   const [isEbookOpen, setIsEbookOpen] = useState(false);
   const [ebookUrl, setEbookUrl] = useState<string | null>(null);
+  const isBookComplete =
+    readingPercentage != null && readingPercentage >= COMPLETION_PERCENTAGE_THRESHOLD;
+
+  const { data: myMemo, isSuccess: memoLoaded } = useQuery({
+    queryKey: ["bookMemo", id],
+    queryFn: () => getBookMemo(id!),
+    enabled: Boolean(id) && isBookComplete,
+  });
+
+  const [summaryText, setSummaryText] = useState("");
+  // id(도서)가 바뀌거나 서버 메모가 막 로드됐을 때만 입력창을 그 값으로 채운다 —
+  // EbookViewer.jsx의 renderedBookId와 같은 "렌더 중 조정" 패턴. memoLoaded가 되기 전(또는
+  // 로그인 안 해서 계속 로딩 중)에는 건드리지 않아, 리페치로 사용자가 타이핑 중인 내용을
+  // 덮어쓰지 않는다.
+  const [summarySyncedFor, setSummarySyncedFor] = useState<string | null | undefined>(undefined);
+  if (memoLoaded && summarySyncedFor !== id) {
+    setSummarySyncedFor(id ?? null);
+    setSummaryText(myMemo?.memoText ?? "");
+  }
+
+  const [isSavingSummary, setIsSavingSummary] = useState(false);
+
+  async function handleSaveSummary() {
+    if (!id || !summaryText.trim() || !book) return;
+    setIsSavingSummary(true);
+    try {
+      const saved = await saveBookMemo(id, summaryText.trim());
+      queryClient.invalidateQueries({ queryKey: ["bookMemo", id] });
+      toast.success("요약 메모를 저장했어요.");
+
+      // 이미 사자에게 먹인 메모를 재작성한 경우 — EXP는 다시 안 오르지만(feedLion이 멱등),
+      // RAG가 아는 내용은 최신이어야 하므로 인덱스만 다시 갱신한다.
+      if (saved.fedAt) {
+        await feedLion(Number(id), book.title, summaryText.trim());
+        await markMemoFed(id).catch(() => {
+          // catalog 쪽 표시 갱신만 실패한 것 — 인덱스는 이미 최신으로 반영됐다.
+        });
+      }
+    } catch {
+      toast.error("요약 메모를 저장하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsSavingSummary(false);
+    }
+  }
 
   const { data: wishlist = [] } = useQuery({
     queryKey: ["wishlist"],
@@ -324,6 +392,30 @@ export default function ProductDetailPage() {
         </div>
       </section>
 
+      {isBookComplete && (
+        <section className="flex flex-col gap-3 rounded-2xl border border-forest/10 bg-white p-6">
+          <h2 className="text-xl font-bold">🦁 완독 요약 메모</h2>
+          <p className="text-sm text-forest/60">
+            이 책의 내용을 요약해서 남겨주세요. 사자에게 먹이면 나중에 "사자에게 물어보기"에서 이
+            요약을 근거로 답해줘요.
+          </p>
+          <textarea
+            value={summaryText}
+            onChange={(e) => setSummaryText(e.target.value)}
+            rows={5}
+            placeholder="이 책은 어떤 내용이었나요? 핵심 내용을 요약해서 적어주세요."
+            className="w-full resize-y rounded-lg border border-forest/20 px-4 py-2.5 outline-none focus:border-forest"
+          />
+          <button
+            onClick={handleSaveSummary}
+            disabled={!summaryText.trim() || isSavingSummary}
+            className="self-end rounded-lg bg-forest px-6 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+          >
+            {isSavingSummary ? "저장 중..." : "요약 저장"}
+          </button>
+        </section>
+      )}
+
       <section className="flex flex-col gap-4 rounded-2xl border border-forest/10 bg-white p-6">
         {hasWebtoonAccess ? (
           <>
@@ -478,6 +570,7 @@ export default function ProductDetailPage() {
         url={ebookUrl}
         title={book.title}
         bookId={id}
+        onProgressChange={setLivePercentage}
       />
     </main>
   );

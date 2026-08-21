@@ -1,6 +1,7 @@
 package com.bookeatinglion.ai.wiki.service;
 
 import com.bookeatinglion.ai.wiki.config.RagProperties;
+import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort.Match;
 import com.bookeatinglion.ai.wiki.router.QueryRouter;
@@ -49,7 +50,8 @@ public class WikiRagService {
     private final QueryRouter queryRouter;
     private final RagProperties props;
 
-    public record Citation(int ref, long bookId, String bookTitle, int page, String snippet, double score) {}
+    public record Citation(
+            int ref, long bookId, String bookTitle, int page, String snippet, double score, String sourceType) {}
 
     public record AskResult(AskMode mode, boolean grounded, String answer, List<Citation> citations) {}
 
@@ -73,8 +75,18 @@ public class WikiRagService {
             return notGrounded(mode);
         }
 
+        // 🔴 접근 제어의 두 번째 축. bookId 필터(allowed)는 "이 책을 볼 수 있는가"만 걸러준다 —
+        // 책 본문은 회원 전체가 공유하는 벡터라 그걸로 충분하지만, user_summary(메모)는
+        // 작성자 개인의 글이라 같은 책을 산 다른 회원에게 새어나가면 안 된다. sourceType이
+        // book_content(또는 옛 벡터라 null)면 그대로 두고, user_summary면 memberId가 나와
+        // 같을 때만 남긴다.
+        List<Match> ownershipFiltered = matches.stream()
+                .filter(match -> !VectorIndexPort.SOURCE_USER_SUMMARY.equals(match.sourceType())
+                        || memberId.equals(match.memberId()))
+                .toList();
+
         // (7) 거리 가드. 임계값보다 먼 근거는 전부 버린다
-        List<Match> near = matches.stream()
+        List<Match> near = ownershipFiltered.stream()
                 .filter(match -> match.distance() <= props.maxDistance())
                 .toList();
         if (near.isEmpty()) {
@@ -168,9 +180,15 @@ public class WikiRagService {
                     match.bookTitle(),
                     match.page(),
                     snippet(match.text()),
-                    score(match.distance())));
+                    score(match.distance()),
+                    normalizedSourceType(match)));
         }
         return citations;
+    }
+
+    /** 옛 벡터(필드 추가 전 적재분)는 메타데이터에 sourceType이 없다 — 책 본문으로 취급한다. */
+    private static String normalizedSourceType(Match match) {
+        return match.sourceType() == null ? VectorIndexPort.SOURCE_BOOK_CONTENT : match.sourceType();
     }
 
     /**
@@ -193,11 +211,15 @@ public class WikiRagService {
                         아래 근거만 사용해 한국어로 답한다. 근거에 없는 내용은 만들지 않는다.
                         인용한 문장 끝에 [1], [2] 처럼 근거 번호를 붙인다.
                         질문이 여러 책에 걸치면 되묻지 말고 책별로 나누어 한 번에 답한다.
+                        각 근거 앞의 표시가 "책 본문"이면 원문 그대로이고, "내 메모"면 사용자가
+                        직접 쓴 요약이다 — 둘을 섞어 말하지 말고 출처가 드러나게 답한다.
 
                         """);
         for (int i = 0; i < grounds.size(); i++) {
             Match match = grounds.get(i);
-            prompt.append("[%d] %s %d쪽%n%s%n%n".formatted(i + 1, match.bookTitle(), match.page(), match.text()));
+            String label = VectorIndexPort.SOURCE_USER_SUMMARY.equals(match.sourceType()) ? "내 메모" : "책 본문";
+            prompt.append(
+                    "[%d] (%s) %s %d쪽%n%s%n%n".formatted(i + 1, label, match.bookTitle(), match.page(), match.text()));
         }
         return prompt.toString();
     }

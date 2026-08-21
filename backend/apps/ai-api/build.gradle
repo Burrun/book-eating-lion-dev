@@ -39,6 +39,12 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
+    // 사자 먹이기 EXP 2배 판정을 위해 member-service 구독 상태를 동기 조회한다(§7.6 예외 —
+    // 이 서비스는 원래 다른 서비스와 통신하지 않지만, 실패해도 1배로 안전 강등되는 부가
+    // 기능이라 장애 격리 원칙을 깨지 않는다. order-service 의 CardClient와 동일 패턴).
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+
     // 문의봇 WebSocket. modules:ai 가 implementation 으로 선언해 전이되지 않으므로 여기서도 건다.
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 

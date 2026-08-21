@@ -23,6 +23,17 @@ public interface VectorSearchPort {
     /**
      * @param distance 거리다. **점수가 아니다** — 작을수록 유사하다. 응답의 score 로 뒤집는
      *     지점은 한 곳뿐이어야 해서 여기서는 SDK 가 준 값을 그대로 들고 다닌다.
+     * @param sourceType {@link VectorIndexPort#SOURCE_BOOK_CONTENT} 또는
+     *     {@link VectorIndexPort#SOURCE_USER_SUMMARY}. 옛 벡터(필드 추가 전 적재분)는 메타데이터가
+     *     없을 수 있어 null이면 책 본문으로 취급한다(WikiRagService).
+     * @param memberId user_summary일 때만 값이 있다 — 다른 회원의 메모를 걸러내는 근거다.
      */
-    record Match(long bookId, String bookTitle, int page, String text, double distance) {}
+    record Match(
+            long bookId,
+            String bookTitle,
+            int page,
+            String text,
+            double distance,
+            String sourceType,
+            String memberId) {}
 }

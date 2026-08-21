@@ -4,8 +4,9 @@ import com.bookeatinglion.ai.wiki.service.FeedService;
 import com.bookeatinglion.common.dto.ApiResponse;
 import com.bookeatinglion.common.security.SecurityUtils;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,21 +22,22 @@ public class LionFeedController {
 
     private final FeedService feedService;
 
-    public record FeedRequest(@NotNull Long bookId) {}
+    /**
+     * "먹일 수 있는지" 판단은 이제 catalog-service(완독 + 메모 작성)가 한다 — 이 컨트롤러는
+     * 더 이상 그걸 확인하지 않는다. memberId는 JWT 클레임에서만 온다(바디로 안 받는다 —
+     * 클라이언트가 다른 사람 memberId를 실어 보내는 경로를 원천 차단한다).
+     */
+    public record FeedRequest(
+            @NotNull Long bookId, @NotBlank String bookTitle, @NotBlank @Size(max = 4000) String memoText) {}
 
     @PostMapping("/feed")
     public ApiResponse<FeedService.LionStatus> feed(@Valid @RequestBody FeedRequest request) {
-        // memberId 는 JWT 클레임에서 온다. member-service 호출 없음.
-        return ApiResponse.success(feedService.feed(SecurityUtils.currentMemberSub(), request.bookId()));
+        return ApiResponse.success(feedService.feed(
+                SecurityUtils.currentMemberSub(), request.bookId(), request.bookTitle(), request.memoText()));
     }
 
     @GetMapping("/me")
     public ApiResponse<FeedService.LionStatus> myLion() {
         return ApiResponse.success(feedService.getLionStatus(SecurityUtils.currentMemberSub()));
-    }
-
-    @GetMapping("/feedable-books")
-    public ApiResponse<List<FeedService.FeedableBook>> feedableBooks() {
-        return ApiResponse.success(feedService.feedableBooks(SecurityUtils.currentMemberSub()));
     }
 }

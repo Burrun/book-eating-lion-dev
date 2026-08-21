@@ -253,8 +253,13 @@ export default function Checkout() {
       toast.success("결제가 완료되었습니다.");
       // 주문완료 전용 페이지가 아직 없어서 임시로 마이페이지 주문내역 탭으로 이동
       setTimeout(() => navigate("/mypage?tab=orders"), 1500);
-    } catch {
-      toast.error("주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } catch (err) {
+      console.error("주문 처리 실패:", err);
+      const message =
+        err.response?.data?.error?.message ??
+        err.response?.data?.message ??
+        "주문 처리에 실패했습니다. 잠시 후 다시 시도해주세요.";
+      toast.error(message);
     } finally {
       setIsPlacingOrder(false);
     }

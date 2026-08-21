@@ -63,7 +63,17 @@ public final class SqsWorker implements AutoCloseable {
         });
     }
 
+    /**
+     * 큐 URL이 비어 있으면 띄우지 않는다. {@code @ConditionalOnProperty}는 enabled 플래그만
+     * 보고 URL 값은 안 보므로, enabled=true(기본값)인데 URL이 아직 없는 로컬 환경(큐를
+     * 수작업으로 만들기 전)에서는 이 가드가 없으면 빈 URL로 계속 폴링해
+     * QueueDoesNotExistException 로그가 반복 적재된다.
+     */
     public void start() {
+        if (queueUrl == null || queueUrl.isBlank()) {
+            log.warn("SQS 큐 URL이 비어 있어 리스너를 띄우지 않는다 [{}] — 로컬 등 큐 미프로비저닝 환경으로 보인다.", name);
+            return;
+        }
         log.info("SQS 리스너 시작 [{}]: {}", name, queueUrl);
         worker.submit(this::pollLoop);
     }

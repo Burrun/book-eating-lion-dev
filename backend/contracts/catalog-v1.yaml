@@ -481,6 +481,118 @@ paths:
         "404":
           description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND)
 
+  /api/catalog/books/{bookId}/memo:
+    put:
+      summary: 완독 요약 메모 저장
+      description: |
+        회원×도서 단위 upsert. 책 하나당 메모는 1개만 존재한다 — 재작성하면 기존 텍스트를
+        덮어쓴다. 이미 사자에게 먹인(fedAt이 있는) 메모를 재작성해도 fedAt은 유지된다(EXP는
+        다시 오르지 않는다) — 다만 ai-service 인덱스를 최신 내용으로 유지하려면 클라이언트가
+        `POST /api/ai/lion/feed`를 다시 호출해야 한다(멱등, EXP 재적립 없음).
+      operationId: saveBookMemo
+      tags: [book-memo]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookMemoRequest"
+      responses:
+        "200":
+          description: 저장 성공 (생성 또는 갱신)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookMemoEnvelope"
+        "404":
+          description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND)
+    get:
+      summary: 완독 요약 메모 조회
+      description: |
+        아직 메모를 안 쓴 책은 오류가 아니라 정상 상태다 — data: null 로 200 을 반환한다.
+      operationId: getBookMemo
+      tags: [book-memo]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: "조회 성공 (기록이 없으면 data: null)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookMemoEnvelope"
+        "404":
+          description: 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND)
+
+  /api/catalog/books/{bookId}/memo/fed:
+    patch:
+      summary: 메모를 사자에게 먹였다는 표시
+      description: |
+        `POST /api/ai/lion/feed` 호출이 성공한 직후 프론트가 이어서 부른다. 실제 EXP/인덱싱
+        상태의 소유권은 ai-service에 있고, 여기 fedAt은 "먹일 수 있는 메모" 목록(피더블 목록)을
+        거르기 위한 로컬 표시일 뿐이다. 멱등하다 — 다시 불러도 시각만 갱신된다.
+      operationId: markBookMemoFed
+      tags: [book-memo]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: 처리 완료
+        "404":
+          description: 메모가 없음(먼저 메모를 저장해야 한다)
+
+  /api/catalog/members/me/memos/feedable:
+    get:
+      summary: 아직 사자에게 안 먹인 내 메모 목록
+      description: |
+        LionFeedingCard가 그리는 드래그 카드 목록이다. fedAt이 null인 메모만 나온다.
+      operationId: listFeedableMemos
+      tags: [book-memo]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedableMemoListEnvelope"
+
+  /api/catalog/members/me/memos/fed:
+    get:
+      summary: 이미 사자에게 먹인 내 메모 목록
+      description: |
+        "사자에게 물어보기" 패널의 "내가 먹인 요약 메모" 목록이다. fedAt이 있는(먹인) 메모만
+        나온다 — /memos/feedable(아직 안 먹인 메모)의 반대.
+      operationId: listFedMemos
+      tags: [book-memo]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FedMemoListEnvelope"
+
   /api/catalog/wishlist/me:
     get:
       summary: 내 찜 목록
@@ -1241,6 +1353,41 @@ components:
           maximum: 100
           nullable: true
 
+    BookMemo:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        memoText:
+          type: string
+          maxLength: 4000
+          description: 사용자가 직접 쓰는 "책 내용 요약". 감상평이 아니다.
+        fedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 이 메모를 사자에게 먹인 시각. null이면 아직 안 먹인 상태다.
+        updatedAt: { type: string, format: date-time }
+
+    BookMemoRequest:
+      type: object
+      required: [memoText]
+      properties:
+        memoText: { type: string, minLength: 1, maxLength: 4000 }
+
+    FeedableMemo:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        bookTitle: { type: string }
+        memoText: { type: string }
+
+    FedMemo:
+      type: object
+      properties:
+        bookId: { type: integer, format: int64 }
+        bookTitle: { type: string }
+        memoText: { type: string }
+
     ReviewUpdateRequest:
       type: object
       required: [rating, content]
@@ -1559,3 +1706,31 @@ components:
           description: 한 번도 읽지 않은 책이면 null.
           allOf:
             - $ref: "#/components/schemas/ReadingProgress"
+
+    BookMemoEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          nullable: true
+          description: 아직 메모를 안 쓴 책이면 null.
+          allOf:
+            - $ref: "#/components/schemas/BookMemo"
+
+    FeedableMemoListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedableMemo"
+
+    FedMemoListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FedMemo"

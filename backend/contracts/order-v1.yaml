@@ -1040,6 +1040,12 @@ components:
           example: "06236"
         address:
           type: string
+        addressDetail:
+          type: string
+          nullable: true
+        deliveryRequest:
+          type: string
+          nullable: true
 
     CreateOrderRequest:
       type: object

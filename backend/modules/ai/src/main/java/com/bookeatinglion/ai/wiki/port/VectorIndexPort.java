@@ -12,9 +12,25 @@ import java.util.List;
  */
 public interface VectorIndexPort {
 
+    /** 책 본문 청크(관리자 배치 인제스트)의 기본 sourceType. */
+    String SOURCE_BOOK_CONTENT = "book_content";
+
+    /** 완독 후 사용자가 쓴 요약 메모의 sourceType. */
+    String SOURCE_USER_SUMMARY = "user_summary";
+
     /** 키 규칙. 이 형식이 깨지면 {@link #deleteByBook} 가 옛 벡터를 못 지우고 조용히 고아가 된다. */
     static String key(long bookId, int page, int chunkSeq) {
         return bookId + "#" + page + "#" + chunkSeq;
+    }
+
+    /**
+     * 메모 벡터 키. 책 본문 키({@code {bookId}#{page}#{chunkSeq}}, 전부 숫자)와 구분되도록
+     * {@code memo#} 접두사를 붙인다. 회원×도서당 메모가 1개뿐이라 결정적이고, 재작성해도
+     * 같은 키로 그대로 덮어써진다(PutVectors는 같은 키를 덮어쓴다) — 책 본문처럼
+     * delete-then-put이 필요 없다.
+     */
+    static String memoKey(long bookId, String memberId) {
+        return "memo#" + bookId + "#" + memberId;
     }
 
     /**
@@ -38,7 +54,26 @@ public interface VectorIndexPort {
 
     /**
      * @param page 인용에 그대로 나가는 값이다. 청크는 페이지 경계를 절대 넘지 않는다.
+     * @param sourceType {@link #SOURCE_BOOK_CONTENT} 또는 {@link #SOURCE_USER_SUMMARY}.
+     * @param memberId {@link #SOURCE_USER_SUMMARY}일 때만 값이 있다(작성자). 책 본문은
+     *     누가 봐도 같은 벡터라 null이다 — 검색 시 이 필드로 "내가 쓴 메모만" 가려낸다
+     *     (WikiRagService, 접근 제어가 bookId만으로는 안 되는 유일한 케이스).
      */
     record VectorRecord(
-            String key, float[] embedding, long bookId, String bookTitle, String category, int page, String text) {}
+            String key,
+            float[] embedding,
+            long bookId,
+            String bookTitle,
+            String category,
+            int page,
+            String text,
+            String sourceType,
+            String memberId) {
+
+        /** 책 본문 청크(관리자 배치 인제스트) 전용 편의 생성자 — 기존 호출부를 그대로 둔다. */
+        public VectorRecord(
+                String key, float[] embedding, long bookId, String bookTitle, String category, int page, String text) {
+            this(key, embedding, bookId, bookTitle, category, page, text, SOURCE_BOOK_CONTENT, null);
+        }
+    }
 }

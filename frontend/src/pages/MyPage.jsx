@@ -10,18 +10,18 @@ import { useToast } from "../components/Toast.jsx";
 import LionCharacter, { getLionTier } from "../components/LionCharacter.jsx";
 import {
   fetchProfile,
-  fetchFedBooks,
   feedLion,
-  fetchReadingNotes,
   askLion,
   fetchCoupons,
   fetchReturnRequests,
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
+import { getFeedableMemos, getFedMemos, markMemoFed } from "../api/bookMemo.ts";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
+import { cancelSubscription, getMySubscription, subscribe } from "../api/member.ts";
 import {
   cancelOrder,
   getMyOrders,
@@ -36,11 +36,16 @@ import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
-// 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), 주문목록,
-// 쿠폰현황, 재입고 알림은 실API가 있어 mock 여부와 무관하게 항상 노출한다. 그 외 나머지
-// (RAG 물어보기 카드, 반품/내 리뷰 목록)는 아직 실제 API가 없거나(계약에 없음) 이번
-// 스코프가 아니라, 존재하지 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock
-// 모드에서만 노출한다.
+// 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), RAG 물어보기
+// (POST /api/ai/lion/ask), 주문목록, 쿠폰현황, 재입고 알림, 내가 작성한 리뷰(GET·PATCH·DELETE
+// /api/catalog/reviews/**)는 실API가 있어 mock 여부와 무관하게 항상 노출한다. 반품 목록
+// 조회만 여전히 백엔드 미구현(조회 엔드포인트 없음)이라 존재하지 않는 엔드포인트를 실서버
+// 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
+//
+// LionRagCard 안의 "내가 먹인 요약 메모" 목록은 GET /api/catalog/members/me/memos/fed
+// (book_memos, ProductDetailPage에서 쓰는 완독 요약 메모와 같은 테이블 — fedAt이 있는
+// 것만)를 쓴다. 예전엔 여기 자리가 "독서 메모 & 인용구 저장소"(백엔드 미구현인
+// GET /api/mypage/reading-notes)였는데, 실제로 구현된 완독 요약 메모 기능으로 대체했다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // 재입고 알림 신청 목록은 여기 탭으로 따로 두지 않는다 — "내 도서 활동"
@@ -51,6 +56,7 @@ const ORDER_TABS = [
   { id: "orders", label: "주문/배송 조회" },
   { id: "coupons", label: "쿠폰 현황" },
   { id: "returns", label: "취소/교환/반품/환불" },
+  { id: "subscription", label: "구독 관리" },
   { id: "cards", label: "카드 관리" },
   { id: "addresses", label: "배송지 관리" },
 ];
@@ -142,14 +148,7 @@ export default function MyPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {USE_MOCK ? (
-          <LionRagCard />
-        ) : (
-          <ComingSoonCard
-            title="🦁 사자에게 물어보기"
-            message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
-          />
-        )}
+        <LionRagCard />
         <OrdersSection />
       </div>
 
@@ -398,17 +397,8 @@ function StreakBadge({ label, streakCount }) {
   );
 }
 
-function ComingSoonCard({ title, message }) {
-  return (
-    <section className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-forest)]/15 bg-white p-6 text-center shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-2 text-lg text-[var(--color-forest)]">{title}</h2>
-      <p className="text-sm text-[var(--color-ink)] opacity-50">{message}</p>
-    </section>
-  );
-}
-
-// 책 1권을 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며
-// 책마다 다르지 않다 — feedable-books 응답에 exp 가 없는 이유다.
+// 메모 1개를 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며
+// 메모 길이/책과 무관하게 고정이다.
 const EXP_PER_FEED = 40;
 
 // 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다. 진행바 표시(exp % 100)에만 쓴다
@@ -416,7 +406,7 @@ const EXP_PER_FEED = 40;
 const EXP_PER_LEVEL = 100;
 
 function LionFeedingCard({ exp, setExp, level, setLevel }) {
-  const [books, setBooks] = useState(null);
+  const [memos, setMemos] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const [feedAmount, setFeedAmount] = useState(0);
@@ -424,8 +414,8 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
 
   useEffect(() => {
     let ignore = false;
-    fetchFedBooks().then((data) => {
-      if (!ignore) setBooks(data);
+    getFeedableMemos().then((data) => {
+      if (!ignore) setMemos(data);
     });
     return () => {
       ignore = true;
@@ -434,17 +424,22 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
 
   // 실제 exp/level/growthStage는 항상 서버(POST /api/ai/lion/feed) 응답값을 그대로 쓴다 —
   // 프론트에서 따로 계산하면 서버 값과 어긋날 수 있다. +EXP 애니메이션 숫자만 낙관적으로 먼저 보여준다.
+  //
+  // feedLion(ai-service) 성공 후 markMemoFed(catalog-service)를 이어서 부른다 — 두 서비스가
+  // 동기 호출로 얽히지 않도록 프론트가 오케스트레이션한다. markMemoFed가 실패해도(네트워크
+  // 등) EXP/인덱싱은 이미 반영된 뒤라 되돌리지 않는다 — 다음 방문 시 목록에 다시 보여도
+  // 재-feed는 멱등(EXP 안 오름)이라 무해하다.
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over?.id !== "lion-mouth") return;
-    const book = books?.find((b) => b.bookId === active.id);
-    if (!book) return;
+    const memo = memos?.find((m) => m.bookId === active.id);
+    if (!memo) return;
 
-    setBooks((prev) => prev.filter((b) => b.bookId !== active.id));
+    setMemos((prev) => prev.filter((m) => m.bookId !== active.id));
     setIsFeeding(true);
     setFeedAmount(EXP_PER_FEED);
 
-    feedLion(book.bookId)
+    feedLion(memo.bookId, memo.bookTitle, memo.memoText)
       .then((status) => {
         setExp(status.exp);
         if (status.level > level) {
@@ -457,9 +452,12 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           });
         }
         setLevel(status.level);
+        markMemoFed(memo.bookId).catch(() => {
+          // catalog 쪽 표시만 실패한 것 — EXP/인덱싱은 이미 반영됐으니 조용히 넘어간다.
+        });
       })
       .catch(() => {
-        setBooks((prev) => [...prev, book]);
+        setMemos((prev) => [...prev, memo]);
         toast.error("먹이기에 실패했어요. 잠시 후 다시 시도해주세요.");
       });
 
@@ -469,7 +467,7 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
   return (
     <section className="relative rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-8 shadow-[0_1px_3px_rgba(27,59,54,0.08)] sm:p-10">
       <h2 className="font-display mb-6 text-center text-2xl text-[var(--color-forest)]">
-        사자 성장 & 완독 도서 먹이기
+        사자 성장 & 완독 요약 메모 먹이기
       </h2>
 
       <DndContext onDragEnd={handleDragEnd}>
@@ -477,25 +475,29 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           <LionDropZone exp={exp} isFeeding={isFeeding} level={level} feedAmount={feedAmount} />
 
           <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {books === null ? (
+            {memos === null ? (
               <>
                 <Skeleton variant="rectangular" className="h-24 w-full" />
                 <Skeleton variant="rectangular" className="h-24 w-full" />
               </>
-            ) : books.length === 0 ? (
+            ) : memos.length === 0 ? (
               <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50 sm:col-span-3 md:col-span-4">
-                완독한 책을 모두 사자에게 먹였어요! 🦁
+                완독하고 요약 메모를 쓰면 여기서 사자에게 먹일 수 있어요! 🦁
               </p>
             ) : (
               <AnimatePresence>
-                {books.map((book) => (
+                {memos.map((memo) => (
                   <motion.div
-                    key={book.bookId}
+                    key={memo.bookId}
                     layout
                     exit={{ opacity: 0, scale: 0.7 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <DraggableBook id={book.bookId} title={book.title} />
+                    <DraggableMemo
+                      id={memo.bookId}
+                      bookTitle={memo.bookTitle}
+                      memoText={memo.memoText}
+                    />
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -665,7 +667,7 @@ function LionDropZone({ exp, isFeeding, level, feedAmount }) {
   );
 }
 
-function DraggableBook({ id, title }) {
+function DraggableMemo({ id, bookTitle, memoText }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -683,7 +685,10 @@ function DraggableBook({ id, title }) {
       }`}
     >
       <BookOpen size={20} className="text-[var(--color-forest)]/50" />
-      <span className="text-sm font-medium text-[var(--color-ink)]">{title}</span>
+      <span className="text-sm font-medium text-[var(--color-ink)]">{bookTitle}</span>
+      <span className="line-clamp-1 text-[11px] text-[var(--color-ink)] opacity-50">
+        {memoText}
+      </span>
       <span className="text-[11px] text-[var(--color-ink)] opacity-40">Drag me</span>
     </button>
   );
@@ -697,7 +702,7 @@ function toSimilarityPercent(citations) {
 }
 
 function LionRagCard() {
-  const [notes, setNotes] = useState(null);
+  const [fedMemos, setFedMemos] = useState(null);
   const [question, setQuestion] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | streaming | done
   const [displayedAnswer, setDisplayedAnswer] = useState("");
@@ -705,8 +710,8 @@ function LionRagCard() {
 
   useEffect(() => {
     let ignore = false;
-    fetchReadingNotes().then((data) => {
-      if (!ignore) setNotes(data);
+    getFedMemos().then((data) => {
+      if (!ignore) setFedMemos(data);
     });
     return () => {
       ignore = true;
@@ -747,24 +752,26 @@ function LionRagCard() {
 
       <div className="mb-4">
         <p className="mb-2 text-sm font-medium text-[var(--color-ink)] opacity-70">
-          내 독서 메모 & 인용구 저장소
+          내가 먹인 요약 메모
         </p>
-        {notes === null ? (
+        {fedMemos === null ? (
           <div className="flex flex-col gap-1.5">
             <Skeleton variant="text" className="w-full" />
             <Skeleton variant="text" className="w-2/3" />
           </div>
+        ) : fedMemos.length === 0 ? (
+          <EmptyState message="아직 사자에게 먹인 메모가 없어요. 책을 완독하고 요약을 써서 먹여보세요!" />
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {notes.map((note) => (
+            {fedMemos.map((memo) => (
               <li
-                key={note.id}
+                key={memo.bookId}
                 className="flex items-start gap-2 rounded-xl bg-[var(--color-forest)]/5 px-3 py-2 text-sm"
               >
                 <Quote size={13} className="mt-0.5 shrink-0 text-[var(--color-forest)]/40" />
                 <span className="text-[var(--color-ink)]">
-                  <span className="font-medium text-[var(--color-forest)]">[{note.book}]</span>{" "}
-                  {note.quote}
+                  <span className="font-medium text-[var(--color-forest)]">[{memo.bookTitle}]</span>{" "}
+                  <span className="line-clamp-1">{memo.memoText}</span>
                 </span>
               </li>
             ))}
@@ -889,6 +896,7 @@ function OrdersSection() {
         {activeTab === "orders" && <OrdersTab />}
         {activeTab === "coupons" && <CouponsTab />}
         {activeTab === "returns" && <ReturnsTab />}
+        {activeTab === "subscription" && <SubscriptionTab />}
       </div>
     </section>
   );
@@ -1299,6 +1307,127 @@ function CouponsTab() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const SUBSCRIPTION_PLAN_LABELS = { MONTHLY: "월간 구독", YEARLY: "연간 구독" };
+const SUBSCRIPTION_STATUS_LABELS = { ACTIVE: "구독 중", CANCELLED: "해지됨", EXPIRED: "만료됨" };
+
+// ProductListPage/ProductDetailPage의 구독 CTA와 같은 subscribe("MONTHLY")/cancelSubscription()
+// 을 그대로 쓴다. 저 두 화면은 react-query로 ["mySubscription"]을 관리하지만, 이 파일은
+// 다른 탭(OrdersTab/CouponsTab 등) 전부 useState+수동 refetch라 그 컨벤션을 따른다 — 페이지를
+// 이동하면 어차피 새로 mount되어 새로 조회하므로 캐시를 공유하지 않아도 불일치가 남지 않는다.
+function SubscriptionTab() {
+  const toast = useToast();
+  const [subscription, setSubscription] = useState(null);
+  const [isError, setIsError] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+
+  const loadSubscription = useCallback(() => {
+    getMySubscription()
+      .then((data) => {
+        setSubscription(data);
+        setIsError(false);
+      })
+      .catch(() => setIsError(true));
+  }, []);
+
+  useEffect(() => {
+    loadSubscription();
+  }, [loadSubscription]);
+
+  // 성공/실패 둘 다 toast로 알리고, 성공 시엔 응답으로 받은 최신 상태를 바로 반영한다
+  // (재조회 왕복 없이도 화면이 즉시 바뀐다 — "구독하기 눌러도 반응 없음" 버그의 재발 방지).
+  const handleSubscribe = async () => {
+    setIsMutating(true);
+    try {
+      const data = await subscribe("MONTHLY");
+      setSubscription(data);
+      toast.success("구독이 시작되었습니다");
+    } catch {
+      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    setIsMutating(true);
+    try {
+      const data = await cancelSubscription();
+      setSubscription(data);
+      toast.success("구독을 취소했습니다");
+    } catch {
+      toast.error("구독 취소에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  if (!subscription && !isError) return <TabSkeleton />;
+  if (isError) {
+    return (
+      <p className="py-10 text-center text-sm text-[var(--color-coral)]">
+        구독 정보를 불러오지 못했어요.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed border-[var(--color-honey)]/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-[var(--color-ink)]">🎁 정기 구독</p>
+          {subscription.status ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-ink)] opacity-70">
+              <span
+                className={subscription.isActive ? "font-medium text-[var(--color-forest)]" : ""}
+              >
+                {SUBSCRIPTION_STATUS_LABELS[subscription.status] ?? subscription.status}
+              </span>
+              <span>
+                {SUBSCRIPTION_PLAN_LABELS[subscription.planType] ?? subscription.planType}
+              </span>
+              {subscription.startedAt && <span>시작일 {subscription.startedAt.slice(0, 10)}</span>}
+              {subscription.expiresAt && (
+                <span>
+                  {subscription.isActive ? "다음 결제일" : "만료일"}{" "}
+                  {subscription.expiresAt.slice(0, 10)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="mt-1.5 text-sm text-[var(--color-ink)] opacity-50">
+              아직 구독 중이 아니에요. 구독하면 웹툰 요약 컷 열람 + 사자 먹이 2배 적립 혜택을 받을
+              수 있어요.
+            </p>
+          )}
+        </div>
+        {subscription.isActive ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            shimmer={false}
+            loading={isMutating}
+            className="shrink-0 text-[var(--color-coral)]"
+            onClick={handleCancel}
+          >
+            구독 취소
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            shimmer={false}
+            loading={isMutating}
+            className="shrink-0"
+            onClick={handleSubscribe}
+          >
+            구독하기 &gt;
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

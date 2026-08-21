@@ -17,6 +17,7 @@ import type { Book, BookSummary, Review, WebtoonCut } from "../types/book.ts";
 import type { Card } from "../types/card.ts";
 import type { Member, Subscription } from "../types/member.ts";
 import type { Paged } from "../types/common.ts";
+import { assertRequiredFields } from "../utils/assertShape.ts";
 
 // --- 임시 기본값 (백엔드 미구현 / 미합의) ---
 const DEFAULT_SHIPPING_NOTE = "배송비 3,000원 (3만원 이상 구매시 무료배송)";
@@ -73,6 +74,8 @@ export function toWebtoonCuts(dto: BookSynopsisDetailResponse): WebtoonCut[] {
 }
 
 export function toMember(dto: MemberResponse): Member {
+  // member-v1.yaml Member.required: [id, email, name, role]
+  assertRequiredFields("MemberResponse", dto, ["id", "email", "name", "role"]);
   return {
     id: dto.id,
     name: dto.name,
@@ -83,10 +86,27 @@ export function toMember(dto: MemberResponse): Member {
 
 // 구독 이력이 없으면 dto가 null(=비구독)이다.
 export function toSubscription(dto: SubscriptionResponse | null): Subscription {
-  return { isActive: dto?.status === "ACTIVE" };
+  return {
+    isActive: dto?.status === "ACTIVE",
+    planType: dto?.planType ?? null,
+    status: dto?.status ?? null,
+    startedAt: dto?.startedAt ?? null,
+    expiresAt: dto?.expiresAt ?? null,
+  };
 }
 
 export function toAddress(dto: AddressResponse): Address {
+  // member-v1.yaml Address.required: [id, recipientName, phoneNumber, zipcode, address, isDefault]
+  // — Checkout.jsx의 recipient.postalCode/address가 조용히 null로 새던 경로가 바로 여기서
+  // 시작될 수 있어(서버가 zipcode/address를 비워 보내면 이후 폼에도 그대로 전파된다) 체크한다.
+  assertRequiredFields("AddressResponse", dto, [
+    "id",
+    "recipientName",
+    "phoneNumber",
+    "zipcode",
+    "address",
+    "isDefault",
+  ]);
   return {
     id: String(dto.id),
     recipientName: dto.recipientName,

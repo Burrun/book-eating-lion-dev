@@ -1,13 +1,14 @@
 package com.bookeatinglion.ai.wiki.service;
 
+import com.bookeatinglion.ai.client.EmbeddingClient;
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
 import com.bookeatinglion.ai.wiki.domain.FedBook;
-import com.bookeatinglion.ai.wiki.domain.WikiBook;
-import com.bookeatinglion.ai.wiki.exception.BookNotIngestedException;
+import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
+import com.bookeatinglion.ai.wiki.port.VectorIndexPort.VectorRecord;
 import com.bookeatinglion.ai.wiki.repository.FedBookRepository;
-import com.bookeatinglion.ai.wiki.repository.WikiBookRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,22 +18,32 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 책 먹이기. 인제스트는 관리자 배치에서 이미 끝나 있으므로 여기서 하는 일은
- * fed_books 행 추가 + exp 갱신 + Redis Set 갱신뿐이라 200ms 안에 끝난다.
+ * 라이언에게 메모 먹이기. 완독 후 사용자가 쓴 요약 메모 텍스트를 받아 임베딩 → 벡터 적재까지
+ * 동기로 끝내고, fed_books 행 추가 + exp 갱신 + Redis Set 갱신을 더한다.
  *
- * <p>인제스트를 이 요청 안에서 하지 않는 이유는 책 1권이 12~46청크라 임베딩 + PutVectors 에
- * 수 초~수십 초가 걸리기 때문이다. 동기면 타임아웃이고, 비동기면 진행중/완료/실패
- * 상태 머신과 폴링이 따라온다.
+ * <p>🔴 <b>책 본문 인제스트(BookIngestService)와는 다른 결정이다.</b> 그쪽은 책 1권이
+ * 12~46청크라 동기로 하면 타임아웃이 나서 관리자 배치(비동기)가 필수였지만, 메모는 텍스트
+ * 하나 = 벡터 하나라 임베딩 1회로 끝나 동기로도 충분히 빠르다(수 초 이내) — 팀에서 이렇게
+ * 가기로 확정했다(느리면 프론트가 로딩 표시로 흡수한다).
+ *
+ * <p>"먹일 수 있는 메모"의 정의(완독 + 메모 작성)는 이제 catalog-service(book_memos)가
+ * 안다. 여기는 더 이상 그걸 판단하지 않는다 — bookId/memoText가 JWT로 인증된 호출자 본인
+ * 것이라는 사실만 믿고 임베딩·적재·EXP 처리만 한다.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FeedService {
 
-    private final WikiBookRepository wikiBookRepository;
     private final FedBookRepository fedBookRepository;
     private final LionRepository lionRepository;
     private final FedBookCache fedBookCache;
+    private final EmbeddingClient embedding;
+    private final VectorIndexPort vectorIndex;
+    private final MemberSubscriptionClient memberSubscriptionClient;
+
+    /** 구독 회원 EXP 배율. "사자 먹이 2배 적립" 배너 문구와 같은 값이어야 한다. */
+    private static final long SUBSCRIBER_EXP_MULTIPLIER = 2;
 
     /**
      * 사자 상태. {@code feed} 와 {@code me} 가 같은 형태를 돌려준다.
@@ -42,8 +53,6 @@ public class FeedService {
      * 확인해야 한다.
      */
     public record LionStatus(long exp, int level, GrowthStage growthStage, long fedBookCount) {}
-
-    public record FeedableBook(Long bookId, String title, int pages) {}
 
     /**
      * 🔴 <b>조회가 사자를 만들지 않는다.</b> 없으면 기본값을 돌려줄 뿐이다.
@@ -64,26 +73,49 @@ public class FeedService {
     }
 
     /**
-     * 멱등하다. 같은 책을 다시 먹여도 fed_books 의 PK 가 막고 exp 도 중복으로 오르지 않는다 —
-     * 재시도나 더블클릭으로 레벨이 오르면 그건 버그가 아니라 사고다.
+     * EXP는 멱등하다 — 같은 책을 다시 먹여도 fed_books 의 PK 가 막아 중복으로 오르지 않는다
+     * (재시도·더블클릭·재작성 재-feed로 레벨이 또 오르면 그건 버그다).
+     *
+     * <p>벡터 적재는 멱등이 아니라 <b>항상 최신으로 덮어쓴다</b> — 메모를 완독 후 다시 고쳐
+     * 쓴 사용자가 재작성 뒤 다시 먹이면(EXP는 이미 받았으니 안 오르지만) RAG가 아는 내용은
+     * 최신 텍스트여야 하기 때문이다. 벡터 키가 회원×도서로 결정적이라(멱등 키) 재적재가
+     * 곧 갱신이다.
      */
     @Transactional
-    public LionStatus feed(String memberId, Long bookId) {
-        if (!wikiBookRepository.existsById(bookId)) {
-            throw new BookNotIngestedException(bookId);
-        }
+    public LionStatus feed(String memberId, Long bookId, String bookTitle, String memoText) {
+        float[] vector = embedding.embed(memoText);
+        vectorIndex.put(List.of(new VectorRecord(
+                VectorIndexPort.memoKey(bookId, memberId),
+                vector,
+                bookId,
+                bookTitle,
+                "",
+                1,
+                memoText,
+                VectorIndexPort.SOURCE_USER_SUMMARY,
+                memberId)));
 
         Lion lion = lionRepository.findByMemberId(memberId).orElseGet(() -> lionRepository.save(new Lion(memberId)));
 
         boolean alreadyFed = fedBookRepository.existsById(new FedBook.Key(memberId, bookId));
         if (!alreadyFed) {
             fedBookRepository.save(new FedBook(memberId, bookId, LocalDateTime.now()));
-            lion.gainExp(Lion.EXP_PER_FEED);
+            lion.gainExp(Lion.EXP_PER_FEED * expMultiplier(memberId));
             cacheAfterCommit(memberId, bookId);
         }
 
         return new LionStatus(
                 lion.getExp(), lion.getLevel(), lion.getGrowthStage(), fedBookRepository.countByMemberId(memberId));
+    }
+
+    /**
+     * 구독 중이면 2배, 조회 실패(장애/타임아웃)면 1배 — {@link MemberSubscriptionClientFallback}가
+     * 이미 안전 강등해서 돌려주므로 여기서 예외를 따로 잡지 않는다.
+     */
+    private long expMultiplier(String memberId) {
+        boolean subscribed =
+                memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
+        return subscribed ? SUBSCRIBER_EXP_MULTIPLIER : 1;
     }
 
     /**
@@ -105,15 +137,5 @@ public class FeedService {
         } else {
             fedBookCache.add(memberId, bookId);
         }
-    }
-
-    public List<FeedableBook> feedableBooks(String memberId) {
-        return wikiBookRepository.findFeedableFor(memberId).stream()
-                .map(FeedService::toFeedable)
-                .toList();
-    }
-
-    private static FeedableBook toFeedable(WikiBook book) {
-        return new FeedableBook(book.getBookId(), book.getTitle(), book.getPages());
     }
 }

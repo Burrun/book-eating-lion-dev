@@ -1,9 +1,11 @@
 import { useSearchParams } from "react-router-dom";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import BookCard from "../../components/BookCard/BookCard.tsx";
 import RecommendationPanel from "../../components/SwipeDeck/RecommendationPanel.tsx";
 import { getBooks, searchBooks } from "../../api/books.ts";
 import { getCategories } from "../../api/categories.ts";
+import { getMySubscription, subscribe } from "../../api/member.ts";
+import { useToast } from "../../components/Toast.jsx";
 
 const PAGE_SIZE = 8;
 
@@ -14,9 +16,35 @@ export default function ProductListPage() {
   const rawPage = Number(searchParams.get("page") ?? "0");
   const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
 
+  const queryClient = useQueryClient();
+  // Toast.jsx는 checkJs:false라 createContext(null)+throw 패턴이 TS 쪽에서 반환 타입을
+  // never로 좁힌다(ProductDetailPage.tsx와 동일 이슈). 여기서만 실제 형태로 타입을 명시한다.
+  const toast = useToast() as {
+    success: (message: string) => void;
+    error: (message: string) => void;
+  };
+
   const { data: categories = [] } = useQuery({
     queryKey: ["catalog-categories"],
     queryFn: getCategories,
+  });
+
+  // ProductDetailPage.tsx의 웹툰 구독 CTA와 같은 패턴 — 결제 미연동 스코프라 즉시 활성화된다.
+  const { data: subscription } = useQuery({
+    queryKey: ["mySubscription"],
+    queryFn: getMySubscription,
+  });
+  const isSubscribed = subscription?.isActive ?? false;
+
+  const subscribeMutation = useMutation({
+    mutationFn: () => subscribe("MONTHLY"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
+      toast.success("구독이 시작되었습니다");
+    },
+    onError: () => {
+      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    },
   });
 
   // 검색어가 있으면 검색 API, 없으면 목록 API를 쓴다.
@@ -66,10 +94,18 @@ export default function ProductListPage() {
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
         <section className="flex flex-col gap-2 rounded-2xl border border-honey/40 bg-honey/15 p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold text-forest">
-            🎁 정기 구독 시뮬레이션: 월 9,900원에 무제한 대여 &amp; 사자 먹이 2배 적립!
+            🎁 정기 구독 시뮬레이션: 월 9,900원에 웹툰 요약 컷 열람 &amp; 사자 먹이 2배 적립!
           </p>
-          <button className="shrink-0 rounded-full bg-forest px-5 py-2.5 font-semibold text-paper transition hover:bg-forest-light">
-            구독하기 &gt;
+          <button
+            onClick={() => subscribeMutation.mutate()}
+            disabled={isSubscribed || subscribeMutation.isPending}
+            className="shrink-0 rounded-full bg-forest px-5 py-2.5 font-semibold text-paper transition hover:bg-forest-light disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubscribed
+              ? "구독 중"
+              : subscribeMutation.isPending
+                ? "구독 처리 중..."
+                : "구독하기 >"}
           </button>
         </section>
 

@@ -48,7 +48,7 @@ class WikiRagServiceTest {
     }
 
     private static Match match(long bookId, int page, double distance) {
-        return new Match(bookId, "책" + bookId, page, "본문 " + bookId + "-" + page, distance);
+        return new Match(bookId, "책" + bookId, page, "본문 " + bookId + "-" + page, distance, null, null);
     }
 
     private void fed(Long... bookIds) {
@@ -209,7 +209,23 @@ class WikiRagServiceTest {
 
         ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
         verify(ai).complete(prompt.capture(), anyString());
-        assertThat(prompt.getValue()).contains("[1] 책1 7쪽").contains("본문 1-7");
+        assertThat(prompt.getValue()).contains("[1] (책 본문) 책1 7쪽").contains("본문 1-7");
+    }
+
+    /** 다른 회원이 쓴 메모는 같은 책을 봐도 되는 사이라도 새어나가면 안 된다. */
+    @Test
+    void 다른_회원의_메모는_인용에서_빠진다() {
+        fed(1L);
+        Match others = new Match(1L, "책1", 3, "남의 메모", 0.15, "user_summary", "other-member-sub");
+        Match mine = new Match(1L, "책1", 4, "내 메모", 0.2, "user_summary", MEMBER_ID);
+        found(others, mine);
+
+        List<WikiRagService.Citation> citations =
+                service.ask(MEMBER_ID, "이 책 내용 요약해줘", AskMode.SEARCH, null, 5).citations();
+
+        assertThat(citations).hasSize(1);
+        assertThat(citations.getFirst().snippet()).isEqualTo("내 메모");
+        assertThat(citations.getFirst().sourceType()).isEqualTo("user_summary");
     }
 
     /** mode 를 생략하면 1층 규칙이 정한다. 설명 요구 신호가 없으면 싼 쪽(SEARCH)이다. */
