@@ -35,11 +35,10 @@ import { MOCK_BADGES, MOCK_STREAK_COUNT } from "../mocks/mypage.js";
 
 const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 
-// 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), 주문목록,
-// 쿠폰현황, 재입고 알림은 실API가 있어 mock 여부와 무관하게 항상 노출한다. 그 외 나머지
-// (RAG 물어보기 카드, 반품/내 리뷰 목록)는 아직 실제 API가 없거나(계약에 없음) 이번
-// 스코프가 아니라, 존재하지 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock
-// 모드에서만 노출한다.
+// 프로필(GET /api/members/me), 사자 성장/먹이기(GET·POST /api/ai/lion/**), RAG 물어보기
+// (POST /api/ai/lion/ask), 주문목록, 쿠폰현황, 재입고 알림은 실API가 있어 mock 여부와
+// 무관하게 항상 노출한다. 반품/내 리뷰 목록은 여전히 백엔드 미구현(조회 엔드포인트 없음)이라
+// 존재하지 않는 엔드포인트를 실서버 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // 재입고 알림 신청 목록은 여기 탭으로 따로 두지 않는다 — "내 도서 활동"
@@ -141,14 +140,7 @@ export default function MyPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {USE_MOCK ? (
-          <LionRagCard />
-        ) : (
-          <ComingSoonCard
-            title="🦁 사자에게 물어보기"
-            message="독서 메모 기반 AI 답변 기능은 아직 준비 중이에요."
-          />
-        )}
+        <LionRagCard />
         <OrdersSection />
       </div>
 
@@ -394,15 +386,6 @@ function StreakBadge({ label, streakCount }) {
       )}
       {label}
     </span>
-  );
-}
-
-function ComingSoonCard({ title, message }) {
-  return (
-    <section className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--color-forest)]/15 bg-white p-6 text-center shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-2 text-lg text-[var(--color-forest)]">{title}</h2>
-      <p className="text-sm text-[var(--color-ink)] opacity-50">{message}</p>
-    </section>
   );
 }
 

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getMyProfile } from "../api/member.ts";
 
 const NAV_LINKS = [
   { label: "베스트셀러", to: "/best" },
@@ -15,6 +16,12 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: profile } = useQuery({
+    queryKey: ["myProfile"],
+    queryFn: getMyProfile,
+    enabled: isAuthenticated,
+  });
+  const isAdmin = isAuthenticated && profile?.role === "ADMIN";
 
   const handleLogout = () => {
     logout();
@@ -118,6 +125,14 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
             >
               <User size={20} />
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="hidden text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)] sm:block"
+              >
+                관리자
+              </Link>
+            )}
           </nav>
         </div>
 
