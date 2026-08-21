@@ -30,7 +30,8 @@ REGION="ap-northeast-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 # GitHub Environment가 없으면 생성(있으면 그대로 통과 - PUT은 멱등).
-gh api --method PUT "repos/${REPO}/environments/${ENV}" >/dev/null
+gh api --method PUT "repos/${REPO}/environments/${ENV}" >/dev/null || \
+  { echo "Failed to ensure GitHub Environment '${ENV}' exists; check gh authentication/permissions." >&2; exit 1; }
 echo "GitHub Environment '${ENV}' 준비됨"
 
 ssm() {
