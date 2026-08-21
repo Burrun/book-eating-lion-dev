@@ -57,7 +57,11 @@ data:
 
   # EPUB 원본 버킷. 벡터 버킷과 다르다 — 원본은 관리자가 올린 파일, 벡터는 파생물이라
   # 수명도 권한도 다르다. SQS 메시지의 epubS3Key 는 키만 담고 버킷명은 안 담는다.
-  AI_EPUB_BUCKET: "${AI_EPUB_BUCKET}"
+  # catalog configmap의 EBOOK_S3_BUCKET과 동일한 버킷이라 같은 셸 변수를 재사용한다 —
+  # AI_EPUB_BUCKET이라는 별도 GH Actions 변수는 없어서, 이전엔 envsubst가 치환 못 하고
+  # 리터럴 "${AI_EPUB_BUCKET}"이 그대로 박혀 Spring이 순환 참조로 기동에 실패했었다
+  # (2026-08-21 실제로 겪음).
+  AI_EPUB_BUCKET: "${EBOOK_S3_BUCKET}"
 
   # enabled 가 true 인데 URL 이 비면 기동은 되고 워커만 조용히 안 돈다.
   # "왜 메시지가 안 처리되지"로만 보이므로 둘을 같이 관리할 것.

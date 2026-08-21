@@ -25,6 +25,11 @@ spec:
         app: ai-rag
         tier: backend
     spec:
+      # terraform/modules/compute/ai_service_iam 의 IRSA 신뢰 정책이 이 이름의
+      # ServiceAccount(system:serviceaccount:lion-app:ai-rag)만 AssumeRoleWithWebIdentity를
+      # 허용한다 - 없으면 default SA로 떠서 AWS SDK가 빈 자격증명 체인으로 기동에
+      # 실패한다(2026-08-21 실제로 겪음).
+      serviceAccountName: ai-rag
       # order/catalog/member 에는 다 있는 노드 분산 규칙이 ai 에만 빠져 있었다
       # (/code-review 지적사항) — 없으면 스케줄러가 ai-rag replica 전부를 노드
       # 하나에 몰아넣을 수 있어, 그 노드 하나가 죽으면 ai-rag 전체가 같이 죽는다.

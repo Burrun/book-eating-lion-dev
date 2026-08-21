@@ -262,6 +262,10 @@ jobs:
           # ebook 전용 버킷은 따로 없다 — 설계상 S3는 frontend/media 2개뿐이라
           # (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming) media 버킷을 재사용한다.
           EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
+          # ai-rag/ai-bot ServiceAccount의 IRSA role-arn (terraform ai_service_iam 모듈).
+          # 비어 있으면 k8s/ai/serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이
+          # 그대로 박혀 두 파드 다 default SA로 떠서 AWS SDK 자격증명 체인이 빈다.
+          AI_SERVICE_IRSA_ARN: ${{ vars.AI_SERVICE_IRSA_ARN }}
         run: |
           set -euo pipefail
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
@@ -274,8 +278,14 @@ jobs:
             echo "::error::필수 값 EBOOK_S3_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
+          # 비어 있으면 serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이 그대로
+          # 박혀 ai-rag/ai-bot이 default SA로 뜨고 AWS SDK 자격증명 체인이 빈다.
+          if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 AI_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
