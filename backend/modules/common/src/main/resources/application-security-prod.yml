@@ -1,0 +1,17 @@
+# prod 환경 JWT(Cognito) 검증 설정 — catalog/order/member/ai 4개 서비스가 공통으로
+# import 한다.
+#
+# 이전엔 각 서비스 application-prod.yml에 이 블록이 복붙되어 있다가, 같은 블록이
+# 실수로 두 번 들어가 SnakeYAML DuplicateKeyException으로 4개 서비스 전부 기동이
+# 실패한 사고가 있었다(/code-review 지적사항). application-redis-prod.yml과 같은
+# 원칙으로 값을 한 곳에서만 관리해 재발을 막는다.
+#
+# 기본값을 두지 않는 것은 의도적이다 — issuer-uri가 없으면 SecurityConfig가
+# JwtDecoder 빈을 못 만들어 기동 자체가 실패해야, 잘못된 설정으로 조용히 뜨는
+# 사고를 막는다.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}

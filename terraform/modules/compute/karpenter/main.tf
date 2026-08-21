@@ -23,6 +23,17 @@ resource "aws_iam_role_policy_attachment" "node" {
   policy_arn = each.value
 }
 
+# 클러스터가 authenticationMode=API라 aws-auth ConfigMap이 없다 - 이 노드
+# Role로 뜨는 EC2(Karpenter가 만든, EKS Managed NodeGroup이 아닌 셀프 관리
+# 노드)는 이 Access Entry가 없으면 kubelet이 부팅은 되지만 클러스터 인증이
+# 안 돼서 Node로 영영 등록되지 않는다(Launched=True인데 Registered=Unknown
+# 상태로 멈춤 - 2026-08-21 실제로 겪음).
+resource "aws_eks_access_entry" "karpenter_node" {
+  cluster_name  = var.cluster_name
+  principal_arn = aws_iam_role.node.arn
+  type          = "EC2_LINUX"
+}
+
 # ── Controller IRSA Role ─────────────────────────────────────────
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -82,6 +93,39 @@ data "aws_iam_policy_document" "controller" {
     condition {
       test     = "StringLike"
       variable = "aws:ResourceTag/karpenter.sh/nodepool"
+      values   = ["*"]
+    }
+  }
+
+  # 위 AllowScopedInstanceManagement의 CreateTags는 "이미 karpenter.sh/nodepool
+  # 태그가 붙어있는 리소스"에만 적용된다 - 그런데 CreateLaunchTemplate/RunInstances/
+  # CreateFleet로 리소스를 막 만드는 시점엔 그 태그가 아직 없어서(태그를 붙이는
+  # 요청 자체가 그 CreateTags 호출이라 닭-달걀 문제) 매번 거부된다(실제로 launch
+  # template 생성 직후 CreateTags가 UnauthorizedOperation으로 막혀 노드 프로비저닝
+  # 자체가 안 됐다). Karpenter 공식 최소 정책의 AllowScopedResourceCreationTagging과
+  # 동일하게, "리소스 생성 액션과 함께 요청된" 태그 요청은 별도로 허용한다.
+  statement {
+    sid    = "AllowScopedResourceCreationTagging"
+    effect = "Allow"
+    actions = [
+      "ec2:CreateTags",
+    ]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:fleet/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:CreateAction"
+      values   = ["RunInstances", "CreateFleet", "CreateLaunchTemplate"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/karpenter.sh/nodepool"
       values   = ["*"]
     }
   }
@@ -236,6 +280,31 @@ resource "helm_release" "karpenter" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.controller.arn
   }
+
+  # 시스템 노드그룹(eks_cluster 모듈이 붙인 taint)에 고정한다 - Karpenter
+  # 컨트롤러는 자기 자신이 만드는 노드에서 돌면 안 된다(그 노드가
+  # consolidation으로 사라지면 컨트롤러도 같이 죽는 닭-달걀 문제).
+  # nodeSelector로 강제 배치하고, taint를 견디도록 toleration도 같이 준다.
+  #
+  # tolerations는 통짜 values(YAML) 블록으로 넣는다 - `set { name =
+  # "tolerations[0].key" ... }`처럼 인덱스로 넣으면, 차트가 나중에 기본
+  # toleration 목록을 갖게 될 경우 그 목록과 위치 기준으로 뒤섞여 병합되는
+  #깨지기 쉬운 동작이 된다(/code-review 지적사항). values 블록은 그 키를
+  # 통째로 덮어써서 항상 예측 가능하다.
+  values = [
+    yamlencode({
+      nodeSelector = {
+        "book-eating-lion.io/pool" = "system"
+      }
+      tolerations = [
+        {
+          key      = var.system_pool_taint_key
+          operator = "Exists"
+          effect   = var.system_pool_taint_effect
+        }
+      ]
+    })
+  ]
 }
 
 # ── NodePool / EC2NodeClass ────────────────────────────────────────
@@ -268,8 +337,12 @@ resource "kubernetes_manifest" "ec2_node_class" {
       subnetSelectorTerms = [
         for id in var.app_subnet_ids : { id = id }
       ]
+      # cluster SG(노드<->control plane 필수 통신)와 app SG(DB 등 데이터 계층
+      # 접근 허용의 기준이 되는 SG)를 둘 다 붙인다 - selectorTerms를 나열하면
+      # 매칭되는 보안그룹이 전부 인스턴스에 첨부된다(OR 매칭이지 택1이 아님).
       securityGroupSelectorTerms = [
-        { id = var.node_security_group_id }
+        { id = var.node_security_group_id },
+        { id = var.app_security_group_id },
       ]
       tags = {
         Project     = "lion"

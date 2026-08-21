@@ -82,9 +82,16 @@ export async function fetchReturnRequests() {
   return unwrap(apiClient.get("/mypage/returns"));
 }
 
-// 🚧 백엔드 미구현. 리뷰 조회는 책 기준(/api/catalog/books/{id}/reviews)만 있고
-// 회원 기준 조회가 없다. docs/frontend/mypage-unimplemented.md §2
+// GET /api/catalog/reviews/me — 현재 로그인 회원이 작성한 리뷰 최신순 조회
 export async function fetchReviews() {
   if (USE_MOCK) return mockDelay(MOCK_REVIEWS);
-  return unwrap(apiClient.get("/mypage/reviews"));
+  const reviews = await unwrap(apiClient.get("/catalog/reviews/me"));
+  return reviews.map((review) => ({
+    id: review.id,
+    bookId: review.bookId,
+    book: review.bookTitle,
+    rating: review.rating,
+    content: review.content,
+    date: review.createdAt.slice(0, 10),
+  }));
 }

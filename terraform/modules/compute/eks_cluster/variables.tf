@@ -53,3 +53,24 @@ variable "public_access_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+# ── 시스템 노드그룹 전용 taint ────────────────────────────────────
+# 이 값들은 karpenter 모듈(그 taint를 견뎌야 하는 컨트롤러)도 정확히 같은
+# key/effect를 알아야 하므로, 호출부(02-runtime main.tf)의 locals 하나에서
+# 양쪽 모듈에 동일하게 전달한다(/code-review 지적사항 - 여러 모듈에 각각
+# 하드코딩돼 있으면 나중에 값을 바꿀 때 한쪽만 바뀌어 조용히 어긋난다).
+variable "system_pool_taint_key" {
+  type    = string
+  default = "CriticalAddonsOnly"
+}
+
+variable "system_pool_taint_value" {
+  type    = string
+  default = "true"
+}
+
+variable "system_pool_taint_effect" {
+  description = "Kubernetes 표기(NoSchedule/NoExecute/PreferNoSchedule). aws_eks_node_group의 taint 블록엔 이 모듈이 자동으로 AWS API 표기(NO_SCHEDULE 등)로 변환해서 넣는다 - 두 표기가 달라서 호출부가 신경 쓸 필요 없게."
+  type        = string
+  default     = "NoSchedule"
+}

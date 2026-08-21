@@ -19,6 +19,7 @@ import {
 } from "../api/mypage.js";
 import { getFeedableMemos, getFedMemos, markMemoFed } from "../api/bookMemo.ts";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
+import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
 import { cancelSubscription, getMySubscription, subscribe } from "../api/member.ts";
 import {
@@ -1478,22 +1479,40 @@ function ReviewsSection() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [editingReview, setEditingReview] = useState(null);
   const [editForm, setEditForm] = useState({ rating: 5, content: "" });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (!USE_MOCK) return;
     let ignore = false;
-    fetchReviews().then((data) => {
-      if (!ignore) setReviews(data);
-    });
+    fetchReviews()
+      .then((data) => {
+        if (!ignore) setReviews(data);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setReviews([]);
+          setLoadError(true);
+        }
+      });
     return () => {
       ignore = true;
     };
   }, []);
 
-  const handleDelete = () => {
-    setReviews((prev) => prev.filter((r) => r.id !== pendingDelete.id));
-    setPendingDelete(null);
-    toast.success("리뷰가 삭제되었습니다.");
+  const handleDelete = async () => {
+    if (!pendingDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteReview(pendingDelete.id);
+      setReviews((prev) => prev.filter((r) => r.id !== pendingDelete.id));
+      setPendingDelete(null);
+      toast.success("리뷰가 삭제되었습니다.");
+    } catch {
+      toast.error("리뷰를 삭제하지 못했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const openEdit = (review) => {
@@ -1501,20 +1520,32 @@ function ReviewsSection() {
     setEditForm({ rating: review.rating, content: review.content });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editForm.content.trim()) {
       toast.error("리뷰 내용을 입력해주세요.");
       return;
     }
-    setReviews((prev) =>
-      prev.map((r) =>
-        r.id === editingReview.id
-          ? { ...r, rating: editForm.rating, content: editForm.content.trim() }
-          : r,
-      ),
-    );
-    setEditingReview(null);
-    toast.success("리뷰가 수정되었습니다.");
+    if (!editingReview || isSaving) return;
+    setIsSaving(true);
+    try {
+      await updateReview(editingReview.id, {
+        rating: editForm.rating,
+        content: editForm.content.trim(),
+      });
+      setReviews((prev) =>
+        prev.map((r) =>
+          r.id === editingReview.id
+            ? { ...r, rating: editForm.rating, content: editForm.content.trim() }
+            : r,
+        ),
+      );
+      setEditingReview(null);
+      toast.success("리뷰가 수정되었습니다.");
+    } catch {
+      toast.error("리뷰를 수정하지 못했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -1523,10 +1554,10 @@ function ReviewsSection() {
         내가 작성한 한줄평 & 도서 리뷰 관리
       </h2>
 
-      {!USE_MOCK ? (
-        <EmptyState message="내가 작성한 리뷰 모아보기 기능은 준비 중이에요" />
-      ) : reviews === null ? (
+      {reviews === null ? (
         <TabSkeleton />
+      ) : loadError ? (
+        <EmptyState message="내가 작성한 리뷰를 불러오지 못했습니다" />
       ) : reviews.length === 0 ? (
         <EmptyState message="아직 작성한 리뷰가 없어요" />
       ) : (
@@ -1585,8 +1616,8 @@ function ReviewsSection() {
             <Button variant="ghost" onClick={() => setPendingDelete(null)}>
               취소
             </Button>
-            <Button variant="coral" onClick={handleDelete}>
-              삭제
+            <Button variant="coral" disabled={isDeleting} onClick={handleDelete}>
+              {isDeleting ? "삭제 중..." : "삭제"}
             </Button>
           </>
         }
@@ -1605,8 +1636,8 @@ function ReviewsSection() {
             <Button variant="ghost" onClick={() => setEditingReview(null)}>
               취소
             </Button>
-            <Button variant="primary" onClick={handleSaveEdit}>
-              저장
+            <Button variant="primary" disabled={isSaving} onClick={handleSaveEdit}>
+              {isSaving ? "저장 중..." : "저장"}
             </Button>
           </>
         }

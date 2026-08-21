@@ -12,6 +12,7 @@ import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
 import com.bookeatinglion.book.domain.ReviewPermission;
 import com.bookeatinglion.book.domain.SaleStatus;
+import com.bookeatinglion.book.dto.MemberReviewResponse;
 import com.bookeatinglion.book.dto.ReviewRequest;
 import com.bookeatinglion.book.dto.ReviewResponse;
 import com.bookeatinglion.book.dto.ReviewUpdateRequest;
@@ -119,6 +120,19 @@ class ReviewServiceTest {
         Page<ReviewResponse> result = reviewService.getReviews(1L, pageable);
 
         assertThat(result.getContent()).extracting(ReviewResponse::content).containsExactly("내용");
+    }
+
+    @Test
+    void 현재_회원이_작성한_리뷰를_최신순으로_조회한다() throws Exception {
+        Book book = book(1L);
+        when(reviewRepository.findByMemberIdOrderByCreatedAtDesc("member-1"))
+                .thenReturn(List.of(review(100L, book, "member-1")));
+
+        List<MemberReviewResponse> result = reviewService.getMyReviews("member-1");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).bookTitle()).isEqualTo("책");
+        assertThat(result.get(0).content()).isEqualTo("내용");
     }
 
     @Test

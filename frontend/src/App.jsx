@@ -3,8 +3,9 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import Header from "./components/Header.jsx";
 import ChatContainer from "./components/chat/ChatContainer.tsx";
 import { ToastProvider } from "./components/Toast.jsx";
-import { AuthProvider } from "./context/AuthContext.jsx";
+import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { getCart } from "./api/cart.js";
+import { getWishlist } from "./api/wishlist.ts";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
 import Login from "./pages/Login.jsx";
@@ -36,14 +37,25 @@ import AdminBookPage from "./pages/AdminPage/AdminBookPage.tsx";
 const queryClient = new QueryClient();
 
 function Layout() {
+  const { isAuthenticated } = useAuth();
+
   // 장바구니 담기/수량변경/삭제/로그인 시 병합 등에서 ["cart"]를 invalidate하면
   // 헤더 뱃지가 자동으로 갱신된다.
   const { data: cart } = useQuery({ queryKey: ["cart"], queryFn: getCart });
   const cartCount = cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
+  // 상세 페이지와 찜 목록에서 같은 ["wishlist"] 캐시를 사용하므로
+  // 찜 추가·삭제 후 invalidate되면 헤더 뱃지도 실제 목록 개수로 함께 갱신된다.
+  const { data: wishlist } = useQuery({
+    queryKey: ["wishlist"],
+    queryFn: getWishlist,
+    enabled: isAuthenticated,
+  });
+  const wishlistCount = isAuthenticated ? (wishlist?.length ?? 0) : 0;
+
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
-      <Header cartCount={cartCount} wishlistCount={2} />
+      <Header cartCount={cartCount} wishlistCount={wishlistCount} />
       <Outlet />
       <ChatContainer />
     </div>

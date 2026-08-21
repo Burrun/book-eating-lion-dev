@@ -12,10 +12,10 @@
 #   ./scripts/sync-github-config.sh dev
 #   ./scripts/sync-github-config.sh prod
 #
-# 주의: main-cd.yml은 GitHub Environments를 안 쓰고 레포 레벨 Variables/Secrets
-# 하나만 쓴다 - 즉 이 스크립트를 dev로 한 번 돌리고 나중에 prod로 다시 돌리면
-# 값이 prod 것으로 덮어써진다. dev/prod를 동시에 운영하려면 main-cd.yml에
-# GitHub Environments를 도입하는 별도 작업이 필요하다(지금 스코프 밖).
+# GitHub Environments(dev/prod)에 스코프된 Variables/Secrets로 등록한다 - repo
+# 레벨이 아니라서 dev로 돌린 뒤 prod로 다시 돌려도 서로 안 덮어쓴다. 환경이
+# 없으면 먼저 만든다(멱등). main-cd.yml은 workflow_dispatch의 `environment`
+# 입력값으로 각 job의 `environment:`를 지정해서 이 스코프를 읽는다.
 
 set -euo pipefail
 
@@ -29,6 +29,11 @@ REPO="Burrun/book-eating-lion-dev"
 REGION="ap-northeast-2"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
+# GitHub Environment가 없으면 생성(있으면 그대로 통과 - PUT은 멱등).
+gh api --method PUT "repos/${REPO}/environments/${ENV}" >/dev/null || \
+  { echo "Failed to ensure GitHub Environment '${ENV}' exists; check gh authentication/permissions." >&2; exit 1; }
+echo "GitHub Environment '${ENV}' 준비됨"
+
 ssm() {
   aws ssm get-parameter --name "/${ENV}/$1" --region "$REGION" --query 'Parameter.Value' --output text 2>/dev/null || true
 }
@@ -39,7 +44,7 @@ set_var() {
     echo "  ⚠️  SKIP  $name — 값을 못 찾음"
     return
   fi
-  gh variable set "$name" --repo "$REPO" --body "$value" >/dev/null
+  gh variable set "$name" --repo "$REPO" --env "$ENV" --body "$value" >/dev/null
   echo "  ✅ SET   $name"
 }
 
@@ -49,7 +54,7 @@ set_secret_from_stdin() {
     echo "  ⚠️  SKIP  $name — 값을 못 찾음"
     return
   fi
-  printf '%s' "$value" | gh secret set "$name" --repo "$REPO" >/dev/null
+  printf '%s' "$value" | gh secret set "$name" --repo "$REPO" --env "$ENV" >/dev/null
   echo "  ✅ SET   $name (값은 출력 안 함)"
 }
 
@@ -98,10 +103,20 @@ done
 set_var "AURORA_ENDPOINT" "$(ssm data/db_endpoint)"
 set_var "AURORA_READER_ENDPOINT" "$(ssm data/db_reader_endpoint)"
 set_var "DB_NAME" "bookdb"
-echo "  ⚠️  SKIP  AI_DB_NAME — Terraform엔 DB 하나(bookdb)뿐, AI 전용 DB명이 따로 있으면 직접 등록할 것"
+# ai_db도 스키마만 다를 뿐 같은 bookdb 안에 있다(AI_DB_HOST 옆 주석 참고) - 별도
+# AI 전용 DB를 새로 팠다면 이 값을 바꿀 것. 예전엔 이 값을 스킵하고 사람이
+# 수동 등록하도록 남겨뒀었는데, 아무도 안 채워서 ai-api가 빈 DB명으로 접속
+# 계정명("bookadmin")에 접속을 시도하다 죽는 사고가 났다(인프라구성명세.md §7.7.1 ⑫).
+set_var "AI_DB_NAME" "bookdb"
 
 set_var "REDIS_HOST" "$(ssm data/valkey_endpoint)"
+# 아래 ssm() 인자("ai/...")는 terraform/environments/{env}/01-data/main.tf의
+# locals.ai_channel_ssm_values 키와 정확히 같아야 한다 - 두 값이 각각 따로
+# 하드코딩돼 있어서, 한쪽만 바꾸면 여기가 조용히 빈 값을 등록한다(/code-review
+# 지적사항). 이 SSM 키를 바꿀 땐 반드시 그 locals도 같이 바꿀 것.
 set_var "SQS_PURCHASE_QUEUE_URL" "$(ssm ai/purchase_channel_url)"
+set_var "SQS_INGEST_QUEUE_URL" "$(ssm ai/ingest_channel_url)"
+set_var "AI_SERVICE_IRSA_ARN" "$(ssm ai/service_irsa_arn)"
 
 # backend엔 application-dev.yml이 없다 - application-prod.yml이 ${DB_HOST} 등으로
 # 파라미터화돼 있어 재사용 가능하므로, AWS 환경명과 무관하게 Spring 프로필은
@@ -145,7 +160,7 @@ else
   done
 fi
 
-echo "  ⚠️  SKIP  KAKAOPAY_SECRET_KEY — AWS에 없는 외부(카카오 개발자센터) 값, 직접 등록할 것: gh secret set KAKAOPAY_SECRET_KEY --repo $REPO"
+echo "  ⚠️  SKIP  KAKAOPAY_SECRET_KEY — AWS에 없는 외부(카카오 개발자센터) 값, 직접 등록할 것: gh secret set KAKAOPAY_SECRET_KEY --repo $REPO --env $ENV"
 
 echo ""
 echo "=== 완료 ==="

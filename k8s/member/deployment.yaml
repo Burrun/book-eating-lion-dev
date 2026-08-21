@@ -61,10 +61,11 @@ spec:
               path: /actuator/health/readiness
               port: http
             periodSeconds: 5
-            # 무거운 초기화가 없으므로 상한을 짧게 가져간다(1분).
-            # RAG 가 있었다면 임베딩 로딩 때문에 3분이 필요했을 것이고,
-            # 인증 서비스가 AI 때문에 느리게 뜨는 상황이 됐을 것이다.
-            failureThreshold: 12
+            # OTel Java 자동계측 에이전트(JMX bean 스캔 등)의 부팅 오버헤드가 모든
+            # 서비스에 공통으로 붙어 무거운 초기화가 없는 서비스도 짧은 상한을 안정적으로
+            # 못 넘긴다 - 다른 서비스와 동일하게 180초로 맞춘다 (docs/개발 문서/k8s-명세.md §2.2가
+            # canonical source이니 여길 바꿀 땐 그 표도 같이 갱신할 것).
+            failureThreshold: 36
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

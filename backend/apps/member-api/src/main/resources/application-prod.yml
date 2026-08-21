@@ -1,4 +1,7 @@
 spring:
+  config:
+    import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
+
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=member_db&sslmode=${DB_SSL_MODE:require}
     username: ${DB_USERNAME}
@@ -19,38 +22,21 @@ spring:
         default_batch_fetch_size: 100
         default_schema: member_db
 
-  # ElastiCache. k8s configmap 이 주는 이름은 REDIS_HOST 이고 Boot 가 읽는 키는
-  # spring.data.redis.host 다. 이 매핑이 없어서 prod 파드가 컨테이너 안
-  # localhost:6379 를 찾고 있었다.
-  # 기본값을 주지 않는다 — 미설정이면 조용히 로컬로 붙는 대신 기동이 실패해야 한다.
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
+  # Redis(ElastiCache) 설정은 application-redis-prod.yml import 로 온다
+  # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
 
-  # JWT 검증. issuer-uri 가 local 프로필에만 있어서 prod 로 뜨면 JwtDecoder 빈이
-  # 만들어지지 않고 SecurityConfig 가 기동 단계에서 터진다.
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
 
-  # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
-  # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
-  # 주의: 아래 app.cognito.* 는 회원가입/로그인 시 Cognito 에 명령을 보내는
-  # CognitoIdentityProviderClient(발급자) 설정이고, 이 issuer-uri 는 반대 방향 —
-  # 들어오는 요청의 Authorization 헤더 JWT 를 검증(수신자)하는 설정이다. 값 자체는
-  # 같은 Cognito User Pool 을 가리키지만 두 설정은 서로 대체할 수 없다.
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
+  # JWT(spring.security.oauth2.resourceserver.jwt) 검증 설정은
+  # application-security-prod.yml import 로 온다(공유 파일 참고 — 4개
+  # 서비스가 같은 값을 쓴다).
 
 app:
+  # 아래 cognito.* 는 회원가입/로그인 시 Cognito 에 명령을 보내는
+  # CognitoIdentityProviderClient(발급자) 설정이다 - 위 JWT 검증(수신자) 설정과는
+  # 반대 방향. 값 자체는 같은 Cognito User Pool 을 가리키지만 두 설정은 서로
+  # 대체할 수 없다.
   cognito:
     region: ${AWS_COGNITO_REGION}
     user-pool-id: ${AWS_COGNITO_USER_POOL_ID}

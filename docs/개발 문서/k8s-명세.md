@@ -41,14 +41,17 @@
 | **서비스** | **Startup Probe** | **Readiness / Liveness Probe** | **Termination Grace Period** | **배포 전략** |
 | -- | -- | -- | -- | -- |
 | **catalog** | `/actuator/health/readiness`*(5s 간격, threshold 36 / 약 3분)* | `/actuator/health/readiness``/actuator/health/liveness`*(10s 간격, threshold 3, http=8080)* | **30s** | RollingUpdate*(maxSurge 1 / maxUnavailable 0)* |
-| **member** | `/actuator/health/readiness`*(5s 간격, threshold 12 / 약 1분)* | 동일 | **30s** | RollingUpdate |
+| **member** | `/actuator/health/readiness`*(5s 간격, threshold 36 / 약 3분)* | 동일 | **30s** | RollingUpdate |
 | **order** | `/actuator/health/readiness`*(5s 간격, threshold 36 / 약 3분)* | 동일 | **30s** | RollingUpdate |
 | **ai-rag** | `/actuator/health/readiness`*(5s 간격, threshold 36 / 약 3분)* | 동일 | **30s** | RollingUpdate |
 | **ai-bot** | `/actuator/health/readiness`*(5s 간격, threshold 36 / 약 3분)* | 동일 | **30s** | RollingUpdate |
 
 > 💡 **운영 세부사항**
 >
-> * `member` 서비스의 Startup Probe 상한이 짧은 이유는 무거운 초기화 작업이 존재하지 않기 때문입니다.
+> * **Startup Probe 상한은 5개 서비스 전부 동일하게 36(약 3분)으로 맞춘다.** OTel 자동계측
+>   에이전트의 부팅 오버헤드가 모든 서비스에 공통으로 붙어서, 무거운 초기화가 없는 서비스라도
+>   1분 같은 짧은 상한은 안정적으로 못 넘긴다 — 개별 서비스만 낮게 잡지 말 것. 이 표가
+>   canonical source이므로, k8s manifest의 threshold 값을 바꿀 땐 이 표부터 갱신한다.
 > * 모든 Deployment 매니페스트 내 `replicas` 필드는 명시하지 않으며, HPA가 파드 수 제어 권한을 소유합니다.
 > * **Pod Anti-Affinity** (`preferredDuringSchedulingIgnoredDuringExecution`, weight: 100, topologyKey: `kubernetes.io/hostname`)는 `catalog`, `member`, `order`, `ai-rag`, `ai-bot` 5개 서비스 전체에 적용됩니다.
 

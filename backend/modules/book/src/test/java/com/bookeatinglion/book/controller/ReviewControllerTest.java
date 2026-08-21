@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.bookeatinglion.book.BookModuleTestApplication;
+import com.bookeatinglion.book.dto.MemberReviewResponse;
 import com.bookeatinglion.book.dto.ReviewResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.ReviewAccessDeniedException;
@@ -60,6 +61,18 @@ class ReviewControllerTest {
         mockMvc.perform(get("/api/catalog/books/1/reviews"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].content").value("좋아요"));
+    }
+
+    @Test
+    void 내_리뷰_목록은_인증된_회원의_리뷰를_반환한다() throws Exception {
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(reviewService.getMyReviews("member-1"))
+                .thenReturn(List.of(new MemberReviewResponse(100L, 1L, "테스트 도서", 5, "좋아요", LocalDateTime.now())));
+
+        mockMvc.perform(get("/api/catalog/reviews/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].bookTitle").value("테스트 도서"))
+                .andExpect(jsonPath("$.data[0].content").value("좋아요"));
     }
 
     @Test
