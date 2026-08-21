@@ -280,6 +280,30 @@ resource "helm_release" "karpenter" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.controller.arn
   }
+
+  # 시스템 노드그룹(CriticalAddonsOnly taint)에 고정한다 - Karpenter 컨트롤러는
+  # 자기 자신이 만드는 노드에서 돌면 안 된다(그 노드가 consolidation으로
+  # 사라지면 컨트롤러도 같이 죽는 닭-달걀 문제). nodeSelector로 강제 배치하고,
+  # taint를 견디도록 toleration도 같이 준다.
+  set {
+    name  = "nodeSelector.book-eating-lion\\.io/pool"
+    value = "system"
+  }
+
+  set {
+    name  = "tolerations[0].key"
+    value = "CriticalAddonsOnly"
+  }
+
+  set {
+    name  = "tolerations[0].operator"
+    value = "Exists"
+  }
+
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoSchedule"
+  }
 }
 
 # ── NodePool / EC2NodeClass ────────────────────────────────────────
