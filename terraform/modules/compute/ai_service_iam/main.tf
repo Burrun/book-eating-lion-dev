@@ -67,8 +67,10 @@ data "aws_iam_policy_document" "permissions" {
     content {
       sid    = "S3VectorsReadWrite"
       effect = "Allow"
-      # 실제 s3vectors:* 액션명은 provider가 리소스를 지원하기 시작하면 AWS 문서로 확정할 것.
-      actions   = ["s3vectors:GetVectors", "s3vectors:PutVectors", "s3vectors:QueryVectors"]
+      # GetIndex가 빠져 있으면 앱이 기동 시점에 하는 인덱스 검증(차원/거리척도/비필터키
+      # 확인 - k8s/ai/configmap.yaml AI_VECTOR_INDEX 주석 참고)에서 AccessDenied로 죽는다
+      # (2026-08-21 dev 실배포에서 실제로 겪음 - GetIndex 호출이 크래시 직전 마지막 로그).
+      actions   = ["s3vectors:GetIndex", "s3vectors:GetVectors", "s3vectors:PutVectors", "s3vectors:QueryVectors"]
       resources = local.vector_index_arns
     }
   }
