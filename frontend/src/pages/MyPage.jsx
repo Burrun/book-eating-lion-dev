@@ -686,6 +686,10 @@ function LionRagCard() {
   const [similarity, setSimilarity] = useState(null);
 
   useEffect(() => {
+    // fetchReadingNotes()는 백엔드 미구현(GET /api/mypage/reading-notes 없음)이라 실API
+    // 모드에서 호출하면 항상 reject한다 — 여기서 걸러주지 않으면 .then이 절대 안 불려
+    // notes가 null로 남아 아래 Skeleton이 영원히 사라지지 않는다.
+    if (!USE_MOCK) return;
     let ignore = false;
     fetchReadingNotes().then((data) => {
       if (!ignore) setNotes(data);
@@ -731,7 +735,9 @@ function LionRagCard() {
         <p className="mb-2 text-sm font-medium text-[var(--color-ink)] opacity-70">
           내 독서 메모 & 인용구 저장소
         </p>
-        {notes === null ? (
+        {!USE_MOCK ? (
+          <EmptyState message="독서 메모 기능은 아직 준비 중이에요." />
+        ) : notes === null ? (
           <div className="flex flex-col gap-1.5">
             <Skeleton variant="text" className="w-full" />
             <Skeleton variant="text" className="w-2/3" />

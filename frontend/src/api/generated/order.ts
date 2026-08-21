@@ -615,6 +615,8 @@ export interface components {
       /** @example 06236 */
       postalCode: string;
       address: string;
+      addressDetail?: string | null;
+      deliveryRequest?: string | null;
     };
     CreateOrderRequest: {
       items: components["schemas"]["OrderItemRequest"][];

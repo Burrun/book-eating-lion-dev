@@ -3,6 +3,16 @@ import { createPortal } from "react-dom";
 import { ReactReader } from "react-reader";
 import { X } from "lucide-react";
 import { useReadingProgress } from "../hooks/useReadingProgress.js";
+import ErrorBoundary from "./ErrorBoundary.jsx";
+
+// epubjs Locations.percentageFromCfi()는 진짜 CFI("epubcfi(...)")만 받는다. react-reader의
+// 좌우 페이지 이동은 실제 CFI를 주지만, 목차(TOC) 클릭은 TocItem이 setLocation(data.href)를
+// 불러 스파인 href("OPS/chapter7.xhtml" 등)를 그대로 locationChanged에 넘긴다 — 그 href를
+// percentageFromCfi에 넣으면 epubjs의 EpubCFI 생성자가 "not a valid argument for EpubCFI"를
+// 던지고, 이걸 잡아주는 ErrorBoundary가 없으면 리액트 트리 전체가 흰 화면이 된다.
+function isEpubCfi(value) {
+  return typeof value === "string" && value.startsWith("epubcfi(");
+}
 
 const LOCATIONS_KEY_PREFIX = "locations:";
 
@@ -141,20 +151,33 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId }) {
       {/* react-reader는 root에 height:100%를 쓰므로, 부모가 flex 레이아웃 안에서
           정의된 높이를 갖도록 relative + flex-1 + min-h-0을 함께 둔다. */}
       <div className="relative min-h-0 flex-1">
-        <ReactReader
-          url={url}
-          title={title}
-          location={location}
-          locationChanged={(cfi) => {
-            hasUserNavigatedRef.current = true;
-            setLocation(cfi);
-            const raw = epubBookRef.current?.locations?.percentageFromCfi(cfi);
-            const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;
-            saveLocation(cfi, percentage);
-          }}
-          getRendition={handleGetRendition}
-          showToc
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-10 text-center">
+              <p className="text-sm text-[var(--color-ink)] opacity-60">
+                이 페이지를 표시하는 중 오류가 발생했어요. 뷰어를 닫고 다시 열어주세요.
+              </p>
+            </div>
+          }
+        >
+          <ReactReader
+            url={url}
+            title={title}
+            location={location}
+            locationChanged={(cfi) => {
+              hasUserNavigatedRef.current = true;
+              setLocation(cfi);
+              // 목차 클릭은 CFI가 아니라 스파인 href를 넘겨준다 — 그럴 땐 진행률 계산을 건너뛴다.
+              const raw = isEpubCfi(cfi)
+                ? epubBookRef.current?.locations?.percentageFromCfi(cfi)
+                : undefined;
+              const percentage = typeof raw === "number" ? Math.round(raw * 100) : undefined;
+              saveLocation(cfi, percentage);
+            }}
+            getRendition={handleGetRendition}
+            showToc
+          />
+        </ErrorBoundary>
       </div>
     </div>,
     document.body,
