@@ -152,3 +152,13 @@ module "ai_service_iam" {
   purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
 }
+
+# CI(scripts/sync-github-config.sh → main-cd.yml)가 k8s/ai/serviceaccount.yaml의
+# eks.amazonaws.com/role-arn 애노테이션을 채우려면 이 값을 SSM으로 받아야 한다.
+# 이게 없으면 ai-rag/ai-bot이 default ServiceAccount로 뜨고, IRSA 자격증명이
+# 없어 AWS SDK(BedrockRuntimeClient 등) 빈 자격증명 체인으로 기동에 실패한다.
+resource "aws_ssm_parameter" "ai_service_irsa_arn" {
+  name  = "${local.ssm_prefix}/ai/service_irsa_arn"
+  type  = "String"
+  value = module.ai_service_iam.ai_service_irsa_arn
+}
