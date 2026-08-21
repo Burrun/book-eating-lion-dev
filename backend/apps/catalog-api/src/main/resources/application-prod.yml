@@ -30,13 +30,6 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
-  # JWT 검증. issuer-uri 가 local 프로필에만 있어서 prod 로 뜨면 JwtDecoder 빈이
-  # 만들어지지 않고 SecurityConfig 가 기동 단계에서 터진다.
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
   flyway:
     enabled: false
 
