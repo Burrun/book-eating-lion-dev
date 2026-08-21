@@ -266,6 +266,12 @@ jobs:
           # 비어 있으면 k8s/ai/serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이
           # 그대로 박혀 두 파드 다 default SA로 떠서 AWS SDK 자격증명 체인이 빈다.
           AI_SERVICE_IRSA_ARN: ${{ vars.AI_SERVICE_IRSA_ARN }}
+          # /ws/ai/chat 의 유일한 Origin 방어선(k8s/ai/configmap.yaml 참고). 이 VARS 목록에
+          # 빠져 있으면 envsubst 가 손대지 않아 ConfigMap 에 "${CHAT_ALLOWED_ORIGINS}" 리터럴이
+          # 그대로 박히고, 그 값이 그대로 allowed-origin-pattern 이 돼서 실제 브라우저 Origin과
+          # 절대 매치되지 않아 핸드셰이크가 전부 거절된다 — FRONTEND_ORIGIN 과 같은 값이어야
+          # 하므로 별도 GH Variable 없이 재사용한다.
+          CHAT_ALLOWED_ORIGINS: ${{ vars.FRONTEND_ORIGIN }}
         run: |
           set -euo pipefail
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
@@ -285,7 +291,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
