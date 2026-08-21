@@ -64,6 +64,10 @@ resource "aws_dynamodb_table" "tflock" {
     type = "S"
   }
 
+  point_in_time_recovery {
+    enabled = true
+  }
+
   deletion_protection_enabled = true
 
   lifecycle {
