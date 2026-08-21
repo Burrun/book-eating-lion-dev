@@ -1,6 +1,6 @@
 spring:
   config:
-    import: classpath:application-redis-prod.yml
+    import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
 
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=catalog_db&sslmode=${DB_SSL_MODE:require}
@@ -38,15 +38,8 @@ spring:
   # 가 발행하는 구매 후 리뷰 작성 권한 이벤트를 영원히 못 받는다. 값 자체는 위
   # application-redis-prod.yml import 로 온다(공유 파일 참고).
 
-  # SecurityConfig 가 .oauth2ResourceServer(oauth2 -> oauth2.jwt(...)) 로 JwtDecoder 빈을
-  # 요구하는데 이 키가 없어서 기동이 실패하고 있었다(k8s/test 환경 구성 중 발견).
-  # application-local.yml 과 동일한 패턴, 기본값 없음은 의도적(값 누락 시 조용히
-  # 잘못 뜨는 대신 기동 실패로 드러나게 한다).
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID}
+  # JWT(Cognito) 검증 설정은 application-security-prod.yml import 로 온다
+  # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
 
 management:
   endpoints:

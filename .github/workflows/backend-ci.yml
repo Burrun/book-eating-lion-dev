@@ -91,9 +91,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # YAML 정적 검사 — Gradle 이 필요 없는 것들을 한 잡에 모았다.
   #
-  # 두 검사는 성격이 다르다(배포 배선 vs API 계약). 잡을 나누지 않은 이유는 둘 다
-  # PyYAML 하나만 있으면 되고 수 초 안에 끝나서, 러너를 두 개 띄우는 비용이 검사
-  # 자체보다 크기 때문이다. 둘 중 하나가 무거워지면 그때 쪼갠다.
+  # 세 검사는 성격이 다르다(배포 배선 / API 계약 / Spring 설정 중복 키). 잡을
+  # 나누지 않은 이유는 셋 다 PyYAML 하나만 있으면 되고 수 초 안에 끝나서, 러너를
+  # 여러 개 띄우는 비용이 검사 자체보다 크기 때문이다. 하나가 무거워지면 그때 쪼갠다.
   # ---------------------------------------------------------------------------
   yaml-checks:
     name: YAML 정적 검사 (k8s · contracts)
@@ -169,6 +169,52 @@ jobs:
               print(f"  OK  {p}")
 
           print(f"\n계약 {len(paths)}건 파싱 통과")
+          PY
+
+      # --- [3] Spring 설정 중복 키 (application-prod.yml 4개 서비스 동시 장애 재발 방지) ---
+      # PyYAML의 safe_load는 중복 키를 조용히 마지막 값으로 덮어써서 통과시킨다 - 실제
+      # 배포에 쓰는 SnakeYAML(Java)은 기본값이 반대(중복 키 발견 시 예외)라, 이 차이 때문에
+      # 로컬/CI에서는 안 보이던 문제가 기동 시점에야 DuplicateKeyException 으로 터졌다.
+      # SnakeYAML과 같은 엄격 모드로 다시 검사해서 빌드 전에 잡는다.
+      - name: application*.yml 중복 키 검사
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          class StrictLoader(yaml.SafeLoader):
+              pass
+
+          def no_duplicates(loader, node, deep=False):
+              mapping = {}
+              for key_node, value_node in node.value:
+                  key = loader.construct_object(key_node, deep=deep)
+                  if key in mapping:
+                      raise yaml.constructor.ConstructorError(
+                          "while constructing a mapping", node.start_mark,
+                          f"found duplicate key {key!r}", key_node.start_mark)
+                  mapping[key] = loader.construct_object(value_node, deep=deep)
+              return mapping
+
+          StrictLoader.add_constructor(
+              yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+
+          paths = sorted(glob.glob("backend/**/src/main/resources/application*.yml", recursive=True))
+          if not paths:
+              sys.exit("application*.yml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          bad = []
+          for p in paths:
+              try:
+                  for _ in yaml.load_all(open(p, encoding="utf-8"), Loader=StrictLoader):
+                      pass
+                  print(f"  OK  {p}")
+              except yaml.YAMLError as e:
+                  bad.append(f"{p}: {e}")
+
+          print(f"\n{len(paths)}건 검사")
+          if bad:
+              sys.exit("\n중복 키 발견:\n  - " + "\n  - ".join(bad))
           PY
 
   build:
