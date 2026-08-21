@@ -405,6 +405,16 @@ terraform {
 
 ```
 
+> **왜 이전엔 이 단계 없이도 `terraform init`이 됐었나:** `terraform/bootstrap`이
+> 생기기 전에도(2026-08-20 이전) 이 버킷/테이블은 이미 존재해서 `init`이
+> 문제없이 됐다 — 이 저장소의 어떤 terraform 코드로도 만들어진 적이 없고,
+> 처음에 누군가 콘솔/AWS CLI로 수동 생성해둔 것이었기 때문이다. `backend.tf`의
+> `backend "s3" { bucket = "..." }`는 그 이름의 버킷이 이미 있다고 가정하고
+> 거기 연결만 할 뿐, 없으면 만들어주지 않는다. 2026-08-20 저녁 인프라 정리
+> 중 이 버킷들까지 콘솔에서 같이 삭제되면서 그다음 `init`부터 `S3 bucket ...
+> does not exist` 에러가 났고, 그래서 이 부트스트랩 모듈을 코드로 만들어
+> 재생성 가능하게 했다.
+>
 > **이 버킷/테이블은 어디서 만드나:** `terraform/bootstrap`이 dev/prod 각각의
 > `book-eating-lion-tfstate-{env}` S3 버킷(버저닝+암호화+public access
 > block)과 `book-eating-lion-tflock-{env}` DynamoDB 테이블(PAY_PER_REQUEST)을
