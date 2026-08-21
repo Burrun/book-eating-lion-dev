@@ -222,7 +222,19 @@ jobs:
             -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
             -t "$IMAGE:main-${{ github.run_number }}" \
             -f backend/apps/${{ matrix.service }}-api/Dockerfile backend
-          docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
+
+          # ECR 리포지토리는 태그 불변(immutable)이라, 같은 커밋 SHA로 워크플로우가
+          # 재실행되면(실패한 job 재시도 등) 이미 push된 SHA 태그를 다시 push하려다
+          # "tag invalid ... immutable" 로 실패한다. SHA 태그가 이미 있으면 push를
+          # 건너뛴다 - run_number 태그는 실행마다 항상 새 값이라 충돌 없이 매번 push.
+          if aws ecr describe-images \
+               --repository-name "$REPOSITORY" \
+               --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
+               --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "ECR에 ${{ env.DEPLOY_SHA }} 태그가 이미 있어 push를 건너뜁니다 (재실행 등으로 중복)."
+          else
+            docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
+          fi
           docker push "$IMAGE:main-${{ github.run_number }}"
 
       - name: Update EKS kubeconfig
