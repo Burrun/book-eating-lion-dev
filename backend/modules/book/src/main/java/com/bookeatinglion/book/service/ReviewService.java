@@ -4,6 +4,7 @@ import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.Review;
 import com.bookeatinglion.book.domain.ReviewPermission;
 import com.bookeatinglion.book.domain.ReviewPermissionId;
+import com.bookeatinglion.book.dto.MemberReviewResponse;
 import com.bookeatinglion.book.dto.ReviewRequest;
 import com.bookeatinglion.book.dto.ReviewResponse;
 import com.bookeatinglion.book.dto.ReviewUpdateRequest;
@@ -18,6 +19,7 @@ import com.bookeatinglion.book.repository.ReviewStatistics;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +47,12 @@ public class ReviewService {
             throw new BookNotFoundException(bookId);
         }
         return reviewRepository.findByBook_BookId(bookId, pageable).map(ReviewResponse::from);
+    }
+
+    public List<MemberReviewResponse> getMyReviews(String memberId) {
+        return reviewRepository.findByMemberIdOrderByCreatedAtDesc(memberId).stream()
+                .map(MemberReviewResponse::from)
+                .toList();
     }
 
     /**

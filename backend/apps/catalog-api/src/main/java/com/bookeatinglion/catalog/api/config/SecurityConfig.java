@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews")
                         .authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/catalog/reviews/me")
+                        .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/inquiries")
                         .authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/catalog/inquiries/**")

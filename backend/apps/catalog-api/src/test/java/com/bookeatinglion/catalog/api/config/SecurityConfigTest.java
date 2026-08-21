@@ -64,4 +64,9 @@ class SecurityConfigTest {
     void 인증_없이_ebook_URL_발급은_401을_반환한다() throws Exception {
         mockMvc.perform(get("/api/catalog/books/1/ebook")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void 인증_없이_내_리뷰_목록_조회는_401을_반환한다() throws Exception {
+        mockMvc.perform(get("/api/catalog/reviews/me")).andExpect(status().isUnauthorized());
+    }
 }

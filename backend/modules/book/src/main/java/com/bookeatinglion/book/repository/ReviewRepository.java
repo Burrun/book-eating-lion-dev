@@ -13,6 +13,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     java.util.List<Review> findByMemberId(String memberId);
 
+    java.util.List<Review> findByMemberIdOrderByCreatedAtDesc(String memberId);
+
     @Query(
             """
             select coalesce(avg(r.rating), 0.0) as averageRating,

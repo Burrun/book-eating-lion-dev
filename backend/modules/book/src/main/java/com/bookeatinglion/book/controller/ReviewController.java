@@ -1,5 +1,6 @@
 package com.bookeatinglion.book.controller;
 
+import com.bookeatinglion.book.dto.MemberReviewResponse;
 import com.bookeatinglion.book.dto.ReviewRequest;
 import com.bookeatinglion.book.dto.ReviewResponse;
 import com.bookeatinglion.book.dto.ReviewUpdateRequest;
@@ -7,6 +8,7 @@ import com.bookeatinglion.book.security.CatalogMemberIdentity;
 import com.bookeatinglion.book.service.ReviewService;
 import com.bookeatinglion.common.dto.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,11 @@ public class ReviewController {
 
     private final ReviewService reviewService;
     private final CatalogMemberIdentity memberIdentity;
+
+    @GetMapping("/api/catalog/reviews/me")
+    public ApiResponse<List<MemberReviewResponse>> getMyReviews() {
+        return ApiResponse.success(reviewService.getMyReviews(memberIdentity.requiredMemberId()));
+    }
 
     @GetMapping("/api/catalog/books/{bookId}/reviews")
     public ApiResponse<Page<ReviewResponse>> getReviews(
