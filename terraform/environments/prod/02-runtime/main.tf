@@ -10,10 +10,6 @@ data "aws_ssm_parameter" "app_subnet_ids" {
   name = "${local.ssm_prefix}/network/app_subnet_ids"
 }
 
-data "aws_ssm_parameter" "app_security_group_id" {
-  name = "${local.ssm_prefix}/network/app_security_group_id"
-}
-
 data "aws_ssm_parameter" "public_subnet_ids" {
   name = "${local.ssm_prefix}/network/public_subnet_ids"
 }
@@ -87,7 +83,6 @@ module "karpenter" {
   vpc_id                 = data.aws_ssm_parameter.vpc_id.value
   app_subnet_ids         = split(",", data.aws_ssm_parameter.app_subnet_ids.value)
   node_security_group_id = module.eks_cluster.cluster_security_group_id
-  app_security_group_id  = data.aws_ssm_parameter.app_security_group_id.value
 
   depends_on = [module.eks_cluster]
 }
