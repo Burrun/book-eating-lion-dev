@@ -14,9 +14,9 @@ export async function login(email, password) {
   return data.data;
 }
 
-export async function signup(email, password, name) {
-  if (USE_MOCK) return mockSignup(email, password, name);
-  const { data } = await apiClient.post("/auth/signup", { email, password, name });
+export async function signup(email, password, name, nickname) {
+  if (USE_MOCK) return mockSignup(email, password, name, nickname);
+  const { data } = await apiClient.post("/auth/signup", { email, password, name, nickname });
   return data.data;
 }
 

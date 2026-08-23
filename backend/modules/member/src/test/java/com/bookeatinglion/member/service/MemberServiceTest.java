@@ -29,7 +29,7 @@ class MemberServiceTest {
 
     @Test
     void 내_프로필을_조회한다() {
-        Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자");
+        Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자", "사자왕");
         when(memberRepository.findById("sub-1")).thenReturn(Optional.of(member));
 
         MemberResponse response = memberService.getMyProfile("sub-1");
@@ -49,7 +49,7 @@ class MemberServiceTest {
 
     @Test
     void 프로필을_부분_수정한다() {
-        Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자");
+        Member member = Member.register("sub-1", "lion@bookeating.com", "책먹는사자", "사자왕");
         when(memberRepository.findById("sub-1")).thenReturn(Optional.of(member));
 
         MemberResponse response = memberService.updateProfile(

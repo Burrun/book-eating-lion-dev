@@ -26,6 +26,9 @@ public class Member extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false, unique = true)
+    private String nickname;
+
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)
@@ -38,16 +41,22 @@ public class Member extends BaseEntity {
     private Role role;
 
     @Builder
-    public Member(String id, String email, String name) {
+    public Member(String id, String email, String name, String nickname) {
         this.id = id;
         this.email = email;
         this.name = name;
+        this.nickname = nickname;
         this.role = Role.USER;
     }
 
     /** cognitoSub: Cognito가 발급한 sub. 이 값이 그대로 PK(member_id)가 된다. */
-    public static Member register(String cognitoSub, String email, String name) {
-        return Member.builder().id(cognitoSub).email(email).name(name).build();
+    public static Member register(String cognitoSub, String email, String name, String nickname) {
+        return Member.builder()
+                .id(cognitoSub)
+                .email(email)
+                .name(name)
+                .nickname(nickname)
+                .build();
     }
 
     /**
