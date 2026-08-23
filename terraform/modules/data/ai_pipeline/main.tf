@@ -4,11 +4,13 @@
 resource "aws_sqs_queue" "ingest_dlq" {
   name                      = "lion-team3-${var.environment}-ai-ingest-dlq"
   message_retention_seconds = 1209600 # 14일 - 실패 메시지를 살펴볼 시간 확보
+  sqs_managed_sse_enabled   = true    # 저장 데이터 암호화 - S3(storage 모듈)의 AES256 SSE와 동일 수준
 }
 
 resource "aws_sqs_queue" "ingest" {
   name                       = "lion-team3-${var.environment}-ai-ingest"
   visibility_timeout_seconds = 300 # 임베딩은 청크당 1회, 장편은 200~500청크라 넉넉히
+  sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.ingest_dlq.arn
@@ -31,11 +33,13 @@ resource "aws_sqs_queue_redrive_allow_policy" "ingest_dlq" {
 resource "aws_sqs_queue" "purchase_dlq" {
   name                      = "lion-team3-${var.environment}-book-purchase-dlq"
   message_retention_seconds = 1209600 # 14일
+  sqs_managed_sse_enabled   = true
 }
 
 resource "aws_sqs_queue" "purchase" {
   name                       = "lion-team3-${var.environment}-book-purchase-queue"
   visibility_timeout_seconds = 60 # 멱등 확인 -> 저장 -> 캐시 갱신, 배치 10건이라도 임베딩보단 훨씬 가벼움
+  sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.purchase_dlq.arn

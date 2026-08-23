@@ -6,6 +6,13 @@
 
 data "aws_region" "current" {}
 
+# pg_hba.conf를 SG(app_security_group_id)뿐 아니라 DB 인증 레벨에서도 VPC 대역으로
+# 제한하기 위해 조회 - SG가 나중에 느슨해져도(예: 실수로 0.0.0.0/0 추가) DB 인증
+# 자체는 VPC 밖에서 들어오는 접속을 거부한다.
+data "aws_vpc" "this" {
+  id = var.vpc_id
+}
+
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
@@ -164,7 +171,7 @@ resource "aws_instance" "this" {
     sudo -u postgres createdb -O ${var.master_username} ${var.database_name}
 
     sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /var/lib/pgsql/data/postgresql.conf
-    echo "host all all 0.0.0.0/0 scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
+    echo "host all all ${data.aws_vpc.this.cidr_block} scram-sha-256" >> /var/lib/pgsql/data/pg_hba.conf
     systemctl restart postgresql
   EOF
 
