@@ -183,6 +183,7 @@ terraform/
   * `reader_count = 1` — 기본값, 다이어그램 기준 2AZ 운영 시연 (Writer AZ-a / Reader AZ-b)
   * `reader_count = 2` — k6 부하 테스트 등 강한 Multi-AZ 시연용. **VPC가 지금 2AZ로 설계돼 있으므로(§3.1-1 `vpc`), 이 값을 쓰려면 `data_subnet_ids`에 3번째 AZ 서브넷을 먼저 추가해야 합니다.**
 * **안전장치 (Critical 등급):** `deletion_protection = true`, `skip_final_snapshot = false` 를 기본값으로 두고, 환경별로 낮추고 싶으면 `terraform.tfvars`에서 명시적으로 override. **정정:** 원래는 `prevent_destroy` lifecycle을 prod에서만 적용한다고 적었으나, Terraform의 `lifecycle.prevent_destroy`는 리터럴 값만 받고 변수를 못 받아서 환경별 조건부 적용이 애초에 불가능합니다(실제 구현 중 확인). 대신 `deletion_protection`을 실제 안전장치로 씁니다 — 이건 AWS API 레벨 보호라 Terraform이 아니라 콘솔/CLI로 지워도 막힙니다.
+* **백업 보존 기간(PITR) — 2026-08-23 감사에서 발견:** `backup_retention_period` 변수를 추가했습니다. 모듈 기본값은 기존 동작을 그대로 유지하도록 AWS 기본값인 `1`(일)로 뒀고, prod는 `terraform.tfvars`에서 `aurora_backup_retention_period = 7`로 명시적으로 올렸습니다 — 그 전까지는 이 값 자체가 어디에도 없어서 AWS 기본값(1일)이 조용히 적용되고 있었고, prod는 실 주문/구매 데이터가 쌓이는데 24시간이 지난 장애는 PITR로 복구할 수 없는 상태였습니다. dev는 영향이 작아 이번 범위에서 제외(기본값 1 유지).
 
 #### 2) `rds_proxy`
 
@@ -217,6 +218,7 @@ terraform/
 
   기획서가 이 항목을 "3) 데이터베이스 및 인메모리 캐시" 영역에 함께 분류해서, Aurora/Valkey와 같은 `01-data`에 둡니다.
 * **대상 리소스:** `aws_sqs_queue`(신간 등록 이벤트 큐) + DLQ(`maxReceiveCount = 3`) — **구현 완료**. S3 Vectors 버킷 + 인덱스 2개(추천용, 구매도서 RAG용)는 **아직 구현 못 함**: `hashicorp/aws` provider 5.100.0 바이너리를 직접 확인한 결과 `s3vectors_*` 리소스 타입이 없습니다(2025년 말 출시된 신규 서비스라 provider가 아직 못 따라감). 지원되는 provider 버전이 나오면 추가하고, 그때까지 이 두 인덱스의 출력은 `null`입니다.
+* **저장 데이터 암호화 — 2026-08-23 감사에서 발견:** SQS 큐 4개(ingest/ingest_dlq/purchase/purchase_dlq) 전부 `sqs_managed_sse_enabled = true`를 켭니다. Aurora/S3는 이미 암호화가 켜져 있었는데 SQS만 빠져 있었습니다.
 * **필수 입력(Inputs):** `environment` — **정정 (실제 구현 중 발견):** 애초에 이 모듈은 `media_bucket_id`/`media_bucket_arn`을 받아서 S3 이벤트 알림을 붙이려 했으나, 실제 백엔드 코드(이벤트-메시징-명세.md)를 보면 신간 등록 이벤트는 S3 업로드 트리거가 아니라 catalog-api가 SQS로 직접 발행하는 구조입니다. 그래서 S3 버킷 관련 입력 자체가 필요 없어졌습니다 — 앱이 `ingest_channel_arn` 큐에 바로 `SendMessage`합니다.
 * **출력값(Outputs):** `vector_bucket_arn`, `recommendation_index_arn`, `purchased_book_rag_index_arn`, `ingest_channel_arn` (신간 등록 이벤트 채널 — SQS면 큐 ARN, 다른 채널이면 그에 맞는 식별자)
 
@@ -479,4 +481,5 @@ dev 환경의 `01-data` 계층은 Aurora Multi-AZ 대신 **단일 EC2 인스턴�
 * **실제 구현 중 발견 — 인스턴스는 `data_subnet`이 아니라 `app_subnet`에 놓습니다.** `data_subnet`은 완전 격리(NAT 없음, §3.1-1 `vpc`)라 패키지 설치(`dnf install postgresql`)조차 안 됩니다. 그래서 이 인스턴스만 예외적으로 App Subnet(NAT 경유 아웃바운드 있음)에 배치하되, 보안그룹은 `aurora_pg`와 똑같이 "`app_security_group_id`에서만 5432 인바운드 허용"으로 제한해서 데이터 계층과 동일한 접근 통제를 유지합니다. SSH 키/포트는 아예 안 열고 SSM Session Manager로만 접속합니다. 마스터 비밀번호는 `random_password` + Secrets Manager로 관리해 Aurora와 동일한 보안 수준(평문 비밀번호를 tfvars/state에 안 둠)을 맞춥니다.
 * **재검토 중 발견 — `user_data`에 비밀번호를 직접 심으면 안 됩니다(보안 이슈).** 처음엔 `${random_password.master.result}`를 `user_data` 스크립트(`ALTER USER`/`CREATE ROLE` 문)에 그대로 문자열 보간했습니다. 이러면 평문 비밀번호가 Terraform state(`aws_instance.user_data` 속성)뿐 아니라 **EC2 인스턴스 메타데이터로도 그대로 노출**되어(IMDS로 인스턴스 내부에서 IAM 권한 없이 조회 가능, `ec2:DescribeInstanceAttribute` 권한만 있으면 외부에서도 조회 가능), Secrets Manager를 따로 둔 목적 자체가 무너집니다. 그래서 `user_data`엔 비밀번호를 넣지 않고, 인스턴스가 **부팅 시점에 Secrets Manager에서 직접 읽어오도록** 고쳤습니다 — IAM Role(`aws_iam_role.ssm`)에 `secretsmanager:GetSecretValue`(대상 시크릿 ARN으로 스코프 제한)를 추가하고, 스크립트는 `aws secretsmanager get-secret-value`로 받은 값을 bash 변수(`$DB_PASSWORD`, Terraform state에 안 남는 런타임 값)에 담아 `psql` 명령에 씁니다.
 * `rds_proxy`는 Aurora 전용 기능이라 dev에서는 호출하지 않습니다. 대신 `rds_proxy_endpoint` SSM 파라미터에도 `ec2_postgres`의 엔드포인트를 그대로 등록해서, `02-runtime`이 dev/prod 분기 없이 같은 키를 읽게 합니다.
+* **`pg_hba.conf` 노출 범위 축소 — 2026-08-23 감사에서 발견:** 원래 `pg_hba.conf`에 `host all all 0.0.0.0/0 scram-sha-256`을 심어서, DB 인증 레벨엔 접속 대역 제한이 전혀 없고 보안그룹(`app_security_group_id`)만이 유일한 방어선이었습니다. `data "aws_vpc"`로 VPC CIDR을 조회해 그 대역으로 제한하도록 고쳤습니다 — SG가 나중에 느슨해져도(예: 실수로 `0.0.0.0/0` 추가) DB 인증 자체가 VPC 밖 접속을 거부하는 이중 방어선이 됩니다.
 * 스키마 초기화(`db/postgres/00-init.sql`, `01~04-*.sql`)는 이 모듈의 책임이 아닙니다 — PostgreSQL 설치와 마스터 계정 생성까지만 하고, 실제 스키마 적용은 배포 파이프라인/애플리케이션 쪽 몫입니다(로컬 `docker-compose`가 하는 역할과 동일).
