@@ -32,16 +32,17 @@ data "aws_ssm_parameter" "sns_topic_arn" {
 module "aurora_pg" {
   source = "../../../modules/data/aurora_pg"
 
-  environment           = var.environment
-  vpc_id                = data.aws_ssm_parameter.vpc_id.value
-  data_subnet_ids       = split(",", data.aws_ssm_parameter.data_subnet_ids.value)
-  app_security_group_id = data.aws_ssm_parameter.app_security_group_id.value
-  database_name         = var.database_name
-  master_username       = var.master_username
-  sns_topic_arn         = data.aws_ssm_parameter.sns_topic_arn.value
-  reader_count          = var.reader_count
-  deletion_protection   = var.aurora_deletion_protection
-  skip_final_snapshot   = var.aurora_skip_final_snapshot
+  environment             = var.environment
+  vpc_id                  = data.aws_ssm_parameter.vpc_id.value
+  data_subnet_ids         = split(",", data.aws_ssm_parameter.data_subnet_ids.value)
+  app_security_group_id   = data.aws_ssm_parameter.app_security_group_id.value
+  database_name           = var.database_name
+  master_username         = var.master_username
+  sns_topic_arn           = data.aws_ssm_parameter.sns_topic_arn.value
+  reader_count            = var.reader_count
+  deletion_protection     = var.aurora_deletion_protection
+  skip_final_snapshot     = var.aurora_skip_final_snapshot
+  backup_retention_period = var.aurora_backup_retention_period
 }
 
 module "rds_proxy" {
