@@ -72,7 +72,8 @@ terraform/
 │   │   ├── karpenter/                            # Karpenter Controller용 IAM/SQS, NodePool, EC2NodeClass 매니페스트
 │   │   ├── ingress_alb/                          # AWS Load Balancer Controller(NLB 프로비저닝) + ingress-nginx(실제 L7 라우팅, k8s/base/08-ingress.yaml이 대상)
 │   │   ├── edge_routing/                         # CloudFront 배포(S3+ALB 오리진, WAF 연결), 도메인→CloudFront Route 53 ALIAS 레코드
-│   │   └── ai_service_iam/                       # AI 서비스 Pod용 IRSA — Bedrock 호출 + 신간 등록 이벤트 소비 구현 완료, S3 Vectors 권한은 인덱스 ARN이 생기면 자동으로 붙는 조건부 statement로 구현, §3.3-5 참고
+│   │   ├── ai_service_iam/                       # AI 서비스 Pod용 IRSA — Bedrock 호출 + 신간 등록 이벤트 소비 구현 완료, S3 Vectors 권한은 인덱스 ARN이 생기면 자동으로 붙는 조건부 statement로 구현, §3.3-5 참고
+│   │   └── member_service_iam/                   # member 서비스 Pod용 IRSA — Cognito Admin API(회원가입/로그인/토큰갱신) 호출용, §3.3-6 참고
 │   └── dev_tools/
 │       └── ec2_postgres/                         # Dev 환경 전용, Aurora 대신 쓰는 비용 절감형 단일 EC2 PostgreSQL
 │
@@ -99,9 +100,9 @@ terraform/
         └── 02-runtime/
             ├── backend.tf                        # S3 tfstate Key: prod/02-runtime.tfstate
             ├── provider.tf                       # AWS + Helm + Kubernetes Provider 설정
-            ├── main.tf                           # 00-base/01-data SSM 참조 + modules/compute/* 호출 (eks_cluster → karpenter → ingress_alb → edge_routing / ai_service_iam 순)
+            ├── main.tf                           # 00-base/01-data SSM 참조 + modules/compute/* 호출 (eks_cluster → karpenter → ingress_alb → edge_routing / ai_service_iam / member_service_iam 순)
             ├── variables.tf
-            ├── outputs.tf                        # cluster_name, cluster_endpoint, alb_dns_name, cloudfront_distribution_id, public_domain_url, ai_service_irsa_arn
+            ├── outputs.tf                        # cluster_name, cluster_endpoint, alb_dns_name, cloudfront_distribution_id, public_domain_url, ai_service_irsa_arn, member_service_irsa_arn
             └── terraform.tfvars
 
 ```
@@ -207,6 +208,7 @@ terraform/
 * **대상 리소스:** `aws_cognito_user_pool`, `aws_cognito_user_pool_client` (SRP/PASSWORD Auth), `aws_cognito_user_pool_domain`
 * **필수 입력(Inputs):** `user_pool_name`, `custom_domain_name`
 * **출력값(Outputs):** `user_pool_id`, `user_pool_arn`, `user_pool_client_id`
+* **`explicit_auth_flows`에 `ALLOW_ADMIN_USER_PASSWORD_AUTH`가 반드시 있어야 합니다 — 2026-08-23 dev 실배포에서 실제로 겪음.** 백엔드(`CognitoAuthClient.login`)는 이 App Client로 클라이언트 SRP/PASSWORD 플로우를 태우는 게 아니라, **서버 사이드 `AdminInitiateAuth`(`ADMIN_USER_PASSWORD_AUTH`)로 로그인시킵니다.** 처음엔 `ALLOW_USER_SRP_AUTH`/`ALLOW_USER_PASSWORD_AUTH`/`ALLOW_REFRESH_TOKEN_AUTH`만 있었는데, 이 셋 중 어느 것도 `AdminInitiateAuth`의 `ADMIN_USER_PASSWORD_AUTH` 플로우를 허용하지 않아 로그인이 항상 `"Auth flow not enabled for this client"`로 실패했습니다(회원가입은 `AdminCreateUser`/`AdminSetUserPassword`라 이 플래그와 무관해 영향 없었음). `refresh()`도 같은 `AdminInitiateAuth`를 쓰지만 `REFRESH_TOKEN_AUTH` 플로우라 `ALLOW_REFRESH_TOKEN_AUTH`로 이미 커버돼 있었습니다.
 
 #### 5) `ai_pipeline`
 
@@ -260,6 +262,7 @@ terraform/
 * **대상 리소스:** `aws_cloudfront_distribution`(오리진 2개: S3 프론트엔드 `default_cache_behavior` + ALB `/api/*` `ordered_cache_behavior`, `web_acl_id`로 WAF ARN 직접 연결), `aws_cloudfront_origin_access_control`(OAC), `aws_cloudfront_function`(SPA 라우팅용, 아래 참고), `aws_s3_bucket_policy`(S3 버킷을 이 CloudFront 배포에서만 접근 가능하도록 제한), `aws_route53_record` ×2(apex + www, 도메인 → **CloudFront** ALIAS)
 * **재검토 중 발견 — SPA 라우팅을 `custom_error_response`로 처리하면 실제 버그가 됩니다.** React Router 같은 클라이언트 사이드 라우팅을 지원하려면 확장자 없는 경로(예: `/mypage`)를 `index.html`로 돌려줘야 하는데, 처음엔 `custom_error_response`(403/404 → `/index.html`)로 구현했습니다. 그런데 `custom_error_response`는 **오리진과 무관하게 배포 전체에 걸리는 규칙**이라, `/api/*`(ALB 오리진)에서 나는 진짜 404까지 잡아채서 `index.html` 200 응답으로 바꿔버립니다 — 프론트가 API 에러를 영영 못 받게 되는 실제 버그입니다. `cloudfront-js-2.0` 런타임의 `aws_cloudfront_function`으로 바꿔서 `default_cache_behavior`(S3 오리진)에만 `viewer-request` 이벤트로 붙였습니다 — `/api/*` `ordered_cache_behavior`엔 이 함수를 안 붙이므로 API 오리진은 전혀 영향받지 않습니다. 같이 빠져있던 `default_root_object = "index.html"`도 추가했습니다.
 * **ALB 오리진은 `origin_protocol_policy = "http-only"`입니다** — ingress-nginx가 내부적으로 TLS를 종단하지 않으므로(공개 HTTPS는 CloudFront가 ACM 인증서로 종단), CloudFront-오리진 구간은 평문 HTTP입니다.
+* **`/api/*`는 레거시 `forwarded_values`가 아니라 AWS 관리형 `origin_request_policy`/`cache_policy`를 씁니다 — 2026-08-23 dev 실배포에서 실제로 겪음.** 원래 `forwarded_values { headers = ["Authorization", "Content-Type", "X-Member-Id"], ... }` 방식이었는데, **레거시 `forwarded_values`는 커스텀 오리진(ALB)에 원본 `Host` 헤더를 절대 전달하지 못하는 구조적 한계가 있습니다** — `headers`에 `Host`를 넣어도 무시되고 오리진 자체 도메인명(ALB DNS)으로 고정됩니다. `ingress-nginx`의 `lion-ingress`는 `host: dev.ajttk.com`(또는 `book.ajttk.com`) 기준으로 라우팅하므로, Host가 안 넘어가면 CloudFront를 거치는 `/api/*` 요청이 전부 nginx 기본 404로 떨어집니다(회원가입/로그인 포함 API 전체 장애). AWS 관리형 `Origin Request Policy "Managed-AllViewer"`(`data "aws_cloudfront_origin_request_policy"`로 조회, `id = "216adef6-5c7f-47e4-b989-5492eafa07d3"`) + `Cache Policy "Managed-CachingDisabled"`(`id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"`)로 교체해서 Host를 포함한 전체 뷰어 요청을 그대로 오리진에 전달하도록 고쳤습니다. 캐싱은 API라 여전히 끕니다.
 * **필수 입력(Inputs):** `alb_dns_name`(같은 `02-runtime` 내 `ingress_alb` 출력), `route53_zone_id`, `acm_certificate_arn`(us-east-1), `waf_web_acl_arn`, `frontend_bucket_id`, `frontend_bucket_arn`, `frontend_bucket_domain_name`(모두 `00-base` SSM 조회)
 * **출력값(Outputs):** `cloudfront_distribution_id`, `cloudfront_domain_name`, `public_domain_url`
 * **순서:** `eks_cluster → karpenter → ingress_alb → edge_routing` 순으로 적용됩니다.
@@ -271,6 +274,14 @@ terraform/
 * **S3 Vectors 권한은 조건부입니다** — `01-data`의 `ai_pipeline`이 아직 `null`을 출력하므로(provider 미지원), 인덱스 ARN이 하나라도 있을 때만 그 statement를 동적으로 추가합니다(`dynamic "statement"` 블록). 지금은 Bedrock + SQS 권한만 실제로 붙습니다.
 * **필수 입력(Inputs):** `oidc_provider_arn`, `oidc_provider_url`, `ingest_channel_arn`, `recommendation_index_arn`(nullable), `purchased_book_rag_index_arn`(nullable), `bedrock_model_arns`
 * **출력값(Outputs):** `ai_service_irsa_arn`
+
+#### 6) `member_service_iam`
+
+* **역할:** `member` 마이크로서비스 Pod가 Cognito Admin API(회원가입/로그인/토큰갱신)를 호출할 때 쓰는 IRSA. `ai_service_iam`과 완전히 같은 패턴이지만, **처음엔 이 모듈 자체가 없었습니다** — member-service가 `default` ServiceAccount로 떠서 AWS SDK 자격증명 체인이 통째로 비어 `SdkClientException`으로 회원가입/로그인이 500이었습니다(2026-08-23 dev 실배포에서 실제로 겪음). `ai_service_iam`을 그대로 본떠서 새로 만들었습니다.
+* **대상 리소스:** `aws_iam_role`(Trust policy: `system:serviceaccount:lion-app:member-service`만 허용), `aws_iam_role_policy`(`cognito-idp:AdminCreateUser`/`AdminSetUserPassword`/`AdminDeleteUser`/`AdminInitiateAuth` — `CognitoAuthClient.java`가 실제로 호출하는 것만, 특정 User Pool ARN 하나로 스코프)
+* **필수 입력(Inputs):** `oidc_provider_arn`, `oidc_provider_url`, `user_pool_arn`(`01-data`의 `auth` 모듈 출력을 SSM으로 조회 — 원래 SSM에 없어서 `01-data`에 `cognito_user_pool_arn` 파라미터를 새로 추가함)
+* **출력값(Outputs):** `member_service_irsa_arn`
+* **IRSA를 연결해도 끝이 아니었습니다 — `sts` 모듈 누락.** ServiceAccount에 Role ARN을 붙인 뒤에도 여전히 `SdkClientException`이었는데, 이번엔 메시지가 `"WebIdentityTokenCredentialsProvider(): To use web identity tokens, the 'sts' service module must be on the class path."`로 바뀌었습니다. 웹 아이덴티티 토큰 자체는 인식됐지만, 그걸 실제로 STS `AssumeRoleWithWebIdentity`로 교환할 `software.amazon.awssdk:sts` 모듈이 `backend/modules/member/build.gradle`의 클래스패스에 없었던 것 — `ai-api`는 이미 같은 이유로 `sts`를 명시적으로 의존성에 추가해뒀는데(`backend/apps/ai-api/build.gradle`), member 모듈엔 `cognitoidentityprovider`만 있고 `sts`가 빠져 있었습니다. `software.amazon.awssdk:sts:2.25.20` 추가로 해결.
 
 ---
 

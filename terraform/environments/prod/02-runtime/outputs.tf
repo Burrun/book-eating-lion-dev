@@ -21,3 +21,7 @@ output "public_domain_url" {
 output "ai_service_irsa_arn" {
   value = module.ai_service_iam.ai_service_irsa_arn
 }
+
+output "member_service_irsa_arn" {
+  value = module.member_service_iam.member_service_irsa_arn
+}
