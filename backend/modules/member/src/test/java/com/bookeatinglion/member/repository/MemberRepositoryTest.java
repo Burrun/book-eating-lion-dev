@@ -20,7 +20,7 @@ class MemberRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        memberRepository.save(Member.register("sub-1", "lion@bookeating.com", "책먹는사자"));
+        memberRepository.save(Member.register("sub-1", "lion@bookeating.com", "책먹는사자", "사자왕"));
     }
 
     @Test
