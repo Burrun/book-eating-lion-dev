@@ -7,6 +7,14 @@ locals {
     NoExecute        = "NO_EXECUTE"
     PreferNoSchedule = "PREFER_NO_SCHEDULE"
   }
+
+  # 시스템 노드그룹 taint를 견디는 toleration - coredns/cloudwatch_observability
+  # 등 이 노드그룹에서 떠야 하는 addon들이 공유해서 쓴다.
+  system_pool_toleration = {
+    key      = var.system_pool_taint_key
+    operator = "Exists"
+    effect   = var.system_pool_taint_effect
+  }
 }
 
 # ── Cluster IAM Role ─────────────────────────────────────────────
@@ -217,11 +225,7 @@ resource "aws_eks_addon" "coredns" {
   # Karpenter 노드는 애초에 CoreDNS가 있어야 쓸 수 있는 DNS로 자기 자신을
   # 찾아야 하는 부트스트랩 문제가 생길 수 있음) 클러스터 DNS 전체가 멎는다.
   configuration_values = jsonencode({
-    tolerations = [{
-      key      = var.system_pool_taint_key
-      operator = "Exists"
-      effect   = var.system_pool_taint_effect
-    }]
+    tolerations = [local.system_pool_toleration]
   })
 }
 
@@ -238,11 +242,7 @@ resource "aws_eks_addon" "cloudwatch_observability" {
   # 영향 없어서(2026-08-22 sandbox 클러스터에서 처음부터 만들어보다가 실제로
   # 겪음 - dev는 이 taint(PR #62)보다 addon이 먼저 떠 있어서 안 드러났었다).
   configuration_values = jsonencode({
-    tolerations = [{
-      key      = var.system_pool_taint_key
-      operator = "Exists"
-      effect   = var.system_pool_taint_effect
-    }]
+    tolerations = [local.system_pool_toleration]
   })
 }
 
