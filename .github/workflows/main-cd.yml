@@ -294,6 +294,12 @@ jobs:
           # 비어 있으면 k8s/ai/serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이
           # 그대로 박혀 두 파드 다 default SA로 떠서 AWS SDK 자격증명 체인이 빈다.
           AI_SERVICE_IRSA_ARN: ${{ vars.AI_SERVICE_IRSA_ARN }}
+          # member-service ServiceAccount의 IRSA role-arn (terraform member_service_iam
+          # 모듈). 비어 있으면 k8s/member/serviceaccount.yaml에 리터럴
+          # "${MEMBER_SERVICE_IRSA_ARN}"이 그대로 박혀 default SA로 떠서 Cognito
+          # AdminCreateUser/AdminInitiateAuth 호출용 AWS SDK 자격증명 체인이 빈다
+          # (2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입 500).
+          MEMBER_SERVICE_IRSA_ARN: ${{ vars.MEMBER_SERVICE_IRSA_ARN }}
           # /ws/ai/chat 의 유일한 Origin 방어선(k8s/ai/configmap.yaml 참고). 이 VARS 목록에
           # 빠져 있으면 envsubst 가 손대지 않아 ConfigMap 에 "${CHAT_ALLOWED_ORIGINS}" 리터럴이
           # 그대로 박히고, 그 값이 그대로 allowed-origin-pattern 이 돼서 실제 브라우저 Origin과
@@ -323,8 +329,14 @@ jobs:
             echo "::error::필수 값 AI_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
+          # 비어 있으면 serviceaccount.yaml에 리터럴 "${MEMBER_SERVICE_IRSA_ARN}"이 그대로
+          # 박혀 member-service가 default SA로 뜨고 Cognito 호출용 AWS SDK 자격증명 체인이 빈다.
+          if [ "${{ matrix.service }}" = "member" ] && [ -z "$MEMBER_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 MEMBER_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

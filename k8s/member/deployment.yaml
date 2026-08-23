@@ -21,6 +21,7 @@ spec:
         app: member-service
         tier: backend
     spec:
+      serviceAccountName: member-service
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

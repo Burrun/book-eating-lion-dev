@@ -127,6 +127,14 @@ resource "aws_ssm_parameter" "cognito_user_pool_client_id" {
   value = module.auth.user_pool_client_id
 }
 
+# member_service_iam(02-runtime)이 Cognito Admin API 권한을 이 User Pool 하나로
+# 스코프하는 데 필요하다.
+resource "aws_ssm_parameter" "cognito_user_pool_arn" {
+  name  = "${local.ssm_prefix}/auth/user_pool_arn"
+  type  = "String"
+  value = module.auth.user_pool_arn
+}
+
 resource "aws_ssm_parameter" "ai_channel" {
   for_each = local.ai_channel_ssm_values
 
