@@ -106,6 +106,23 @@ resource "aws_cloudfront_distribution" "this" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
+  # /api/*에는 안 걸리는 별도 경로 - 없으면 default_cache_behavior(S3 오리진)로 떨어져서
+  # WebSocket 핸드셰이크가 index.html(HTTP 200, text/html)을 받고 그대로 끝나버린다
+  # (2026-08-23 dev 실배포에서 실제로 겪음 - AI 챗봇이 계속 안 됨). CloudFront는 GET +
+  # Upgrade/Connection 헤더가 오리진까지 그대로 전달되면 WebSocket을 별도 설정 없이도
+  # 프록시한다 - AllViewer가 그 헤더들을 포함해 전부 전달한다.
+  ordered_cache_behavior {
+    path_pattern           = "/ws/ai/chat"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb-api"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
