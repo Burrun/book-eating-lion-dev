@@ -146,12 +146,25 @@ set_secret_from_stdin "AWS_COGNITO_CLIENT_ID" "$(ssm auth/user_pool_client_id)"
 
 echo "  ⚠️  SKIP  AWS_COGNITO_CLIENT_SECRET — Cognito 클라이언트가 generate_secret=false(공개 클라이언트)라 시크릿 자체가 없음"
 
-MASTER_SECRET_JSON=$(aws secretsmanager get-secret-value \
-  --secret-id "lion-team3-${ENV}-ec2-postgres-master" \
-  --region "$REGION" --query SecretString --output text 2>/dev/null || true)
+# dev(ec2_postgres)/prod(aurora_pg) 둘 다 같은 이름으로 SSM에 등록돼 있다
+# (terraform/environments/{env}/01-data/main.tf의 db_master_secret_arn 참고) -
+# 환경별로 시크릿 이름 자체가 다르므로(EC2용 vs Aurora 자동 발급) 하드코딩 대신
+# 이 ARN으로 조회한다.
+DB_MASTER_SECRET_ARN=$(ssm data/db_master_secret_arn)
+
+if [[ -z "$DB_MASTER_SECRET_ARN" ]]; then
+  echo "  ⚠️  SKIP  DB 계정 8개(CATALOG/ORDER/MEMBER/AI × USERNAME/PASSWORD) — SSM에 db_master_secret_arn이 없음 (01-data가 아직 이 파라미터를 안 만든 구버전이거나 apply 전)"
+  MASTER_SECRET_JSON=""
+else
+  MASTER_SECRET_JSON=$(aws secretsmanager get-secret-value \
+    --secret-id "$DB_MASTER_SECRET_ARN" \
+    --region "$REGION" --query SecretString --output text 2>/dev/null || true)
+fi
 
 if [[ -z "$MASTER_SECRET_JSON" ]]; then
-  echo "  ⚠️  SKIP  DB 계정 8개(CATALOG/ORDER/MEMBER/AI × USERNAME/PASSWORD) — Secrets Manager에서 못 찾음 (Aurora를 쓰는 환경이면 master_user_secret_arn 쪽을 대신 조회해야 함, 이 스크립트는 dev의 ec2_postgres 기준)"
+  if [[ -n "$DB_MASTER_SECRET_ARN" ]]; then
+    echo "  ⚠️  SKIP  DB 계정 8개(CATALOG/ORDER/MEMBER/AI × USERNAME/PASSWORD) — Secrets Manager에서 $DB_MASTER_SECRET_ARN 조회 실패"
+  fi
 else
   DB_USER=$(echo "$MASTER_SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['username'])")
   DB_PASS=$(echo "$MASTER_SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
