@@ -305,6 +305,14 @@ resource "helm_release" "karpenter" {
       ]
     })
   ]
+
+  # helm_release는 Role의 ARN만 참조하고 그 옆의 인라인 정책(aws_iam_role_policy)과는
+  # 값으로 연결되지 않는다 - 이 depends_on이 없으면 destroy 시 Terraform이 이 정책을
+  # helm_release보다 먼저(또는 동시에) 지울 수 있다. 컨트롤러는 아직 살아서
+  # EC2NodeClass의 IAM Instance Profile을 정리하려는데 권한만 사라져
+  # karpenter.k8s.aws/termination finalizer가 영원히 안 빠지고 destroy 전체가 멎는다
+  # (2026-08-23 dev 실배포에서 실제로 겪음 - IAM 정책을 수동으로 임시 재부착해서 복구).
+  depends_on = [aws_iam_role_policy.controller]
 }
 
 # ── NodePool / EC2NodeClass ────────────────────────────────────────
