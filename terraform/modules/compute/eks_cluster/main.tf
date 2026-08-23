@@ -7,6 +7,14 @@ locals {
     NoExecute        = "NO_EXECUTE"
     PreferNoSchedule = "PREFER_NO_SCHEDULE"
   }
+
+  # 시스템 노드그룹 taint를 견디는 toleration - coredns/cloudwatch_observability
+  # 등 이 노드그룹에서 떠야 하는 addon들이 공유해서 쓴다.
+  system_pool_toleration = {
+    key      = var.system_pool_taint_key
+    operator = "Exists"
+    effect   = var.system_pool_taint_effect
+  }
 }
 
 # ── Cluster IAM Role ─────────────────────────────────────────────
@@ -217,11 +225,7 @@ resource "aws_eks_addon" "coredns" {
   # Karpenter 노드는 애초에 CoreDNS가 있어야 쓸 수 있는 DNS로 자기 자신을
   # 찾아야 하는 부트스트랩 문제가 생길 수 있음) 클러스터 DNS 전체가 멎는다.
   configuration_values = jsonencode({
-    tolerations = [{
-      key      = var.system_pool_taint_key
-      operator = "Exists"
-      effect   = var.system_pool_taint_effect
-    }]
+    tolerations = [local.system_pool_toleration]
   })
 }
 
@@ -230,6 +234,16 @@ resource "aws_eks_addon" "cloudwatch_observability" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "amazon-cloudwatch-observability"
   depends_on   = [aws_eks_node_group.system]
+
+  # coredns와 같은 이유(위 주석 참고) - 이게 없으면 이 addon의 파드(manager,
+  # cloudwatch-agent 등)가 시스템 노드그룹 taint를 못 견뎌 전혀 스케줄 못 되고,
+  # addon 자체가 DEGRADED 상태로 20분 타임아웃 후 apply가 실패한다. 클러스터를
+  # 새로 만들 때만 드러난다 - 이미 떠 있던 파드는 taint가 나중에 추가돼도
+  # 영향 없어서(2026-08-22 sandbox 클러스터에서 처음부터 만들어보다가 실제로
+  # 겪음 - dev는 이 taint(PR #62)보다 addon이 먼저 떠 있어서 안 드러났었다).
+  configuration_values = jsonencode({
+    tolerations = [local.system_pool_toleration]
+  })
 }
 
 resource "aws_cloudwatch_metric_alarm" "pod_cpu" {
