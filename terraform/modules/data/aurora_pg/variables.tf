@@ -63,3 +63,9 @@ variable "skip_final_snapshot" {
   type    = bool
   default = false
 }
+
+variable "backup_retention_period" {
+  description = "자동 백업(PITR) 보존 기간(일). 미지정 시 AWS 기본값(1일)이 적용되어 24시간이 지난 장애는 PITR로 복구할 수 없다."
+  type        = number
+  default     = 1
+}

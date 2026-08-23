@@ -5,8 +5,9 @@ database_name   = "bookdb"
 master_username = "bookadmin"
 reader_count    = 1
 
-aurora_deletion_protection = true
-aurora_skip_final_snapshot = false
+aurora_deletion_protection     = true
+aurora_skip_final_snapshot     = false
+aurora_backup_retention_period = 7
 
 valkey_node_type     = "cache.t4g.medium"
 valkey_replica_count = 1

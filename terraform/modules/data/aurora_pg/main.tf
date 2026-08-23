@@ -50,6 +50,7 @@ resource "aws_rds_cluster" "this" {
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "lion-team3-${var.environment}-final-${formatdate("YYYYMMDDhhmmss", timestamp())}"
+  backup_retention_period   = var.backup_retention_period
 
   # deletion_protection(AWS API 레벨, 콘솔/CLI에서도 막음)이 실제 안전장치다.
   # Terraform lifecycle.prevent_destroy는 변수를 받을 수 없어(리터럴만 허용) 환경별로
