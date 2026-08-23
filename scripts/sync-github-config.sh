@@ -117,6 +117,7 @@ set_var "REDIS_HOST" "$(ssm data/valkey_endpoint)"
 set_var "SQS_PURCHASE_QUEUE_URL" "$(ssm ai/purchase_channel_url)"
 set_var "SQS_INGEST_QUEUE_URL" "$(ssm ai/ingest_channel_url)"
 set_var "AI_SERVICE_IRSA_ARN" "$(ssm ai/service_irsa_arn)"
+set_var "MEMBER_SERVICE_IRSA_ARN" "$(ssm member/service_irsa_arn)"
 
 # backend엔 application-dev.yml이 없다 - application-prod.yml이 ${DB_HOST} 등으로
 # 파라미터화돼 있어 재사용 가능하므로, AWS 환경명과 무관하게 Spring 프로필은

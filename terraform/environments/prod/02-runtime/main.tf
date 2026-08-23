@@ -66,6 +66,10 @@ data "aws_ssm_parameter" "ai_purchase_channel_arn" {
   name = "${local.ssm_prefix}/ai/purchase_channel_arn"
 }
 
+data "aws_ssm_parameter" "cognito_user_pool_arn" {
+  name = "${local.ssm_prefix}/auth/user_pool_arn"
+}
+
 # ── 1. EKS 클러스터 (최초 apply 시 -target으로 먼저 만들 것) ────────
 module "eks_cluster" {
   source = "../../../modules/compute/eks_cluster"
@@ -161,4 +165,26 @@ resource "aws_ssm_parameter" "ai_service_irsa_arn" {
   name  = "${local.ssm_prefix}/ai/service_irsa_arn"
   type  = "String"
   value = module.ai_service_iam.ai_service_irsa_arn
+}
+
+# ── 6. member-service IRSA (Cognito Admin API 호출용) ─────────────
+# 원래 member-service는 IRSA가 아예 없어 default ServiceAccount로 떴고,
+# CognitoAuthClient의 adminCreateUser/adminInitiateAuth 호출이 SdkClientException
+# (자격증명 체인 전부 빈 상태)으로 죽어 회원가입/로그인이 500이었다
+# (2026-08-23 dev 실배포에서 실제로 겪음).
+module "member_service_iam" {
+  source = "../../../modules/compute/member_service_iam"
+
+  environment       = var.environment
+  oidc_provider_arn = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url = module.eks_cluster.oidc_provider_url
+  user_pool_arn     = data.aws_ssm_parameter.cognito_user_pool_arn.value
+}
+
+# CI가 k8s/member/serviceaccount.yaml의 eks.amazonaws.com/role-arn 애노테이션을
+# 채우려면 이 값을 SSM으로 받아야 한다. ai_service_irsa_arn과 동일한 이유.
+resource "aws_ssm_parameter" "member_service_irsa_arn" {
+  name  = "${local.ssm_prefix}/member/service_irsa_arn"
+  type  = "String"
+  value = module.member_service_iam.member_service_irsa_arn
 }

@@ -1,6 +1,17 @@
 # 트래픽 경로: 도메인 -> CloudFront -> (기본) S3 프론트엔드 / (/api/*) ALB(ingress-nginx NLB)
 # 도메인이 ALB를 직접 가리키는 레코드는 만들지 않는다 (TERRAFORM_STRUCTURE.md §3.3-4).
 
+# /api/* ordered_cache_behavior가 쓰는 AWS 관리형 정책 - Host 헤더를 포함해 뷰어
+# 요청을 오리진(ALB)에 그대로 전달하면서 캐싱은 끈다. 아래 forwarded_values 관련
+# 주석 참고.
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer" {
+  name = "Managed-AllViewer"
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "lion-team3-${var.environment}-frontend-oac"
   origin_access_control_origin_type = "s3"
@@ -84,18 +95,15 @@ resource "aws_cloudfront_distribution" "this" {
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
 
-    # API는 캐싱하지 않고 요청을 그대로 전달한다.
-    forwarded_values {
-      query_string = true
-      headers      = ["Authorization", "Content-Type", "X-Member-Id"]
-      cookies {
-        forward = "all"
-      }
-    }
-
-    min_ttl     = 0
-    default_ttl = 0
-    max_ttl     = 0
+    # 레거시 forwarded_values는 커스텀 오리진(ALB)에 원본 Host 헤더를 절대 전달하지
+    # 못한다(headers 목록에 "Host"를 넣어도 무시되고 오리진 자체 도메인명으로 고정됨).
+    # ingress-nginx의 lion-ingress가 host: dev.ajttk.com 기준으로 라우팅하기 때문에,
+    # Host가 안 넘어가면 CloudFront를 거치는 /api/* 요청이 전부 nginx 기본 404로
+    # 떨어진다(2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입/로그인 전부 404).
+    # AWS 관리형 Origin Request Policy "AllViewer"는 Host를 포함한 모든 뷰어 헤더/
+    # 쿠키/쿼리스트링을 오리진에 그대로 전달한다 - 캐싱은 API라 여전히 끈다("CachingDisabled").
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
   restrictions {
