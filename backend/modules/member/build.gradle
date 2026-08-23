@@ -3,6 +3,10 @@ dependencies {
 
     // AWS Cognito
     implementation 'software.amazon.awssdk:cognitoidentityprovider:2.25.20'
+    // IRSA(WebIdentityTokenCredentialsProvider)가 웹 아이덴티티 토큰을 실제로 STS와
+    // 교환하려면 이 모듈이 클래스패스에 있어야 한다 - 없으면 자격증명 체인이 전부
+    // 실패한다(ai-api도 동일한 이유로 sts를 명시적으로 추가함, build.gradle 참고).
+    implementation 'software.amazon.awssdk:sts:2.25.20'
 
     testImplementation 'com.h2database:h2'
     testImplementation 'org.springframework.security:spring-security-test'
