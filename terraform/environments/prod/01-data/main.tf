@@ -103,6 +103,16 @@ resource "aws_ssm_parameter" "rds_proxy_endpoint" {
   value = module.rds_proxy.proxy_endpoint
 }
 
+# scripts/sync-github-config.sh가 DB 계정 시크릿(CATALOG/ORDER/MEMBER/AI ×
+# USERNAME/PASSWORD)을 조회할 때 dev/prod 어느 쪽이든 같은 SSM 키로 읽게 한다.
+# ec2_postgres/aurora_pg 둘 다 master_user_secret_arn 출력 이름을 맞춰뒀다
+# (모듈 설계 원칙 - 위 db_endpoint 등과 동일).
+resource "aws_ssm_parameter" "db_master_secret_arn" {
+  name  = "${local.ssm_prefix}/data/db_master_secret_arn"
+  type  = "String"
+  value = module.aurora_pg.master_user_secret_arn
+}
+
 resource "aws_ssm_parameter" "valkey_endpoint" {
   name  = "${local.ssm_prefix}/data/valkey_endpoint"
   type  = "String"
