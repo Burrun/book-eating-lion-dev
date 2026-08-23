@@ -36,6 +36,11 @@ resource "aws_cognito_user_pool_client" "this" {
     "ALLOW_USER_SRP_AUTH",
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
+    # 백엔드(CognitoAuthClient.login)가 클라이언트 SRP/PASSWORD가 아니라 서버 사이드
+    # AdminInitiateAuth(ADMIN_USER_PASSWORD_AUTH)로 로그인시킨다 - 이게 없으면
+    # "Auth flow not enabled for this client"로 로그인이 항상 실패한다
+    # (2026-08-23 dev 실배포에서 실제로 겪음).
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH",
   ]
 
   allowed_oauth_flows                  = ["code"]
