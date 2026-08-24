@@ -327,8 +327,16 @@ export default function ProductDetailPage() {
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
       <section className="flex flex-col gap-6 rounded-2xl border border-forest/10 bg-white p-6 sm:flex-row">
-        <div className="flex h-72 w-full shrink-0 items-center justify-center rounded-xl border border-forest/10 bg-paper text-6xl sm:w-56">
-          📖
+        <div className="flex h-72 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-forest/10 bg-paper text-6xl sm:w-56">
+          {book.coverImageUrl ? (
+            <img
+              src={book.coverImageUrl}
+              alt={book.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            "📖"
+          )}
         </div>
         <div className="flex flex-1 flex-col gap-2">
           <h1 className="text-2xl font-bold">{book.title}</h1>

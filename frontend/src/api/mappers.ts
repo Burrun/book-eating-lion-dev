@@ -39,6 +39,7 @@ export function toBookSummary(dto: BookSummaryResponse): BookSummary {
     price: dto.price,
     rating: dto.averageRating,
     category: dto.category,
+    coverImageUrl: dto.coverImageUrl ?? null,
   };
 }
 
@@ -54,6 +55,7 @@ export function toBook(dto: BookDetailResponse): Book {
     // 상세 페이지에서는 리뷰 목록 API의 totalElements로 다시 덮어써 최신값을 쓴다
     // (ProductDetailPage.tsx 참고) — 여기 값은 그 전까지의 초기 표시용이다.
     reviewCount: dto.reviewCount,
+    coverImageUrl: dto.coverImageUrl ?? null,
     shippingNote: DEFAULT_SHIPPING_NOTE, // 백엔드에 배송 정책 없음
     synopsis: dto.description ?? "", // 무료 회원용 줄거리. 백엔드에서 null 가능
     webtoonCuts: [], // 유료 회원용. 별도 API(/synopsis/detail)에서 toWebtoonCuts로 채운다

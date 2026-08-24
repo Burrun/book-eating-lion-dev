@@ -9,6 +9,7 @@ export interface BookSummary {
   price: number;
   rating: number;
   category?: string;
+  coverImageUrl: string | null;
 }
 
 export interface WebtoonCut {
@@ -36,6 +37,7 @@ export interface Book {
   rating: number;
   reviewCount: number;
   shippingNote: string;
+  coverImageUrl: string | null;
   /** 무료 회원에게 보여주는 줄거리 텍스트 */
   synopsis: string;
   /** 구독 회원 전용 웹툰 요약 컷 */
@@ -48,4 +50,5 @@ export interface SwipeDeckItem {
   id: string;
   title: string;
   reason: string;
+  coverImageUrl: string | null;
 }
