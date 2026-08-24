@@ -161,6 +161,20 @@ jobs:
             kubectl apply -f "rendered/$svc/"
           done
 
+          # k3s 전용 패치 - k8s/*/deployment.yaml의 RollingUpdate(maxUnavailable: 0,
+          # maxSurge: 1)는 노드가 자동으로 늘어나는 EKS/Karpenter 기준이다. 여기는
+          # 노드가 t4g.xlarge 1대로 고정이라 롤아웃 때 잠깐 필요한 2배 리소스를 낼 수
+          # 없어서, 새 파드가 Pending에 걸리고 rollout이 타임아웃되는 게 매 배포마다
+          # 반복됐다(실측). Recreate는 옛 파드를 먼저 내리고 새 파드를 띄워 리소스가
+          # 2배로 안 든다 - 대가는 배포마다 수십 초 다운타임이고, dev라 감수한다.
+          # 같은 이유로 HPA도 노드 1대에 맞게 상한을 낮춘다(EKS용 원본은 20~30).
+          for d in $(kubectl -n lion-app get deploy -o name); do
+            kubectl -n lion-app patch "$d" -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+          done
+          for h in $(kubectl -n lion-app get hpa -o name); do
+            kubectl -n lion-app patch "$h" -p '{"spec":{"minReplicas":1,"maxReplicas":3}}'
+          done
+
       - name: rollout 대기
         env:
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
