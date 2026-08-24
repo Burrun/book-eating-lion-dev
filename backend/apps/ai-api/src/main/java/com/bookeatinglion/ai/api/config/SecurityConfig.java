@@ -29,6 +29,11 @@ public class SecurityConfig {
                         // 티켓으로 검사한다.
                         .requestMatchers("/api/ai/bot/chat/ticket")
                         .authenticated()
+                        // FAQ 챗봇도 호출마다 Bedrock을 태운다 - 인증 없이 열려 있으면 로그인
+                        // 없는 익명 요청도 비용을 발생시킨다. 쿼터는 안 건다(제일 싼 모델 +
+                        // 대부분 캐시 히트라 비용 자체가 작음) - JWT만 요구한다.
+                        .requestMatchers("/api/ai/bot/ask")
+                        .authenticated()
                         .requestMatchers("/ws/**")
                         .permitAll()
                         .anyRequest()
