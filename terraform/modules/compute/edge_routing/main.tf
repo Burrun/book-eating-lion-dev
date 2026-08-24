@@ -12,8 +12,23 @@ data "aws_cloudfront_origin_request_policy" "all_viewer" {
   name = "Managed-AllViewer"
 }
 
+# /covers/* 캐싱용 - S3 정적 파일이라 쿼리스트링/쿠키 없이 URL만으로 캐시 키를 잡는다.
+data "aws_cloudfront_cache_policy" "caching_optimized" {
+  name = "Managed-CachingOptimized"
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "lion-team3-${var.environment}-frontend-oac"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# 도서 표지 등 정적 미디어 전용 오리진. frontend와 분리하는 이유는 이 파일들이
+# 프론트엔드 배포(dist/) 주기와 무관하게 독립적으로 갱신되기 때문이다 - 표지 하나
+# 바꾸겠다고 SPA 전체를 재배포할 이유가 없다.
+resource "aws_cloudfront_origin_access_control" "media" {
+  name                              = "lion-team3-${var.environment}-media-oac"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -53,6 +68,12 @@ resource "aws_cloudfront_distribution" "this" {
     domain_name              = var.frontend_bucket_domain_name
     origin_id                = "s3-frontend"
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+  }
+
+  origin {
+    domain_name              = var.media_bucket_domain_name
+    origin_id                = "s3-media"
+    origin_access_control_id = aws_cloudfront_origin_access_control.media.id
   }
 
   origin {
@@ -123,6 +144,20 @@ resource "aws_cloudfront_distribution" "this" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
+  # 도서 표지 등 정적 미디어. S3 오리진(s3-media)이라 GET/HEAD만 허용하고
+  # AWS 관리형 CachingOptimized로 엣지에 오래 캐싱한다 - PUT/POST는 CI/CD가
+  # IAM으로 직접 S3에 올리지 CloudFront를 거치지 않는다.
+  ordered_cache_behavior {
+    path_pattern           = "/covers/*"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "s3-media"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -162,6 +197,32 @@ data "aws_iam_policy_document" "frontend_bucket" {
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = var.frontend_bucket_id
   policy = data.aws_iam_policy_document.frontend_bucket.json
+}
+
+# media 버킷도 이 CloudFront 배포에서만 접근 가능하도록 제한 (버킷 자체는 00-base storage 소유).
+data "aws_iam_policy_document" "media_bucket" {
+  statement {
+    sid       = "AllowCloudFrontOAC"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${var.media_bucket_arn}/*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.this.arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media" {
+  bucket = var.media_bucket_id
+  policy = data.aws_iam_policy_document.media_bucket.json
 }
 
 resource "aws_route53_record" "apex" {

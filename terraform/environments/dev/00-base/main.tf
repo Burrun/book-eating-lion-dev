@@ -172,6 +172,12 @@ resource "aws_ssm_parameter" "media_bucket_arn" {
   value = module.storage.media_bucket_arn
 }
 
+resource "aws_ssm_parameter" "media_bucket_domain_name" {
+  name  = "${local.ssm_prefix}/storage/media_bucket_domain_name"
+  type  = "String"
+  value = module.storage.media_bucket_domain_name
+}
+
 resource "aws_ssm_parameter" "sns_topic_arn" {
   name  = "${local.ssm_prefix}/alerting/sns_topic_arn"
   type  = "String"

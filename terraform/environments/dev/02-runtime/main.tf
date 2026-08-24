@@ -58,6 +58,18 @@ data "aws_ssm_parameter" "frontend_bucket_domain_name" {
   name = "${local.ssm_prefix}/storage/frontend_bucket_domain_name"
 }
 
+data "aws_ssm_parameter" "media_bucket_id" {
+  name = "${local.ssm_prefix}/storage/media_bucket_id"
+}
+
+data "aws_ssm_parameter" "media_bucket_arn" {
+  name = "${local.ssm_prefix}/storage/media_bucket_arn"
+}
+
+data "aws_ssm_parameter" "media_bucket_domain_name" {
+  name = "${local.ssm_prefix}/storage/media_bucket_domain_name"
+}
+
 data "aws_ssm_parameter" "ai_ingest_channel_arn" {
   name = "${local.ssm_prefix}/ai/ingest_channel_arn"
 }
@@ -141,6 +153,9 @@ module "edge_routing" {
   frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id.value
   frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
+  media_bucket_id             = data.aws_ssm_parameter.media_bucket_id.value
+  media_bucket_arn            = data.aws_ssm_parameter.media_bucket_arn.value
+  media_bucket_domain_name    = data.aws_ssm_parameter.media_bucket_domain_name.value
 }
 
 # ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───

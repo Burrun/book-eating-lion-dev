@@ -35,3 +35,15 @@ variable "frontend_bucket_arn" {
 variable "frontend_bucket_domain_name" {
   type = string
 }
+
+variable "media_bucket_id" {
+  type = string
+}
+
+variable "media_bucket_arn" {
+  type = string
+}
+
+variable "media_bucket_domain_name" {
+  type = string
+}
