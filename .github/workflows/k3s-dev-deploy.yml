@@ -1,0 +1,130 @@
+name: k3s Dev Deploy
+
+# main-cd.yml(EKS 정식 경로)과 별개다 - dev만 임시로 EC2 단일 k3s로 운영하는 동안 쓰는
+# 우회 배포 경로. EKS로 정식 전환하면 이 워크플로는 삭제한다.
+#
+# self-hosted 러너가 배포 대상 EC2(lion-team3-dev-ec2-kub) 자체다. 그래서 EKS 경로와
+# 달리 aws-actions/configure-aws-credentials(OIDC)도, aws eks update-kubeconfig도,
+# SSM send-command도 필요 없다 - 러너가 이미 그 인스턴스의 IAM Role(ECR push 권한
+# 포함)을 IMDS로 물려받고, kubectl도 로컬(/etc/rancher/k3s/k3s.yaml)로 바로 붙는다.
+#
+# 수동 트리거만 둔다(자동 push 트리거 없음) - 이 dev 박스는 손으로 상태를 맞춰놓은
+# 유일한 환경이라, 커밋마다 자동 배포가 걸리면 검증 안 된 변경이 조용히 깨뜨릴 수 있다.
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "배포할 서비스 (콤마 구분, 기본 전체)"
+        default: "catalog,order,member,ai"
+        required: true
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 061039804626.dkr.ecr.ap-northeast-2.amazonaws.com
+
+jobs:
+  deploy:
+    name: 빌드 + 배포 (k3s dev)
+    runs-on: [self-hosted, k3s-dev]
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ECR 로그인
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" | \
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 이미지 빌드 + 푸시 (linux/amd64,linux/arm64)
+        env:
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          for svc in "${SERVICES[@]}"; do
+            echo "=== building $svc ==="
+            docker buildx build --platform linux/amd64,linux/arm64 \
+              -f "backend/apps/${svc}-api/Dockerfile" \
+              -t "$ECR_REGISTRY/lion-team3-dev/${svc}:${IMAGE_TAG}" \
+              --push backend
+          done
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: 매니페스트 렌더링 + apply
+        env:
+          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          ECR_CATALOG_REPO: lion-team3-dev/catalog
+          ECR_ORDER_REPO: lion-team3-dev/order
+          ECR_MEMBER_REPO: lion-team3-dev/member
+          ECR_AI_REPO: lion-team3-dev/ai
+          SPRING_PROFILE: dev
+          DB_SSL_MODE: disable
+          DB_NAME: bookdb
+          AI_DB_NAME: bookdb
+          # dev는 Aurora 아니라 EC2 Postgres(private, lion-team3-dev-ec2-kub와 같은 VPC)지만
+          # GH Variables엔 이미 AURORA_ENDPOINT라는 이름으로 그 EC2 주소가 등록돼 있다
+          # (main-cd.yml/k8s/base/04-db.yaml과 이름을 맞춘 것 - §2.2 dev/prod 공통 배선).
+          AURORA_ENDPOINT: ${{ vars.AURORA_ENDPOINT }}
+          AURORA_READER_ENDPOINT: ${{ vars.AURORA_READER_ENDPOINT }}
+          API_HOST: dev.ajttk.com
+          FRONTEND_ORIGIN: https://dev.ajttk.com
+          VPC_CIDR: 10.13.0.0/16
+          CHAT_ALLOWED_ORIGINS: https://dev.ajttk.com
+          KAKAOPAY_FRONTEND_CALLBACK_URL: https://dev.ajttk.com/payments/kakao/callback
+          AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
+          AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
+          AWS_COGNITO_CLIENT_SECRET: ""
+          REDIS_HOST: ${{ vars.REDIS_HOST }}
+          SQS_INGEST_QUEUE_URL: ${{ vars.SQS_INGEST_QUEUE_URL }}
+          SQS_PURCHASE_QUEUE_URL: ${{ vars.SQS_PURCHASE_QUEUE_URL }}
+          EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
+          AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
+          # k3s는 IRSA(EKS 전용)가 없다. ai 파드는 node의 EC2 role을 그냥 물려받는다 -
+          # Bedrock/SQS/S3Vectors 권한은 그 role(lion-team3-dev-ec2-kub-role)에 직접 붙여야 한다.
+          AI_SERVICE_IRSA_ARN: ""
+          CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
+          CATALOG_DB_PASSWORD: ${{ secrets.CATALOG_DB_PASSWORD }}
+          ORDER_DB_USERNAME: ${{ secrets.ORDER_DB_USERNAME }}
+          ORDER_DB_PASSWORD: ${{ secrets.ORDER_DB_PASSWORD }}
+          MEMBER_DB_USERNAME: ${{ secrets.MEMBER_DB_USERNAME }}
+          MEMBER_DB_PASSWORD: ${{ secrets.MEMBER_DB_PASSWORD }}
+          AI_DB_USERNAME: ${{ secrets.AI_DB_USERNAME }}
+          AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
+          KAKAOPAY_SECRET_KEY: ${{ secrets.KAKAOPAY_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p rendered
+          for f in k8s/base/*.yaml; do
+            envsubst < "$f" > "rendered/$(basename "$f")"
+          done
+          kubectl apply -f rendered/
+
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          for svc in "${SERVICES[@]}"; do
+            mkdir -p "rendered/$svc"
+            for f in "k8s/$svc"/*.yaml; do
+              envsubst < "$f" > "rendered/$svc/$(basename "$f")"
+            done
+            kubectl apply -f "rendered/$svc/"
+          done
+
+      - name: rollout 대기
+        env:
+          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+        run: |
+          set -euo pipefail
+          declare -A deployments=(
+            [catalog]="catalog-deployment"
+            [order]="order-deployment"
+            [member]="member-deployment"
+            [ai]="ai-rag-deployment ai-bot-deployment"
+          )
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          for svc in "${SERVICES[@]}"; do
+            for d in ${deployments[$svc]}; do
+              kubectl -n lion-app rollout status "deployment/$d" --timeout=300s
+            done
+          done
