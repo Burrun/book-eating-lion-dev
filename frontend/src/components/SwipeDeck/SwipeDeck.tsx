@@ -69,8 +69,16 @@ function SwipeCard({ book, isTop, forcedSwipe, onSwipe }: SwipeCardProps) {
       onDragEnd={isTop ? handleDragEnd : undefined}
       animate={controls}
     >
-      <div className="flex h-56 items-center justify-center rounded-xl border border-forest/10 bg-paper text-5xl">
-        📖
+      <div className="flex h-56 items-center justify-center overflow-hidden rounded-xl border border-forest/10 bg-paper text-5xl">
+        {book.coverImageUrl ? (
+          <img
+            src={book.coverImageUrl}
+            alt={book.title}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          "📖"
+        )}
       </div>
       <p className="font-heading text-lg font-bold">{book.title}</p>
       <p className="text-sm text-[#7950f2]">{book.reason}</p>

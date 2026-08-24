@@ -53,6 +53,7 @@ export default function RecommendationPanel() {
     id: String(card.bookId),
     title: card.title,
     reason: card.recommendationReason,
+    coverImageUrl: card.coverImageUrl ?? null,
   }));
 
   return (

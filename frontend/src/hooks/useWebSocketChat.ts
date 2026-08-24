@@ -47,13 +47,11 @@ interface UseWebSocketChatOptions {
 
 interface ServerEnvelope {
   success: boolean;
-  data?: { type?: string; state?: ChatRoomState; messages?: ChatMessage[] };
+  data?: { type?: string; state?: ChatRoomState; messages?: ChatMessage[] } & Partial<ChatMessage>;
   error?: { code: string; message: string } | null;
 }
 
-type ServerFrame = ServerEnvelope | (ChatMessage & { type: string });
-
-function parseServerFrame(raw: string): ServerFrame | null {
+function parseServerFrame(raw: string): ServerEnvelope | null {
   try {
     return JSON.parse(raw);
   } catch {
@@ -61,9 +59,12 @@ function parseServerFrame(raw: string): ServerFrame | null {
   }
 }
 
-// JOINED/NO_AGENT 등은 ApiResponse 봉투에 담겨 오고(success 필드 있음),
-// MESSAGE는 Redis 팬아웃이 원본 그대로 보낸다 — 두 종류의 프레임이 같은 채널로 온다.
-function handleApiEnvelope(
+// 서버는 JOINED/NO_AGENT 뿐 아니라 Redis 팬아웃으로 오는 MESSAGE 프레임까지
+// 전부 같은 ApiResponse 봉투(success/data/error)로 감싸 보낸다
+// (RoomSubscriptionRegistry#broadcast 참고 — "클라이언트가 두 가지 응답 구조를
+// 구분해 파싱하지 않게" 하려고 팬아웃 시점에 봉투를 씌운다). 그래서 프레임 종류는
+// success가 아니라 data.type 하나로만 분기해야 한다.
+function handleServerFrame(
   envelope: ServerEnvelope,
   appendMessage: (message: ChatMessage) => void,
   setChatState: (state: ChatRoomState) => void,
@@ -79,19 +80,12 @@ function handleApiEnvelope(
     data.messages?.forEach(appendMessage);
   } else if (data?.type === "NO_AGENT") {
     setChatState("CLOSED");
+  } else if (data?.type === "MESSAGE") {
+    appendMessage(data as ChatMessage);
+    // 서버는 상담사 배정을 별도 프레임으로 알리지 않는다 — AGENT 발화가 오는 순간이
+    // 곧 LIVE 전환의 유일한 신호다(backend ChatWebSocketHandler#onClaim 참고).
+    if (data.role === "AGENT") setChatState("LIVE");
   }
-}
-
-function handleMessageFrame(
-  frame: ChatMessage & { type: string },
-  appendMessage: (message: ChatMessage) => void,
-  setChatState: (state: ChatRoomState) => void,
-) {
-  if (frame.type !== "MESSAGE") return;
-  appendMessage(frame);
-  // 서버는 상담사 배정을 별도 프레임으로 알리지 않는다 — AGENT 발화가 오는 순간이
-  // 곧 LIVE 전환의 유일한 신호다(backend ChatWebSocketHandler#onClaim 참고).
-  if (frame.role === "AGENT") setChatState("LIVE");
 }
 
 function computeReconnectDelay(attempt: number): number {
@@ -130,12 +124,7 @@ export function useWebSocketChat({ enabled }: UseWebSocketChatOptions) {
     (raw: string) => {
       const frame = parseServerFrame(raw);
       if (!frame) return;
-
-      if ("success" in frame) {
-        handleApiEnvelope(frame, appendMessage, setChatState);
-      } else {
-        handleMessageFrame(frame, appendMessage, setChatState);
-      }
+      handleServerFrame(frame, appendMessage, setChatState);
     },
     [appendMessage],
   );
