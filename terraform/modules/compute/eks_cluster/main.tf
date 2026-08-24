@@ -159,6 +159,7 @@ resource "aws_iam_role_policy_attachment" "node" {
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
     "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+    "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
   ])
   role       = aws_iam_role.node.name
   policy_arn = each.value
@@ -243,6 +244,12 @@ resource "aws_eks_addon" "cloudwatch_observability" {
   # 겪음 - dev는 이 taint(PR #62)보다 addon이 먼저 떠 있어서 안 드러났었다).
   configuration_values = jsonencode({
     tolerations = [local.system_pool_toleration]
+
+    # 최상위 tolerations만으로는 operator(controller-manager)에 반영되지 않는다.
+    # 시스템 노드그룹의 CriticalAddonsOnly taint를 견디도록 manager에도 명시한다.
+    manager = {
+      tolerations = [local.system_pool_toleration]
+    }
   })
 }
 
