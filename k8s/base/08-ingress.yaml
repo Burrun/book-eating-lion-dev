@@ -27,8 +27,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: "${API_HOST}"
-      http:
+    - http:
         paths:
           # --- ai-service: 경로로 Deployment 가 갈린다 (판단 ④) ---
           # 서비스는 1개지만 Deployment 는 2개이고, Service 도 워크로드별로 나눠
