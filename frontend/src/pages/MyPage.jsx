@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { Award, BookOpen, Flame, Quote, Send, Star, X } from "lucide-react";
@@ -107,7 +108,9 @@ const RETURN_STATUS_META = {
 };
 
 export default function MyPage() {
+  const { logout } = useAuth();
   const [profile, setProfile] = useState(null);
+  const [profileError, setProfileError] = useState(false);
   const [level, setLevel] = useState(0);
   // 누적 경험치다(레벨업해도 차감되지 않는다). 진행바는 exp % 100 을 쓴다.
   const [exp, setExp] = useState(0);
@@ -116,29 +119,46 @@ export default function MyPage() {
   // 한 응답에 섞여 오지 않으므로 따로 부르고 화면에서 합친다.
   useEffect(() => {
     let ignore = false;
-    fetchProfile().then((data) => {
-      if (ignore) return;
-      // 프로필(member)과 배지(mock 전용, 대응 API 없음)는 소유처가 달라 따로 부르고
-      // 컴포넌트에서 합친다. 실API 모드에서는 badges/streakCount를 붙이지 않는다 —
-      // ProfileCard도 {USE_MOCK && ...}로 감싸져 있어 실모드에서는 렌더링되지 않는다.
-      setProfile(
-        USE_MOCK ? { ...data, badges: MOCK_BADGES, streakCount: MOCK_STREAK_COUNT } : data,
-      );
-    });
-    fetchLionStatus().then((lion) => {
-      if (ignore) return;
-      setLevel(lion.level);
-      setExp(lion.exp);
-    });
+    fetchProfile()
+      .then((data) => {
+        if (ignore) return;
+        // 프로필(member)과 배지(mock 전용, 대응 API 없음)는 소유처가 달라 따로 부르고
+        // 컴포넌트에서 합친다. 실API 모드에서는 badges/streakCount를 붙이지 않는다 —
+        // ProfileCard도 {USE_MOCK && ...}로 감싸져 있어 실모드에서는 렌더링되지 않는다.
+        setProfile(
+          USE_MOCK ? { ...data, badges: MOCK_BADGES, streakCount: MOCK_STREAK_COUNT } : data,
+        );
+      })
+      .catch((err) => {
+        if (ignore) return;
+        // 액세스 토큰 만료(401)면 무한 스켈레톤 대신 로그아웃시켜 로그인 화면으로
+        // 보낸다 — ProtectedRoute가 isAuthenticated 변화를 감지해 리다이렉트한다.
+        if (err?.response?.status === 401) {
+          logout();
+          return;
+        }
+        setProfileError(true);
+      });
+    fetchLionStatus()
+      .then((lion) => {
+        if (ignore) return;
+        setLevel(lion.level);
+        setExp(lion.exp);
+      })
+      .catch(() => {
+        // 사자 상태는 부가 정보라 실패해도 프로필 카드 자체는 보여준다.
+      });
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [logout]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {profile ? (
         <ProfileCard profile={profile} level={level} />
+      ) : profileError ? (
+        <EmptyState message="프로필을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." />
       ) : (
         <Skeleton variant="rectangular" className="h-28 w-full" />
       )}
@@ -295,7 +315,11 @@ function BookActivitySection() {
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {items.map((item) => (
               <li key={item.id} className="rounded-xl border border-[var(--color-forest)]/10 p-4">
-                <BookActivityTitle title={item.title} detail={item.category ?? "도서"} />
+                <BookActivityTitle
+                  title={item.title}
+                  detail={item.category ?? "도서"}
+                  coverImageUrl={item.coverImageUrl}
+                />
               </li>
             ))}
           </ul>
@@ -305,11 +329,15 @@ function BookActivitySection() {
   );
 }
 
-function BookActivityTitle({ title, detail }) {
+function BookActivityTitle({ title, detail, coverImageUrl }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--color-forest)]/5 text-[var(--color-forest)] opacity-40">
-        <BookOpen size={18} />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--color-forest)]/5 text-[var(--color-forest)]">
+        {coverImageUrl ? (
+          <img src={coverImageUrl} alt={title} className="h-full w-full object-cover" />
+        ) : (
+          <BookOpen size={18} className="opacity-40" />
+        )}
       </span>
       <div>
         <p className="text-sm font-medium text-[var(--color-ink)]">{title}</p>
