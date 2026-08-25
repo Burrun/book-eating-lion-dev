@@ -108,6 +108,20 @@ data "aws_iam_policy_document" "permissions" {
     resources = ["*"]
   }
 
+  # CD가 환경별 데이터 계층에서 기록한 DB writer/reader endpoint를 읽는다.
+  # 환경 경로로 제한해 dev 역할이 prod 파라미터를 읽거나 그 반대가 되지 않게 한다.
+  statement {
+    sid    = "ReadEnvironmentDataParameters"
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+    ]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/data/*",
+    ]
+  }
+
   # Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`용. ListBucket은 버킷
   # 자체, 나머지는 객체(/*) 스코프.
   statement {
