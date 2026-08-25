@@ -134,6 +134,13 @@ resource "aws_instance" "this" {
     http_tokens   = "required" # IMDSv1 비활성화
   }
 
+  # 개발 DB는 상태를 가진 장기 실행 인스턴스다. data.aws_ami의 most_recent 결과가
+  # 바뀌었다는 이유만으로 인스턴스를 교체하면 DB 데이터가 유실될 수 있으므로,
+  # AMI 갱신은 별도의 백업/마이그레이션 작업으로만 수행한다.
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   # PostgreSQL 16 설치 + 마스터 계정 생성. 스키마(00-init.sql, 01~04-*.sql) 적용은
   # 이 모듈의 책임이 아니다 - db/postgres/*.sql을 psql로 실행하는 건 배포 파이프라인/
   # 애플리케이션 쪽 몫이다 (docker-compose가 로컬에서 하는 것과 같은 역할).
