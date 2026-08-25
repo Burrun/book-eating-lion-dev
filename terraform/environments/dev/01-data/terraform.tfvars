@@ -1,7 +1,7 @@
 environment = "dev"
 aws_region  = "ap-northeast-2"
 
-database_name   = "bookdb"
+database_name   = "bookdb_dev"
 master_username = "bookadmin"
 
 ec2_postgres_instance_type = "t4g.micro"

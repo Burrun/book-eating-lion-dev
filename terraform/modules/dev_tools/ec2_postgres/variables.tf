@@ -30,6 +30,11 @@ variable "root_volume_size_gb" {
 variable "database_name" {
   type    = string
   default = "bookdb"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.database_name))
+    error_message = "database_name must be a valid unquoted PostgreSQL identifier."
+  }
 }
 
 variable "master_username" {
