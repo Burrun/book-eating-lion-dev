@@ -9,6 +9,7 @@ bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
   "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
+  "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0",
 ]
 
 # 인프라구성명세.md §7.5대로 AWS CLI로 수동 생성한 값 (lion-team3-dev-vectors 버킷).

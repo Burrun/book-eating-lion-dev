@@ -12,6 +12,10 @@ bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
   "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
+  # apac. 크로스리전 프로필은 호출마다 APAC 내 리전으로 라우팅된다(dev에서 ap-southeast-2로
+  # 라우팅되어 AccessDenied 발생 - 2026-08-25). inference-profile ARN만으론 부족하고
+  # 라우팅 대상 리전들의 foundation-model ARN도 같이 허용해야 한다.
+  "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0",
 ]
 
 # 클러스터를 실제로 만든 사람(b-student-02)은 access_config의
