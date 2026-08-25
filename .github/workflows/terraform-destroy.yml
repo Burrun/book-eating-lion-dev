@@ -11,7 +11,7 @@ on:
       layer:
         description: "삭제할 Terraform 계층"
         type: choice
-        options: [02-runtime, 01-data, 00-base, all]
+        options: [03-deploy, 02-runtime, 01-data, 00-base, all]
         default: 02-runtime
         required: true
       confirmation:
@@ -74,11 +74,21 @@ jobs:
             all)
               # 의존성의 역순으로 삭제한다. 01-data/00-base는 DB와 저장소 등
               # 데이터 손실을 포함하므로 confirmation 없이는 실행되지 않는다.
+              if [ "$TARGET_ENV" = "prod" ]; then
+                destroy_layer 03-deploy
+              fi
               destroy_layer 02-runtime
               destroy_layer 01-data
               destroy_layer 00-base
               ;;
             02-runtime|01-data|00-base)
+              destroy_layer "$TARGET_LAYER"
+              ;;
+            03-deploy)
+              if [ "$TARGET_ENV" != "prod" ]; then
+                echo "::error::03-deploy는 현재 prod 전용입니다. dev CloudFront는 기존 02-runtime 상태를 유지합니다."
+                exit 1
+              fi
               destroy_layer "$TARGET_LAYER"
               ;;
             *)

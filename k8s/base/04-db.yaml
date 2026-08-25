@@ -1,5 +1,5 @@
-# Route 53 Private Hosted Zone의 DB FQDN을 클러스터 내부 이름으로 노출한다.
-# Pod 는 이 Service 이름만 바라보고, 실제 DB 주소 변경은 Route 53 레코드가 흡수한다.
+# 환경별 DB endpoint를 클러스터 내부 이름으로 노출한다.
+# Pod는 이 Service 이름만 바라보고, 실제 DB 주소 변경은 배포 시 주입되는 endpoint가 흡수한다.
 #
 # 클러스터는 1개다.
 #   원래는 ai_db 만 별도 클러스터(Serverless v2)로 뺐었다. 근거는 두 가지였는데
@@ -13,8 +13,8 @@
 #
 # 엔진은 PostgreSQL. 스키마: catalog_db / order_db / member_db / ai_db.
 #
-# Terraform 01-data가 환경별 VPC 전용 Private Hosted Zone을 만든다.
-#   dev  : writer/reader.db.dev.internal.ajttk.com -> EC2 PostgreSQL
+# Terraform 01-data가 환경별 endpoint를 SSM Parameter Store에 기록한다.
+#   dev  : EC2 PostgreSQL의 AWS 사설 DNS
 #   prod : writer.db.prod.internal.ajttk.com        -> RDS Proxy
 #          reader.db.prod.internal.ajttk.com        -> Aurora Reader
 apiVersion: v1
@@ -24,7 +24,7 @@ metadata:
   namespace: lion-db
 spec:
   type: ExternalName
-  externalName: "writer.db.${DEPLOY_ENV}.internal.ajttk.com"
+  externalName: "${DB_WRITER_ENDPOINT}"
   ports:
     - port: 5432
       protocol: TCP
@@ -37,7 +37,7 @@ metadata:
   namespace: lion-db
 spec:
   type: ExternalName
-  externalName: "reader.db.${DEPLOY_ENV}.internal.ajttk.com"
+  externalName: "${DB_READER_ENDPOINT}"
   ports:
     - port: 5432
       protocol: TCP

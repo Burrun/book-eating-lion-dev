@@ -17,6 +17,9 @@ data:
   AI_DB_NAME: "${AI_DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
   DB_SSL_MODE: "${DB_SSL_MODE}"
+  # dev EC2 PostgreSQL의 연결 한도를 두 AI Pod와 다른 서비스가 나눠 쓰도록 제한한다.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "0"
 
   AWS_REGION: "${AWS_REGION}"
   AWS_BEDROCK_REGION: "${AWS_REGION}"

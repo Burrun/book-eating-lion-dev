@@ -1,6 +1,5 @@
 locals {
-  ssm_prefix                = "/${var.environment}"
-  database_private_dns_zone = "db.${var.environment}.internal.ajttk.com"
+  ssm_prefix = "/${var.environment}"
 
   # ai/* SSM 경로 접미사를 한 곳에만 적는다 - scripts/sync-github-config.sh의
   # ssm() 호출 인자(예: "ai/ingest_channel_url")가 이 key와 정확히 같아야
@@ -47,16 +46,6 @@ module "ec2_postgres" {
   master_username       = var.master_username
 }
 
-module "database_private_dns" {
-  source = "../../../modules/data/database_private_dns"
-
-  environment   = var.environment
-  vpc_id        = data.aws_ssm_parameter.vpc_id.value
-  zone_name     = local.database_private_dns_zone
-  writer_target = module.ec2_postgres.cluster_endpoint
-  reader_target = module.ec2_postgres.reader_endpoint
-}
-
 module "cache_valkey" {
   source = "../../../modules/data/cache_valkey"
 
@@ -88,13 +77,13 @@ module "ai_pipeline" {
 resource "aws_ssm_parameter" "db_endpoint" {
   name  = "${local.ssm_prefix}/data/db_endpoint"
   type  = "String"
-  value = module.database_private_dns.writer_fqdn
+  value = module.ec2_postgres.cluster_endpoint
 }
 
 resource "aws_ssm_parameter" "db_reader_endpoint" {
   name  = "${local.ssm_prefix}/data/db_reader_endpoint"
   type  = "String"
-  value = module.database_private_dns.reader_fqdn
+  value = module.ec2_postgres.reader_endpoint
 }
 
 # rds_proxy는 Aurora 전용이라 dev에서는 호출 안 함 - 같은 값을 그대로 등록해서

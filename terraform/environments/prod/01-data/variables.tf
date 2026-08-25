@@ -11,7 +11,7 @@ variable "aws_region" {
 # ── Aurora ───────────────────────────────────────────────────────
 variable "database_name" {
   type    = string
-  default = "bookdb"
+  default = "bookdb_prod"
 }
 
 variable "master_username" {

@@ -1,7 +1,7 @@
 environment = "prod"
 aws_region  = "ap-northeast-2"
 
-database_name   = "bookdb"
+database_name   = "bookdb_prod"
 master_username = "bookadmin"
 reader_count    = 1
 

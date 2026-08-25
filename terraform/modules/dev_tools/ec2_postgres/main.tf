@@ -134,6 +134,16 @@ resource "aws_instance" "this" {
     http_tokens   = "required" # IMDSv1 비활성화
   }
 
+  # 개발 DB는 상태를 가진 장기 실행 인스턴스다. data.aws_ami의 most_recent 결과가
+  # 바뀌었다는 이유만으로 인스턴스를 교체하면 DB 데이터가 유실될 수 있으므로,
+  # AMI 갱신은 별도의 백업/마이그레이션 작업으로만 수행한다.
+  lifecycle {
+    # user_data는 최초 생성 시에만 사용한다. 이후 DB 이름 변경 때문에 상태를 가진
+    # 인스턴스가 교체되거나 cloud-init 재실행에 의존하지 않도록 아래 SSM Association이
+    # 추가 데이터베이스를 멱등하게 생성한다.
+    ignore_changes = [ami, user_data]
+  }
+
   # PostgreSQL 16 설치 + 마스터 계정 생성. 스키마(00-init.sql, 01~04-*.sql) 적용은
   # 이 모듈의 책임이 아니다 - db/postgres/*.sql을 psql로 실행하는 건 배포 파이프라인/
   # 애플리케이션 쪽 몫이다 (docker-compose가 로컬에서 하는 것과 같은 역할).
@@ -178,4 +188,29 @@ resource "aws_instance" "this" {
   tags = {
     Name = "lion-team3-${var.environment}-ec2-postgres"
   }
+}
+
+# 기존 EC2 PostgreSQL을 교체하지 않고 환경별 논리 DB를 보장한다.
+# 이미 존재하면 아무 작업도 하지 않으므로 반복 apply해도 안전하다.
+resource "aws_ssm_association" "ensure_database" {
+  name             = "AWS-RunShellScript"
+  association_name = "lion-team3-${var.environment}-ensure-${var.database_name}"
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.this.id]
+  }
+
+  parameters = {
+    commands = join("\n", [
+      "set -eu",
+      "until systemctl is-active --quiet postgresql; do sleep 5; done",
+      "if ! sudo -u postgres psql -tAc \"SELECT 1 FROM pg_database WHERE datname = '${var.database_name}'\" | grep -q 1; then",
+      "  sudo -u postgres createdb -O ${var.master_username} ${var.database_name}",
+      "fi",
+      "sudo -u postgres psql --dbname=${var.database_name} --set=ON_ERROR_STOP=1 --command=\"CREATE SCHEMA IF NOT EXISTS member_db AUTHORIZATION ${var.master_username}; CREATE SCHEMA IF NOT EXISTS catalog_db AUTHORIZATION ${var.master_username}; CREATE SCHEMA IF NOT EXISTS order_db AUTHORIZATION ${var.master_username}; CREATE SCHEMA IF NOT EXISTS ai_db AUTHORIZATION ${var.master_username};\"",
+    ])
+  }
+
+  depends_on = [aws_instance.this]
 }

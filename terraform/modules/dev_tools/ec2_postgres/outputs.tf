@@ -6,11 +6,11 @@
 # 포트 없이 호스트만 반환한다 - 두 모듈 다 포트는 5432로 소비자가 알고 있다고 가정.
 
 output "cluster_endpoint" {
-  value = aws_instance.this.private_ip
+  value = aws_instance.this.private_dns
 }
 
 output "reader_endpoint" {
-  value = aws_instance.this.private_ip
+  value = aws_instance.this.private_dns
 }
 
 output "cluster_identifier" {
