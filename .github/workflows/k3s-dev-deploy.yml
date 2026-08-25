@@ -87,8 +87,8 @@ jobs:
           # AWS 환경 둘 다 Spring 프로파일은 "prod"(env var 기반 외부화 설정)를 쓴다.
           SPRING_PROFILE: prod
           DB_SSL_MODE: disable
-          DB_NAME: bookdb
-          AI_DB_NAME: bookdb
+          DB_NAME: bookdb_dev
+          AI_DB_NAME: bookdb_dev
           API_HOST: dev.ajttk.com
           FRONTEND_ORIGIN: https://dev.ajttk.com
           VPC_CIDR: 10.13.0.0/16

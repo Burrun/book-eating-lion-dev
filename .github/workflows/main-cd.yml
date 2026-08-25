@@ -121,6 +121,40 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
+      - name: Validate deployment environment isolation
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          ACTUAL_CLUSTER: ${{ vars.EKS_CLUSTER }}
+          ACTUAL_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          ACTUAL_DB_NAME: ${{ vars.DB_NAME }}
+          ACTUAL_AI_DB_NAME: ${{ vars.AI_DB_NAME }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOY_ENV" == "dev" ]]; then
+            EXPECTED_CLUSTER="lion-team3-dev"
+            EXPECTED_DB_NAME="bookdb_dev"
+          elif [[ "$DEPLOY_ENV" == "prod" ]]; then
+            EXPECTED_CLUSTER="lion-team3-prod"
+            EXPECTED_DB_NAME="bookdb_prod"
+          else
+            echo "Unsupported deployment environment: $DEPLOY_ENV" >&2
+            exit 1
+          fi
+          EXPECTED_NAMESPACE="lion-app"
+
+          validate() {
+            local name="$1" actual="$2" expected="$3"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "Invalid $name for $DEPLOY_ENV: expected '$expected', got '$actual'" >&2
+              exit 1
+            fi
+          }
+
+          validate EKS_CLUSTER "$ACTUAL_CLUSTER" "$EXPECTED_CLUSTER"
+          validate K8S_NAMESPACE "$ACTUAL_NAMESPACE" "$EXPECTED_NAMESPACE"
+          validate DB_NAME "$ACTUAL_DB_NAME" "$EXPECTED_DB_NAME"
+          validate AI_DB_NAME "$ACTUAL_AI_DB_NAME" "$EXPECTED_DB_NAME"
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -136,8 +170,16 @@ jobs:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
         run: |
           set -euo pipefail
-          echo "DB_WRITER_ENDPOINT=$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
-          echo "DB_READER_ENDPOINT=$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
+          DB_WRITER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)"
+          DB_READER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)"
+
+          if [[ -z "$DB_WRITER_ENDPOINT" || -z "$DB_READER_ENDPOINT" ]]; then
+            echo "Database endpoint parameter is empty for environment '$DEPLOY_ENV'." >&2
+            exit 1
+          fi
+
+          echo "DB_WRITER_ENDPOINT=$DB_WRITER_ENDPOINT" >> "$GITHUB_ENV"
+          echo "DB_READER_ENDPOINT=$DB_READER_ENDPOINT" >> "$GITHUB_ENV"
 
       - name: Render & apply base manifests
         env:
