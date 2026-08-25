@@ -131,6 +131,14 @@ jobs:
       - name: Update EKS kubeconfig
         run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
 
+      - name: Load database endpoints
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+        run: |
+          set -euo pipefail
+          echo "DB_WRITER_ENDPOINT=$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
+          echo "DB_READER_ENDPOINT=$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
+
       - name: Render & apply base manifests
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
@@ -152,6 +160,7 @@ jobs:
         run: |
           set -euo pipefail
           for v in DEPLOY_ENV API_HOST FRONTEND_ORIGIN VPC_CIDR \
+                   DB_WRITER_ENDPOINT DB_READER_ENDPOINT \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    KAKAOPAY_SECRET_KEY \
                    MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
@@ -161,7 +170,7 @@ jobs:
             fi
           done
 
-          VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
