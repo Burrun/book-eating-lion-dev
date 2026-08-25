@@ -1,0 +1,97 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "삭제할 환경"
+        type: choice
+        options: [dev, prod]
+        required: true
+      layer:
+        description: "삭제할 Terraform 계층"
+        type: choice
+        options: [02-runtime, 01-data, 00-base, all]
+        default: 02-runtime
+        required: true
+      confirmation:
+        description: "DESTROY-환경명 입력 (예: DESTROY-dev)"
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: terraform-destroy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    name: ${{ inputs.environment }} / ${{ inputs.layer }} 삭제
+    if: inputs.confirmation == format('DESTROY-{0}', inputs.environment)
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: terraform-destroy-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Destroy Terraform layers
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+          TARGET_LAYER: ${{ inputs.layer }}
+        run: |
+          set -euo pipefail
+
+          destroy_layer() {
+            local layer="$1"
+            local directory="terraform/environments/${TARGET_ENV}/${layer}"
+            local plan_file="${RUNNER_TEMP}/${TARGET_ENV}-${layer}-destroy.tfplan"
+
+            echo "::group::Terraform destroy ${TARGET_ENV}/${layer}"
+            terraform -chdir="$directory" init -input=false
+            terraform -chdir="$directory" plan -destroy -input=false -out="$plan_file"
+            terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
+            echo "::endgroup::"
+          }
+
+          case "$TARGET_LAYER" in
+            all)
+              # 의존성의 역순으로 삭제한다. 01-data/00-base는 DB와 저장소 등
+              # 데이터 손실을 포함하므로 confirmation 없이는 실행되지 않는다.
+              destroy_layer 02-runtime
+              destroy_layer 01-data
+              destroy_layer 00-base
+              ;;
+            02-runtime|01-data|00-base)
+              destroy_layer "$TARGET_LAYER"
+              ;;
+            *)
+              echo "::error::지원하지 않는 계층: $TARGET_LAYER"
+              exit 1
+              ;;
+          esac
+
+  invalid-confirmation:
+    name: 확인 문자열 검증 실패
+    if: inputs.confirmation != format('DESTROY-{0}', inputs.environment)
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::confirmation에 DESTROY-${{ inputs.environment }} 를 정확히 입력하세요."
+          exit 1

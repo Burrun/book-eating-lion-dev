@@ -1,0 +1,168 @@
+name: Terraform Apply & Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "적용할 환경"
+        type: choice
+        options: [dev, prod]
+        default: dev
+        required: true
+      layer:
+        description: "적용할 Terraform 계층"
+        type: choice
+        options: [all, 00-base, 01-data, 02-runtime]
+        default: all
+        required: true
+      deploy_modules:
+        description: "Terraform 적용 후 Catalog/Order/Member/AI를 배포"
+        type: boolean
+        default: true
+        required: true
+      confirmation:
+        description: "APPLY-환경명 입력 (예: APPLY-dev)"
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+concurrency:
+  group: terraform-apply-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: ${{ inputs.environment }} / ${{ inputs.layer }} 적용
+    if: inputs.confirmation == format('APPLY-{0}', inputs.environment)
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.5"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: terraform-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify required configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "::error::GitHub Environment '${{ inputs.environment }}'의 AWS_ROLE_ARN Variable이 비어 있습니다."
+            exit 1
+          fi
+          aws sts get-caller-identity
+
+      - name: Apply Terraform layers
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+          TARGET_LAYER: ${{ inputs.layer }}
+        run: |
+          set -euo pipefail
+
+          apply_layer() {
+            local layer="$1"
+            local directory="terraform/environments/${TARGET_ENV}/${layer}"
+            local plan_file="${RUNNER_TEMP}/${TARGET_ENV}-${layer}.tfplan"
+
+            echo "::group::Terraform ${TARGET_ENV}/${layer}"
+            terraform -chdir="$directory" init -input=false
+            terraform -chdir="$directory" fmt -check
+            terraform -chdir="$directory" validate
+
+            # 최초 runtime 구축은 EKS가 먼저 있어야 Kubernetes/Helm provider가
+            # 클러스터에 접속할 수 있다. 이미 존재해도 target apply는 멱등이다.
+            if [ "$layer" = "02-runtime" ]; then
+              local bootstrap_plan="${RUNNER_TEMP}/${TARGET_ENV}-eks-bootstrap.tfplan"
+              terraform -chdir="$directory" plan \
+                -input=false \
+                -target=module.eks_cluster \
+                -out="$bootstrap_plan"
+              terraform -chdir="$directory" apply -input=false -auto-approve "$bootstrap_plan"
+
+              local cluster_name
+              cluster_name=$(terraform -chdir="$directory" output -raw cluster_name)
+              aws eks update-kubeconfig --name "$cluster_name" --region "$AWS_REGION"
+            fi
+
+            terraform -chdir="$directory" plan -input=false -out="$plan_file"
+            terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
+            echo "::endgroup::"
+          }
+
+          case "$TARGET_LAYER" in
+            all)
+              apply_layer 00-base
+              apply_layer 01-data
+              apply_layer 02-runtime
+              ;;
+            00-base|01-data|02-runtime)
+              apply_layer "$TARGET_LAYER"
+              ;;
+            *)
+              echo "::error::지원하지 않는 계층: $TARGET_LAYER"
+              exit 1
+              ;;
+          esac
+
+      - name: Summarize infrastructure
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Terraform 적용 완료"
+            echo "- Environment: \`$TARGET_ENV\`"
+            echo "- Layer: \`${{ inputs.layer }}\`"
+            echo "- Module deployment requested: \`${{ inputs.deploy_modules }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispatch module deployment
+        if: inputs.deploy_modules
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'main-cd.yml',
+              ref: context.ref.replace('refs/heads/', ''),
+              inputs: { environment: '${{ inputs.environment }}' }
+            });
+            core.notice('Main CD를 호출했습니다. 모듈 Pod 배포 상태는 별도 Main CD 실행에서 확인하세요.');
+
+      - name: Deployment handoff summary
+        if: inputs.deploy_modules
+        run: |
+          {
+            echo "## 모듈 배포 요청 완료"
+            echo "- Workflow: \`Main CD (EKS)\`"
+            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Services: Catalog, Order, Member, AI"
+            echo "- Main CD 실행 화면에서 이미지 빌드와 Pod rollout 결과를 확인하세요."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  invalid-confirmation:
+    name: 확인 문자열 검증 실패
+    if: inputs.confirmation != format('APPLY-{0}', inputs.environment)
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::confirmation에 APPLY-${{ inputs.environment }} 를 정확히 입력하세요."
+          exit 1

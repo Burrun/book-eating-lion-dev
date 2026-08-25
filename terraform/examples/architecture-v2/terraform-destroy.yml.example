@@ -1,0 +1,41 @@
+name: Terraform Destroy Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, prod]
+        required: true
+      layer:
+        type: choice
+        options: [03-deploy, 02-runtime, 01-data, 00-base]
+        required: true
+      confirmation:
+        description: Type DESTROY
+        required: true
+
+jobs:
+  destroy:
+    if: inputs.confirmation == 'DESTROY'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ inputs.environment }}/${{ inputs.layer }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+      - run: terraform init -input=false
+      - run: terraform plan -destroy -out=destroy.tfplan -input=false
+      - run: terraform apply -input=false destroy.tfplan
+
+# 전체 삭제 순서: 03-deploy → 02-runtime → 01-data → 00-base
+# DB, S3, tfstate 등 데이터 삭제 정책은 별도 승인 절차를 두는 것이 안전하다.

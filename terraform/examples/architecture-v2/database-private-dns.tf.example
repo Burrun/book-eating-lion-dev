@@ -1,0 +1,40 @@
+# 01-data에 적용할 수 있는 예시다. 현재 환경 파일에는 연결되지 않는다.
+variable "environment" { type = string }
+variable "vpc_id" { type = string }
+variable "writer_target" { type = string }
+variable "reader_target" { type = string }
+variable "record_type" {
+  type    = string
+  default = "CNAME"
+}
+
+resource "aws_route53_zone" "database" {
+  name = "db.${var.environment}.lion.internal"
+
+  vpc { vpc_id = var.vpc_id }
+
+  tags = {
+    Name        = "team3-${var.environment}-database-private-zone"
+    Environment = var.environment
+  }
+}
+
+resource "aws_route53_record" "writer" {
+  zone_id = aws_route53_zone.database.zone_id
+  name    = "writer.db.${var.environment}.lion.internal"
+  type    = var.record_type
+  ttl     = 60
+  records = [var.writer_target]
+}
+
+resource "aws_route53_record" "reader" {
+  zone_id = aws_route53_zone.database.zone_id
+  name    = "reader.db.${var.environment}.lion.internal"
+  type    = var.record_type
+  ttl     = 60
+  records = [var.reader_target]
+}
+
+# dev EC2 PostgreSQL은 record_type="A", target=EC2 private IP를 사용한다.
+# prod는 record_type="CNAME", writer_target=RDS Proxy endpoint,
+# reader_target=Aurora reader endpoint를 권장한다.

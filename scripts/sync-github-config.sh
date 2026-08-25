@@ -100,8 +100,8 @@ for svc in CATALOG ORDER MEMBER AI; do
   fi
 done
 
-set_var "AURORA_ENDPOINT" "$(ssm data/db_endpoint)"
-set_var "AURORA_READER_ENDPOINT" "$(ssm data/db_reader_endpoint)"
+# DB 주소는 GitHub Variables에 복사하지 않는다. 배포 매니페스트는 Terraform이
+# 환경별 VPC에 생성한 Route 53 Private FQDN을 사용한다.
 set_var "DB_NAME" "bookdb"
 # ai_db도 스키마만 다를 뿐 같은 bookdb 안에 있다(AI_DB_HOST 옆 주석 참고) - 별도
 # AI 전용 DB를 새로 팠다면 이 값을 바꿀 것. 예전엔 이 값을 스킵하고 사람이

@@ -1,0 +1,20 @@
+# 별도 03-deploy root module의 개념 예시다. 현재 02-runtime은 수정하지 않는다.
+# 실제 분리 때는 02-runtime의 ALB DNS를 SSM 또는 remote state로 전달해야 한다.
+
+data "aws_ssm_parameter" "alb_dns_name" {
+  name = "/team3/${var.environment}/runtime/alb_dns_name"
+}
+
+module "edge_routing" {
+  source = "../../../modules/compute/edge_routing"
+
+  environment                 = var.environment
+  domain_name                 = var.domain_name
+  alb_dns_name                = data.aws_ssm_parameter.alb_dns_name.value
+  route53_zone_id             = data.aws_ssm_parameter.route53_zone_id.value
+  acm_certificate_arn         = data.aws_ssm_parameter.acm_certificate_arn.value
+  waf_web_acl_arn             = data.aws_ssm_parameter.waf_web_acl_arn.value
+  frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id.value
+  frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
+  frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
+}
