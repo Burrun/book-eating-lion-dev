@@ -1,5 +1,9 @@
 output "db_endpoint" {
-  value = module.ec2_postgres.cluster_endpoint
+  value = module.database_private_dns.writer_fqdn
+}
+
+output "db_reader_endpoint" {
+  value = module.database_private_dns.reader_fqdn
 }
 
 output "valkey_endpoint" {

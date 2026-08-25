@@ -133,13 +133,8 @@ jobs:
 
       - name: Render & apply base manifests
         env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          AURORA_ENDPOINT: ${{ vars.AURORA_ENDPOINT }}
-          AURORA_READER_ENDPOINT: ${{ vars.AURORA_READER_ENDPOINT }}
-          # 비용 절감용 임시 대안(EC2 위 Docker Postgres) 엔드포인트. k8s/base/04-db.yaml
-          # 은 아직 이 값을 쓰지 않는다 — Aurora 대신 이걸 실제로 쓰기로 정하면 그 파일의
-          # externalName 을 ${TEST_DB_ENDPOINT} 로 바꾸고 여기도 필수값 체크/VARS 에 추가할 것.
-          TEST_DB_ENDPOINT: ${{ vars.TEST_DB_ENDPOINT }}
           API_HOST: ${{ vars.API_HOST }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
           VPC_CIDR: ${{ vars.VPC_CIDR }}
@@ -156,7 +151,7 @@ jobs:
           AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          for v in AURORA_ENDPOINT AURORA_READER_ENDPOINT API_HOST FRONTEND_ORIGIN VPC_CIDR \
+          for v in DEPLOY_ENV API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    KAKAOPAY_SECRET_KEY \
                    MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
@@ -166,7 +161,7 @@ jobs:
             fi
           done
 
-          VARS='$SPRING_PROFILE $AURORA_ENDPOINT $AURORA_READER_ENDPOINT $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

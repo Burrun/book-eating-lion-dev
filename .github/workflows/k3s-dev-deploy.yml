@@ -78,6 +78,7 @@ jobs:
       - name: 매니페스트 렌더링 + apply
         env:
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          DEPLOY_ENV: dev
           ECR_CATALOG_REPO: lion-team3-dev/catalog
           ECR_ORDER_REPO: lion-team3-dev/order
           ECR_MEMBER_REPO: lion-team3-dev/member
@@ -88,11 +89,6 @@ jobs:
           DB_SSL_MODE: disable
           DB_NAME: bookdb
           AI_DB_NAME: bookdb
-          # dev는 Aurora 아니라 EC2 Postgres(private, lion-team3-dev-ec2-kub와 같은 VPC)지만
-          # GH Variables엔 이미 AURORA_ENDPOINT라는 이름으로 그 EC2 주소가 등록돼 있다
-          # (main-cd.yml/k8s/base/04-db.yaml과 이름을 맞춘 것 - §2.2 dev/prod 공통 배선).
-          AURORA_ENDPOINT: ${{ vars.AURORA_ENDPOINT }}
-          AURORA_READER_ENDPOINT: ${{ vars.AURORA_READER_ENDPOINT }}
           API_HOST: dev.ajttk.com
           FRONTEND_ORIGIN: https://dev.ajttk.com
           VPC_CIDR: 10.13.0.0/16
