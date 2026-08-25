@@ -34,30 +34,6 @@ data "aws_ssm_parameter" "github_actions_role_arn" {
   name = "${local.ssm_prefix}/ci/github_actions_role_arn"
 }
 
-data "aws_ssm_parameter" "route53_zone_id" {
-  name = "${local.ssm_prefix}/edge/route53_zone_id"
-}
-
-data "aws_ssm_parameter" "acm_certificate_arn" {
-  name = "${local.ssm_prefix}/edge/acm_certificate_arn"
-}
-
-data "aws_ssm_parameter" "waf_web_acl_arn" {
-  name = "${local.ssm_prefix}/edge/waf_web_acl_arn"
-}
-
-data "aws_ssm_parameter" "frontend_bucket_id" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_id"
-}
-
-data "aws_ssm_parameter" "frontend_bucket_arn" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_arn"
-}
-
-data "aws_ssm_parameter" "frontend_bucket_domain_name" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_domain_name"
-}
-
 data "aws_ssm_parameter" "ai_ingest_channel_arn" {
   name = "${local.ssm_prefix}/ai/ingest_channel_arn"
 }
@@ -128,22 +104,14 @@ module "ingress_alb" {
   depends_on = [module.eks_cluster, module.karpenter]
 }
 
-# ── 4. CloudFront + Route53 (ALB가 준비된 뒤에만 가능) ─────────────
-module "edge_routing" {
-  source = "../../../modules/compute/edge_routing"
-
-  environment                 = var.environment
-  domain_name                 = var.domain_name
-  alb_dns_name                = module.ingress_alb.alb_dns_name
-  route53_zone_id             = data.aws_ssm_parameter.route53_zone_id.value
-  acm_certificate_arn         = data.aws_ssm_parameter.acm_certificate_arn.value
-  waf_web_acl_arn             = data.aws_ssm_parameter.waf_web_acl_arn.value
-  frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id.value
-  frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
-  frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
+# 03-deploy가 CloudFront origin으로 사용할 ALB 주소를 계층 간 계약으로 저장한다.
+resource "aws_ssm_parameter" "alb_dns_name" {
+  name  = "${local.ssm_prefix}/runtime/alb_dns_name"
+  type  = "String"
+  value = module.ingress_alb.alb_dns_name
 }
 
-# ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───
+# ── 4. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───
 module "ai_service_iam" {
   source = "../../../modules/compute/ai_service_iam"
 
@@ -167,7 +135,7 @@ resource "aws_ssm_parameter" "ai_service_irsa_arn" {
   value = module.ai_service_iam.ai_service_irsa_arn
 }
 
-# ── 6. member-service IRSA (Cognito Admin API 호출용) ─────────────
+# ── 5. member-service IRSA (Cognito Admin API 호출용) ─────────────
 # 원래 member-service는 IRSA가 아예 없어 default ServiceAccount로 떴고,
 # CognitoAuthClient의 adminCreateUser/adminInitiateAuth 호출이 SdkClientException
 # (자격증명 체인 전부 빈 상태)으로 죽어 회원가입/로그인이 500이었다

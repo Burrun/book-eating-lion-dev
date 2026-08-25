@@ -12,7 +12,7 @@ on:
       layer:
         description: "적용할 Terraform 계층"
         type: choice
-        options: [all, 00-base, 01-data, 02-runtime]
+        options: [all, 00-base, 01-data, 02-runtime, 03-deploy]
         default: all
         required: true
       deploy_modules:
@@ -111,8 +111,20 @@ jobs:
               apply_layer 00-base
               apply_layer 01-data
               apply_layer 02-runtime
+              # dev는 기존 CloudFront가 02-runtime 상태에 있으므로 유지한다.
+              # 신규 prod만 CloudFront를 별도 배포 계층에서 관리한다.
+              if [ "$TARGET_ENV" = "prod" ]; then
+                apply_layer 03-deploy
+              fi
               ;;
             00-base|01-data|02-runtime)
+              apply_layer "$TARGET_LAYER"
+              ;;
+            03-deploy)
+              if [ "$TARGET_ENV" != "prod" ]; then
+                echo "::error::03-deploy는 현재 prod 전용입니다. dev CloudFront는 기존 02-runtime 상태를 유지합니다."
+                exit 1
+              fi
               apply_layer "$TARGET_LAYER"
               ;;
             *)
