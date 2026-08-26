@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: member-deployment
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
   labels:
     app: member-service
     tier: backend

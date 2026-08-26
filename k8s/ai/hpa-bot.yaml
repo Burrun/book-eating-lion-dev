@@ -18,7 +18,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: ai-bot-hpa
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
   annotations:
     lion.io/metric-rationale: >-
       외부 LLM API 대기라 CPU 가 오르지 않는다. 동시 요청 수로 확장한다.

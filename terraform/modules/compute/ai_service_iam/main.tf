@@ -28,8 +28,8 @@ data "aws_iam_policy_document" "trust" {
       test     = "StringEquals"
       variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
       values = [
-        "system:serviceaccount:lion-app:ai-rag",
-        "system:serviceaccount:lion-app:ai-bot",
+        "system:serviceaccount:${var.namespace}:ai-rag",
+        "system:serviceaccount:${var.namespace}:ai-bot",
       ]
     }
   }

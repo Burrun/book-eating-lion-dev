@@ -136,7 +136,7 @@ if [[ "$ENV" == "dev" ]]; then
 else
   set_var "DB_SSL_MODE" "require"
 fi
-set_var "K8S_NAMESPACE" "lion-app"
+set_var "K8S_NAMESPACE" "$ENV"
 
 CF_DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items[?@=='${DOMAIN}']].Id | [0]" --output text 2>/dev/null || true)
 if [[ -n "$CF_DIST_ID" && "$CF_DIST_ID" != "None" ]]; then

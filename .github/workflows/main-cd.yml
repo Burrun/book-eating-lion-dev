@@ -138,17 +138,21 @@ jobs:
           ACTUAL_AI_DB_NAME: ${{ vars.AI_DB_NAME }}
         run: |
           set -euo pipefail
+          # dev/prod 둘 다 integrated 클러스터 하나에서 namespace로만 나뉜다.
+          # EKS_CLUSTER는 두 환경 모두 lion-team3-integrated여야 하고, 실제 격리는
+          # namespace(K8S_NAMESPACE)로 한다 - 여기서 그 값도 같이 검증한다.
           if [[ "$DEPLOY_ENV" == "dev" ]]; then
-            EXPECTED_CLUSTER="lion-team3-dev"
+            EXPECTED_CLUSTER="lion-team3-integrated"
             EXPECTED_DB_NAME="bookdb_dev"
+            EXPECTED_NAMESPACE="dev"
           elif [[ "$DEPLOY_ENV" == "prod" ]]; then
-            EXPECTED_CLUSTER="lion-team3-prod"
+            EXPECTED_CLUSTER="lion-team3-integrated"
             EXPECTED_DB_NAME="bookdb_prod"
+            EXPECTED_NAMESPACE="prod"
           else
             echo "Unsupported deployment environment: $DEPLOY_ENV" >&2
             exit 1
           fi
-          EXPECTED_NAMESPACE="lion-app"
 
           validate() {
             local name="$1" actual="$2" expected="$3"
@@ -193,6 +197,7 @@ jobs:
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
           SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
           API_HOST: ${{ vars.API_HOST }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
           VPC_CIDR: ${{ vars.VPC_CIDR }}
@@ -209,7 +214,7 @@ jobs:
           AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          for v in DEPLOY_ENV API_HOST FRONTEND_ORIGIN VPC_CIDR \
+          for v in DEPLOY_ENV K8S_NAMESPACE API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    DB_WRITER_ENDPOINT DB_READER_ENDPOINT \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    KAKAOPAY_SECRET_KEY \
@@ -220,8 +225,7 @@ jobs:
             fi
           done
 
-          VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
-
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $K8S_NAMESPACE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -255,7 +259,10 @@ jobs:
             deployments: ai-rag-deployment ai-bot-deployment
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'lion-app' }}
+      # 'lion-app' 폴백을 없앴다 - integrated 클러스터에서 dev/prod는 namespace로
+      # 나뉘므로(K8S_NAMESPACE=dev|prod) 값이 비어 있으면 조용히 넘어가지 말고
+      # 아래 렌더링 단계에서 바로 에러를 내야 한다.
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: 변경 없음 — 건너뜀
@@ -381,6 +388,13 @@ jobs:
           KAKAOPAY_FRONTEND_CALLBACK_URL: ${{ vars.FRONTEND_ORIGIN }}/payments/kakao/callback
         run: |
           set -euo pipefail
+          # 비어 있으면 모든 매니페스트에 리터럴 "${K8S_NAMESPACE}"가 그대로 박혀
+          # kubectl apply가 그 이름 그대로의(존재하지 않는) 네임스페이스를 만들려다
+          # base 매니페스트가 만든 실제 네임스페이스와 어긋난다.
+          if [ -z "$K8S_NAMESPACE" ]; then
+            echo "::error::필수 값 K8S_NAMESPACE 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
           if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_VECTOR_BUCKET" ]; then
             echo "::error::필수 값 AI_VECTOR_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
@@ -404,7 +418,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $K8S_NAMESPACE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

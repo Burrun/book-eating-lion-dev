@@ -76,7 +76,9 @@ jobs:
       # 자동 실행(dev 머지)은 바로 반영한다. preflight 가 앞에서 막아주므로
       # 스키마가 어긋난 상태로는 어차피 못 쓴다.
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
-      NS: lion-app
+      # integrated 클러스터에서 dev/prod는 namespace로만 나뉜다(K8S_NAMESPACE와 동일 관례) -
+      # 환경 이름을 그대로 네임스페이스로 쓴다.
+      NS: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
       POD: db-seed-${{ github.run_id }}
       SECRET: db-seed-${{ github.run_id }}
       SEED_FILE: db/postgres/90-demo-data.sql

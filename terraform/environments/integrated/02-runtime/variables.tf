@@ -48,6 +48,18 @@ variable "admin_principal_arns" {
   default = []
 }
 
+variable "dev_namespace" {
+  description = "이 클러스터에서 dev 워크로드가 배포되는 k8s 네임스페이스. k8s/base/01-namespace.yaml + CI의 K8S_NAMESPACE와 반드시 같은 값이어야 한다."
+  type        = string
+  default     = "dev"
+}
+
+variable "prod_namespace" {
+  description = "이 클러스터에서 prod 워크로드가 배포되는 k8s 네임스페이스. k8s/base/01-namespace.yaml + CI의 K8S_NAMESPACE와 반드시 같은 값이어야 한다."
+  type        = string
+  default     = "prod"
+}
+
 variable "recommendation_index_arn" {
   type    = string
   default = null
