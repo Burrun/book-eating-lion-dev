@@ -82,10 +82,11 @@ public class OrderService {
      * <p>구독을 별도 상품 타입으로 두지 않고 카탈로그의 도서 하나로 표현한다 — 가격·재고·주문
      * 항목 스냅샷이 전부 기존 경로를 그대로 타고, order 도메인에 새 타입을 만들 필요가 없다.
      *
-     * <p>기본값 -1 은 "구독권 상품이 아직 없음"이다. bookId 는 1 부터라 어떤 주문과도 안 맞아
-     * 기능이 통째로 꺼진다 — 환경별로 상품을 만들기 전까지 안전하게 비활성이다.
+     * <p>기본값 9001 은 db/postgres/90-demo-data.sql 이 명시적으로 넣는 값이다 — 자동 채번
+     * 대역 밖이라 dev/prod 어느 환경이든 같다. 시드가 안 돈 환경이면 그 도서가 없어 주문
+     * 자체가 성립하지 않으므로, 값이 맞아도 기능만 안 탈 뿐 오작동하지 않는다.
      */
-    @Value("${app.subscription.book-id:-1}")
+    @Value("${app.subscription.book-id:9001}")
     private long subscriptionBookId;
 
     /** 구독권 결제 시 만들 플랜. member 의 PlanType enum 이름이어야 한다. */
