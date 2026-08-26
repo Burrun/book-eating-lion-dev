@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bot, Headset } from "lucide-react";
+import { useAuth } from "../../context/AuthContext.jsx";
 import type { ChatMessage, ChatRoomState, ConnectionStatus } from "../../types/chat.ts";
 
 const QUICK_REPLIES = [
@@ -27,6 +29,8 @@ export default function ChatMessageList({
   onCancelWaiting,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // 새 메시지가 오면 항상 맨 아래로 붙는다.
   useEffect(() => {
@@ -42,10 +46,10 @@ export default function ChatMessageList({
       {connectionStatus === "DISCONNECTED" && messages.length > 0 && (
         <button
           type="button"
-          onClick={onReconnect}
+          onClick={isAuthenticated ? onReconnect : () => navigate("/login")}
           className="mb-3 w-full shrink-0 rounded-lg bg-[var(--color-coral)]/10 px-3 py-2 text-xs font-medium text-[var(--color-coral)] transition-colors hover:bg-[var(--color-coral)]/20"
         >
-          연결이 끊어졌어요 · 다시 연결하기
+          {isAuthenticated ? "연결이 끊어졌어요 · 다시 연결하기" : "로그인을 해주세요 · 로그인하기"}
         </button>
       )}
 
@@ -154,6 +158,24 @@ function ConnectingState() {
 }
 
 function DisconnectedState({ onReconnect }: { onReconnect: () => void }) {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm text-[var(--color-ink)]/50">로그인을 해주세요.</p>
+        <button
+          type="button"
+          onClick={() => navigate("/login")}
+          className="rounded-full bg-[var(--color-forest)] px-4 py-2 text-xs font-semibold text-[var(--color-paper)] transition hover:bg-[var(--color-forest-light)]"
+        >
+          로그인 페이지로 이동
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <p className="text-sm text-[var(--color-ink)]/50">연결이 끊어졌어요.</p>
