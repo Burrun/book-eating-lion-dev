@@ -51,6 +51,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # workflow_dispatch 입력값을 run: 스크립트 안에 ${{ }} 로 직접 삽입하면 안 된다 -
+      # 셸 소스에 리터럴로 박혀서, services 입력값에 백틱/세미콜론 등을 넣으면
+      # 워크플로가 가진 OIDC role(AWS/EKS 권한)로 임의 명령이 실행된다
+      # (Sourcery PR #98 지적). env로 한 번 감싸서 변수로만 참조하고, 허용 목록으로
+      # 검증한다.
+      - name: 입력값 검증
+        env:
+          SERVICES_INPUT: ${{ inputs.services }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra SERVICES <<< "$SERVICES_INPUT"
+          for svc in "${SERVICES[@]}"; do
+            case "$svc" in
+              catalog|order|member|ai) ;;
+              *)
+                echo "::error::허용되지 않은 서비스명: '$svc' (catalog/order/member/ai 만 허용)"
+                exit 1
+                ;;
+            esac
+          done
+
       # integrated 클러스터 EKS access entry가 걸려 있는 전용 OIDC role.
       # 새 GitHub repository variable로 한 번만 등록해두면 됨:
       #   gh variable set INTEGRATED_AWS_ROLE_ARN --body "<terraform output github_actions_role_arn 값>"
@@ -68,9 +89,10 @@ jobs:
       - name: 이미지 빌드 + 푸시
         env:
           IMAGE_TAG: integrated-dev-${{ github.sha }}
+          SERVICES_INPUT: ${{ inputs.services }}
         run: |
           set -euo pipefail
-          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          IFS=',' read -ra SERVICES <<< "$SERVICES_INPUT"
           for svc in "${SERVICES[@]}"; do
             REPO_VAR="ECR_$(echo "$svc" | tr a-z A-Z)_REPO"
             REPOSITORY="${!REPO_VAR}"
@@ -134,10 +156,11 @@ jobs:
           EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
           CHAT_ALLOWED_ORIGINS: https://dev.ajttk.com
           KAKAOPAY_FRONTEND_CALLBACK_URL: https://dev.ajttk.com/payments/kakao/callback
+          SERVICES_INPUT: ${{ inputs.services }}
         run: |
           set -euo pipefail
           VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
-          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          IFS=',' read -ra SERVICES <<< "$SERVICES_INPUT"
           for svc in "${SERVICES[@]}"; do
             mkdir -p "rendered/$svc"
             for f in "k8s/$svc"/*.yaml; do
@@ -147,6 +170,8 @@ jobs:
           done
 
       - name: rollout 대기
+        env:
+          SERVICES_INPUT: ${{ inputs.services }}
         run: |
           set -euo pipefail
           declare -A deployments=(
@@ -155,7 +180,7 @@ jobs:
             [member]="member-deployment"
             [ai]="ai-rag-deployment ai-bot-deployment"
           )
-          IFS=',' read -ra SERVICES <<< "${{ inputs.services }}"
+          IFS=',' read -ra SERVICES <<< "$SERVICES_INPUT"
           for svc in "${SERVICES[@]}"; do
             for d in ${deployments[$svc]}; do
               kubectl -n lion-app rollout status "deployment/$d" --timeout=600s
