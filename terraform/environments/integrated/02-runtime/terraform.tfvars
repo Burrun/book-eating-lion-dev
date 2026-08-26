@@ -19,3 +19,4 @@ recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bu
 purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/wiki-v1"
 
 admin_principal_arns = []
+enable_dev_cutover = true
