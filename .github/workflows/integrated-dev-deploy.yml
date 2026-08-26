@@ -17,9 +17,21 @@ name: Integrated Dev Deploy
 #
 # EKS_CLUSTER/ECR/IRSA ARN만 integrated 전용 값이다. IRSA ARN은 integrated
 # 클러스터의 OIDC provider로 새로 발급된 것이라(terraform ai_service_iam/
-# member_service_iam @ integrated/02-runtime) dev 클러스터 것과 다르다 - 반드시
-# /integrated/... SSM에서 읽어야 한다(/dev/... 값 쓰면 AssumeRoleWithWebIdentity가
-# federated principal 불일치로 거부된다).
+# member_service_iam @ integrated/02-runtime) dev 클러스터 것과 다르다.
+#
+# DB_WRITER/READER_ENDPOINT, AI/MEMBER_SERVICE_IRSA_ARN은 런타임에 SSM에서
+# 읽지 않고 아래 env에 고정값으로 박아둔다 - integrated GitHub OIDC role은
+# /integrated/... 자기 네임스페이스 밖(=/dev/...)을 읽을 권한이 없고,
+# /integrated/member/... 일부도 권한이 없어서(실측, 2026-08-26) 런타임 조회가
+# AccessDenied로 조용히 비어버렸다(값이 비어도 $(...) 명령치환 실패가 set -e에
+# 안 걸려서 그 다음 kubectl apply에서야 "externalName: Required value"로 터짐).
+# main-cd.yml도 IRSA는 SSM이 아니라 GitHub Variable 고정값으로 쓰는 것과 같은
+# 패턴이다. 값이 바뀌면(EC2 재시작으로 private DNS 변경 등) 아래 4줄만 갱신할 것 -
+# 확인 명령어:
+#   aws ssm get-parameter --name /dev/data/db_endpoint --query Parameter.Value --output text
+#   aws ssm get-parameter --name /dev/data/db_reader_endpoint --query Parameter.Value --output text
+#   aws ssm get-parameter --name /integrated/ai/service_irsa_arn --query Parameter.Value --output text
+#   aws ssm get-parameter --name /integrated/member/service_irsa_arn --query Parameter.Value --output text
 on:
   workflow_dispatch:
     inputs:
@@ -40,6 +52,12 @@ env:
   ECR_ORDER_REPO: lion-team3-integrated/order
   ECR_MEMBER_REPO: lion-team3-integrated/member
   ECR_AI_REPO: lion-team3-integrated/ai
+  # 2026-08-26 확인값 - dev EC2 postgres(i-07e730fed45de433b) private DNS, writer/reader 동일
+  # (Aurora가 아니라 EC2 단일 인스턴스라 reader 엔드포인트가 따로 없음)
+  DB_WRITER_ENDPOINT: ip-10-13-10-42.ap-northeast-2.compute.internal
+  DB_READER_ENDPOINT: ip-10-13-10-42.ap-northeast-2.compute.internal
+  AI_SERVICE_IRSA_ARN: arn:aws:iam::061039804626:role/lion-team3-integrated-ai-service
+  MEMBER_SERVICE_IRSA_ARN: arn:aws:iam::061039804626:role/lion-team3-integrated-member-service
 
 jobs:
   deploy:
@@ -105,14 +123,6 @@ jobs:
 
       - name: Update EKS kubeconfig
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
-
-      - name: SSM에서 dev DB / integrated IRSA 값 읽기
-        run: |
-          set -euo pipefail
-          echo "DB_WRITER_ENDPOINT=$(aws ssm get-parameter --name /dev/data/db_endpoint --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
-          echo "DB_READER_ENDPOINT=$(aws ssm get-parameter --name /dev/data/db_reader_endpoint --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
-          echo "AI_SERVICE_IRSA_ARN=$(aws ssm get-parameter --name /integrated/ai/service_irsa_arn --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
-          echo "MEMBER_SERVICE_IRSA_ARN=$(aws ssm get-parameter --name /integrated/member/service_irsa_arn --query 'Parameter.Value' --output text)" >> "$GITHUB_ENV"
 
       - name: 공통 매니페스트 렌더링 + apply (k8s/base)
         env:
