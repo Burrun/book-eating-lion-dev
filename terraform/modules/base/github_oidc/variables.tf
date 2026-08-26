@@ -48,7 +48,7 @@ variable "extra_ssm_read_prefixes" {
     왜 필요한가: integrated 클러스터가 dev/prod를 namespace로 같이 서빙하지만,
     dev의 실제 DB(01-data)는 마이그레이션 대상이 아니라서 여전히 /dev/data/*
     에 있다. main-cd.yml의 "Load database endpoints" 스텝은 DEPLOY_ENV(dev|prod)
-    기준으로 /${DEPLOY_ENV}/data/*를 읽는데, integrated role은 기본적으로
+    기준으로 /$${DEPLOY_ENV}/data/*를 읽는데, integrated role은 기본적으로
     /integrated/data/*만 허용돼 있어 dev 배포 시 AccessDenied가 난다
     (2026-08-26 실제로 겪음 - Main CD #65 "Load database endpoints" 실패).
   EOT
