@@ -11,4 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "app.ai.rag")
 public record RagProperties(
-        int searchTopK, int maxCitationsPerBook, double maxDistance, int maxContextBytes, int dailyQuota) {}
+        int searchTopK,
+        int maxCitationsPerBook,
+        double maxDistance,
+        int maxContextBytes,
+        int freeDailyQuota,
+        int subscribedDailyQuota) {}

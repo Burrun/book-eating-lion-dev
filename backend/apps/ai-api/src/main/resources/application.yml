@@ -126,4 +126,8 @@ app:
       # 상한이 없으면 topK 배만큼 토큰이 터진다.
       max-context-bytes: 12288
       # 과금 방어선. 데모 중에 막히면 즉시 올릴 수 있어야 한다.
-      daily-quota: "${AI_DAILY_QUOTA:50}"
+      #
+      # 구독 여부로 상한이 갈린다. 무료 상한을 넘긴 요청에서만 member-service 에 구독을
+      # 물어보므로(DailyQuota 참고), 이 값이 곧 "구독 조회가 시작되는 지점"이기도 하다.
+      free-daily-quota: "${AI_DAILY_QUOTA_FREE:5}"
+      subscribed-daily-quota: "${AI_DAILY_QUOTA_SUBSCRIBED:50}"
