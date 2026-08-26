@@ -796,6 +796,11 @@ export interface components {
        * @example 12
        */
       reviewCount: number;
+      /**
+       * @description EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라 null 이 될 수 없다.
+       *     목록 화면의 "전자책" 필터(hasEbook)가 이 값을 근거로 삼는다.
+       */
+      ebookAvailable: boolean;
     };
     BookDetail: components["schemas"]["BookSummary"] & {
       publisher: string;
@@ -806,8 +811,6 @@ export interface components {
        */
       stockQuantity: number;
       description?: string | null;
-      /** @description EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라 null 이 될 수 없다. */
-      ebookAvailable: boolean;
       /** Format: date */
       publishedDate?: string | null;
       /** Format: date-time */
@@ -1176,6 +1179,8 @@ export interface operations {
     parameters: {
       query?: {
         category?: string;
+        /** @description true면 전자책(EPUB) 보유 도서만 반환한다. category와는 배타적 — true일 때 category는 무시된다. */
+        hasEbook?: boolean;
         page?: number;
         size?: number;
         /** @description Spring Pageable 정렬. 예 `publishedAt,desc` */

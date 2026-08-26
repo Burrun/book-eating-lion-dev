@@ -26,6 +26,10 @@ paths:
         - name: category
           in: query
           schema: { type: string, example: IT/컴퓨터 }
+        - name: hasEbook
+          in: query
+          description: true면 전자책(EPUB) 보유 도서만 반환한다. category와는 배타적 — true일 때 category는 무시된다.
+          schema: { type: boolean }
         - name: page
           in: query
           schema: { type: integer, default: 0 }
@@ -1096,7 +1100,8 @@ components:
   schemas:
     BookSummary:
       type: object
-      required: [id, title, author, price, category, saleStatus, averageRating, reviewCount]
+      required:
+        [id, title, author, price, category, saleStatus, averageRating, reviewCount, ebookAvailable]
       properties:
         id: { type: integer, format: int64 }
         title: { type: string, example: 클라우드 엔지니어링 교재 }
@@ -1116,12 +1121,16 @@ components:
           type: integer
           description: 리뷰 수. 리뷰 작성/수정/삭제 시마다 재계산된다.
           example: 12
+        ebookAvailable:
+          type: boolean
+          description: EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라
+            null 이 될 수 없다. 목록 화면의 "전자책" 필터(hasEbook)가 이 값을 근거로 삼는다.
 
     BookDetail:
       allOf:
         - $ref: "#/components/schemas/BookSummary"
         - type: object
-          required: [publisher, isbn, stockQuantity, ebookAvailable, createdAt, updatedAt]
+          required: [publisher, isbn, stockQuantity, createdAt, updatedAt]
           properties:
             publisher: { type: string }
             isbn: { type: string }
@@ -1130,10 +1139,6 @@ components:
               description: order-service 조합값. -1 은 재고 조회 실패(품절 0 과 구분).
               example: 100
             description: { type: string, nullable: true }
-            ebookAvailable:
-              type: boolean
-              description: EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라
-                null 이 될 수 없다.
             publishedDate: { type: string, format: date, nullable: true }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }

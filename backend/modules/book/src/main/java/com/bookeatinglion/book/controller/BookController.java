@@ -31,8 +31,10 @@ public class BookController {
 
     @GetMapping
     public ApiResponse<Page<BookSummaryResponse>> getBooks(
-            @RequestParam(required = false) String category, @PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(bookService.getBooks(category, pageable));
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Boolean hasEbook,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(bookService.getBooks(category, hasEbook, pageable));
     }
 
     @GetMapping("/search")

@@ -40,6 +40,7 @@ export function toBookSummary(dto: BookSummaryResponse): BookSummary {
     rating: dto.averageRating,
     category: dto.category,
     coverImageUrl: dto.coverImageUrl ?? null,
+    ebookAvailable: dto.ebookAvailable,
   };
 }
 

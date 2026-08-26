@@ -13,7 +13,8 @@ public record BookSummaryResponse(
         String category,
         SaleStatus saleStatus,
         BigDecimal averageRating,
-        int reviewCount) {
+        int reviewCount,
+        boolean ebookAvailable) {
     public static BookSummaryResponse from(Book book) {
         return new BookSummaryResponse(
                 book.getBookId(),
@@ -24,6 +25,7 @@ public record BookSummaryResponse(
                 book.getCategory(),
                 book.getSaleStatus(),
                 book.getAverageRating(),
-                book.getReviewCount());
+                book.getReviewCount(),
+                book.isEbookAvailable());
     }
 }

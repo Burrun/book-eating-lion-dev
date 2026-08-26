@@ -57,12 +57,12 @@ class BookControllerTest {
 
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(
-                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0);
+                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0, false);
     }
 
     @Test
     void 목록_조회는_200과_데이터를_반환한다() throws Exception {
-        when(bookService.getBooks(eq(null), any()))
+        when(bookService.getBooks(eq(null), eq(null), any()))
                 .thenReturn(new PageImpl<>(List.of(summary(1L, "책1")), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/catalog/books"))

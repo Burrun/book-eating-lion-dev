@@ -65,7 +65,7 @@ class BookServiceTest {
         Page<Book> page = new PageImpl<>(List.of(book(1L, "책1")));
         when(bookRepository.findByIsDeletedFalse(pageable)).thenReturn(page);
 
-        Page<BookSummaryResponse> result = bookService.getBooks(null, pageable);
+        Page<BookSummaryResponse> result = bookService.getBooks(null, null, pageable);
 
         assertThat(result.getContent()).extracting(BookSummaryResponse::title).containsExactly("책1");
     }
@@ -76,9 +76,20 @@ class BookServiceTest {
         Page<Book> page = new PageImpl<>(List.of(book(1L, "소설책")));
         when(bookRepository.findByCategoryAndIsDeletedFalse(eq("소설"), any())).thenReturn(page);
 
-        Page<BookSummaryResponse> result = bookService.getBooks("소설", pageable);
+        Page<BookSummaryResponse> result = bookService.getBooks("소설", null, pageable);
 
         assertThat(result.getContent()).extracting(BookSummaryResponse::title).containsExactly("소설책");
+    }
+
+    @Test
+    void hasEbook이_true면_카테고리는_무시하고_전자책_보유_도서만_조회한다() throws Exception {
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<Book> page = new PageImpl<>(List.of(book(1L, "전자책책")));
+        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse(pageable)).thenReturn(page);
+
+        Page<BookSummaryResponse> result = bookService.getBooks("소설", true, pageable);
+
+        assertThat(result.getContent()).extracting(BookSummaryResponse::title).containsExactly("전자책책");
     }
 
     @Test

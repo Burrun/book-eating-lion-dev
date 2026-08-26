@@ -377,6 +377,7 @@ function toSummary(seed: BookSeed): BookSummaryResponse {
     saleStatus: "ON_SALE",
     averageRating: 0,
     reviewCount: 0,
+    ebookAvailable: Boolean(seed.ebookUrl),
   };
 }
 
@@ -439,11 +440,17 @@ function findSeed(bookId: number | string): BookSeed {
 
 export function mockGetBooks(params: {
   category?: string;
+  hasEbook?: boolean;
   page?: number;
   size?: number;
 }): Page<BookSummaryResponse> {
-  const { category, page = 0, size = 20 } = params;
-  const filtered = category ? SEEDS.filter((seed) => seed.category === category) : SEEDS;
+  const { category, hasEbook, page = 0, size = 20 } = params;
+  // 실 백엔드(BookService.getBooks)와 같은 규칙: hasEbook=true면 category는 무시한다.
+  const filtered = hasEbook
+    ? SEEDS.filter((seed) => Boolean(seed.ebookUrl))
+    : category
+      ? SEEDS.filter((seed) => seed.category === category)
+      : SEEDS;
   return toPage(filtered.map(toSummary), page, size);
 }
 

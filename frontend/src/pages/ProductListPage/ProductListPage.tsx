@@ -13,6 +13,8 @@ export default function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() ?? "";
   const category = searchParams.get("category") ?? "";
+  // 전자책은 장르(category)와 다른 축의 필터라 별도 파라미터로 관리한다 — 둘은 배타적이다.
+  const isEbookFilter = searchParams.get("ebook") === "1";
   const rawPage = Number(searchParams.get("page") ?? "0");
   const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
 
@@ -49,12 +51,14 @@ export default function ProductListPage() {
 
   // 검색어가 있으면 검색 API, 없으면 목록 API를 쓴다.
   const { data, isPending, isError } = useQuery({
-    queryKey: ["books", { query, category, page }],
+    queryKey: ["books", { query, category, isEbookFilter, page }],
     queryFn: () =>
       query
         ? searchBooks({ q: query, page, size: PAGE_SIZE })
-        : // 빈 문자열을 보내면 백엔드가 카테고리 필터로 인식하므로 undefined로 넘긴다.
-          getBooks({ category: category || undefined, page, size: PAGE_SIZE }),
+        : isEbookFilter
+          ? getBooks({ hasEbook: true, page, size: PAGE_SIZE })
+          : // 빈 문자열을 보내면 백엔드가 카테고리 필터로 인식하므로 undefined로 넘긴다.
+            getBooks({ category: category || undefined, page, size: PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
 
@@ -66,6 +70,20 @@ export default function ProductListPage() {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("category", value);
     else next.delete("category");
+    next.delete("ebook");
+    next.delete("q");
+    next.delete("page");
+    setSearchParams(next);
+  }
+
+  function handleEbookFilterToggle() {
+    const next = new URLSearchParams(searchParams);
+    if (isEbookFilter) {
+      next.delete("ebook");
+    } else {
+      next.set("ebook", "1");
+      next.delete("category");
+    }
     next.delete("q");
     next.delete("page");
     setSearchParams(next);
@@ -130,7 +148,7 @@ export default function ProductListPage() {
             <div className="flex flex-wrap gap-2">
               {["전체", ...categories.map((item) => item.categoryName)].map((c) => {
                 const value = c === "전체" ? "" : c;
-                const active = category === value;
+                const active = !isEbookFilter && category === value;
                 return (
                   <button
                     key={c}
@@ -145,6 +163,17 @@ export default function ProductListPage() {
                   </button>
                 );
               })}
+              {/* 장르(category)와는 다른 축의 필터라 별도 파라미터(ebook)로 배타적으로 동작한다. */}
+              <button
+                onClick={handleEbookFilterToggle}
+                className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  isEbookFilter
+                    ? "border-coral bg-coral text-white"
+                    : "border-forest/15 bg-paper text-forest hover:bg-forest/5"
+                }`}
+              >
+                전자책
+              </button>
             </div>
           )}
 
@@ -160,7 +189,11 @@ export default function ProductListPage() {
             </p>
           ) : books.length === 0 ? (
             <p className="text-sm text-forest/60">
-              {query ? "검색 결과가 없습니다" : "해당 카테고리에 도서가 없습니다"}
+              {query
+                ? "검색 결과가 없습니다"
+                : isEbookFilter
+                  ? "전자책으로 볼 수 있는 도서가 없습니다"
+                  : "해당 카테고리에 도서가 없습니다"}
             </p>
           ) : (
             <>

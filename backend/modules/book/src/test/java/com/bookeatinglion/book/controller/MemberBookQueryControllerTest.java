@@ -41,7 +41,7 @@ class MemberBookQueryControllerTest {
 
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(
-                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0);
+                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0, false);
     }
 
     @Test

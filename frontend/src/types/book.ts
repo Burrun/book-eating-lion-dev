@@ -10,6 +10,7 @@ export interface BookSummary {
   rating: number;
   category?: string;
   coverImageUrl: string | null;
+  ebookAvailable: boolean;
 }
 
 export interface WebtoonCut {

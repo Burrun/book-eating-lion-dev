@@ -25,10 +25,17 @@ public class BookService {
     private final BookRepository bookRepository;
     private final InventoryPort inventoryPort;
 
-    public Page<BookSummaryResponse> getBooks(String category, Pageable pageable) {
-        Page<Book> books = category == null || category.isBlank()
-                ? bookRepository.findByIsDeletedFalse(pageable)
-                : bookRepository.findByCategoryAndIsDeletedFalse(category, pageable);
+    public Page<BookSummaryResponse> getBooks(String category, Boolean hasEbook, Pageable pageable) {
+        // 전자책 필터는 장르(category)와 별개 축이라 배타적으로 처리한다 — 두 조건을 함께
+        // 걸면 그 2권이 원래 장르 탭에서 사라진 것처럼 보이는 혼란을 피하려는 의도다.
+        Page<Book> books;
+        if (Boolean.TRUE.equals(hasEbook)) {
+            books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse(pageable);
+        } else if (category == null || category.isBlank()) {
+            books = bookRepository.findByIsDeletedFalse(pageable);
+        } else {
+            books = bookRepository.findByCategoryAndIsDeletedFalse(category, pageable);
+        }
         return books.map(BookSummaryResponse::from);
     }
 

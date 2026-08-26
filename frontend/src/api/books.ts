@@ -26,9 +26,15 @@ import type { Paged } from "../types/common.ts";
 // (rating, reviewCount 등)는 목업 모드에서도 매퍼의 임시 기본값이 그대로 나온다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
-// GET /api/catalog/books — 도서 목록 (카테고리/페이징)
+// GET /api/catalog/books — 도서 목록 (카테고리/전자책 여부/페이징)
 export async function getBooks(
-  params: { category?: string; page?: number; size?: number; sort?: string } = {},
+  params: {
+    category?: string;
+    hasEbook?: boolean;
+    page?: number;
+    size?: number;
+    sort?: string;
+  } = {},
 ): Promise<Paged<BookSummary>> {
   const page = USE_MOCK
     ? await mockDelay(mockGetBooks(params))
