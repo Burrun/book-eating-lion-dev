@@ -129,6 +129,19 @@ module "ingress_alb" {
 }
 
 # ── 4. CloudFront + Route53 (ALB가 준비된 뒤에만 가능) ─────────────
+# ⚠️ integrated/02-runtime 쪽에서 enable_dev_cutover=true로 dev.ajttk.com을
+# 이 환경 대신 integrated 클러스터로 컷오버해둔 상태라면, 이 모듈을 다시
+# apply하면 안 된다 - 같은 Route53 레코드(dev.ajttk.com, www.dev.ajttk.com)를
+# 두 tfstate가 동시에 소유하려고 해서 충돌한다(AWS가 CREATE 액션을 거부).
+#
+# 분리 클러스터 모드(이 환경)로 되돌리려면 순서를 지킬 것:
+#   1. integrated/02-runtime에서 enable_dev_cutover=false로 바꾸고 apply
+#      (module.edge_routing_dev가 destroy되어 레코드 소유권을 반납)
+#   2. 그다음 이 환경(dev/02-runtime)을 apply
+#
+# 통합 모드와 분리 클러스터 모드는 둘 다 계속 유효한 운영 방식이다 -
+# 이 모듈이 폐기된 건 아니고, 동시에 같은 도메인을 두 곳에서 소유할 수만
+# 없는 것뿐이다.
 module "edge_routing" {
   source = "../../../modules/compute/edge_routing"
 
