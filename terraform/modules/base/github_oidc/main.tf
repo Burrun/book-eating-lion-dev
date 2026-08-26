@@ -117,9 +117,13 @@ data "aws_iam_policy_document" "permissions" {
       "ssm:GetParameter",
       "ssm:GetParameters",
     ]
-    resources = [
-      "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/data/*",
-    ]
+    resources = concat(
+      ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/data/*"],
+      [
+        for prefix in var.extra_ssm_read_prefixes :
+        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${prefix}/data/*"
+      ]
+    )
   }
 
   # Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`용. ListBucket은 버킷
@@ -128,7 +132,11 @@ data "aws_iam_policy_document" "permissions" {
     sid       = "FrontendBucketList"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [var.frontend_bucket_arn, var.media_bucket_arn]
+    resources = concat(
+      [var.frontend_bucket_arn, var.media_bucket_arn],
+      var.extra_frontend_bucket_arns,
+      var.extra_media_bucket_arns,
+    )
   }
 
   statement {
@@ -139,10 +147,11 @@ data "aws_iam_policy_document" "permissions" {
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = [
-      "${var.frontend_bucket_arn}/*",
-      "${var.media_bucket_arn}/*",
-    ]
+    resources = concat(
+      ["${var.frontend_bucket_arn}/*", "${var.media_bucket_arn}/*"],
+      [for arn in var.extra_frontend_bucket_arns : "${arn}/*"],
+      [for arn in var.extra_media_bucket_arns : "${arn}/*"],
+    )
   }
 
   statement {

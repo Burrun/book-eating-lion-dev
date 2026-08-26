@@ -22,6 +22,18 @@ data "aws_ssm_parameter" "dev_vpc_id" {
   name = "/dev/network/vpc_id"
 }
 
+# github_oidc의 extra_ssm_read_prefixes/extra_frontend_bucket_arns/extra_media_bucket_arns용.
+# dev의 실제 데이터/프론트엔드는 마이그레이션 대상이 아니라서(01-data/00-base 그대로
+# 유지) integrated role이 이 값들에도 접근할 수 있어야 dev를 이 클러스터에서
+# 서빙할 수 있다 (2026-08-26 Main CD #65 AccessDenied 사고로 발견함).
+data "aws_ssm_parameter" "dev_frontend_bucket_arn" {
+  name = "/dev/storage/frontend_bucket_arn"
+}
+
+data "aws_ssm_parameter" "dev_media_bucket_arn" {
+  name = "/dev/storage/media_bucket_arn"
+}
+
 data "aws_ssm_parameter" "dev_public_subnet_ids" {
   name = "/dev/network/public_subnet_ids"
 }
@@ -96,6 +108,11 @@ module "github_oidc" {
   ecr_repository_arns   = values(module.container_reg.repository_arns)
   frontend_bucket_arn    = module.storage.frontend_bucket_arn
   media_bucket_arn       = module.storage.media_bucket_arn
+  # dev 배포도 이 role(github-actions-lion-team3-integrated)로 도는데, dev의
+  # DB/프론트엔드 버킷은 마이그레이션 대상이 아니라 여전히 /dev/* 소유다.
+  extra_ssm_read_prefixes    = ["dev"]
+  extra_frontend_bucket_arns = [data.aws_ssm_parameter.dev_frontend_bucket_arn.value]
+  extra_media_bucket_arns    = [data.aws_ssm_parameter.dev_media_bucket_arn.value]
   # 02-runtime의 eks_cluster 기본 이름(lion-team3-${environment})과 반드시 같아야 한다.
   eks_cluster_name = "lion-team3-${var.environment}"
 }

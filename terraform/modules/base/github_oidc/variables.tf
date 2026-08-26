@@ -40,6 +40,34 @@ variable "cloudfront_distribution_arn" {
   default     = null
 }
 
+variable "extra_ssm_read_prefixes" {
+  description = <<-EOT
+    이 role의 SSM 읽기 권한(ReadEnvironmentDataParameters)에 var.environment 말고
+    추가로 허용할 환경 prefix 목록 (예: ["dev"]).
+
+    왜 필요한가: integrated 클러스터가 dev/prod를 namespace로 같이 서빙하지만,
+    dev의 실제 DB(01-data)는 마이그레이션 대상이 아니라서 여전히 /dev/data/*
+    에 있다. main-cd.yml의 "Load database endpoints" 스텝은 DEPLOY_ENV(dev|prod)
+    기준으로 /${DEPLOY_ENV}/data/*를 읽는데, integrated role은 기본적으로
+    /integrated/data/*만 허용돼 있어 dev 배포 시 AccessDenied가 난다
+    (2026-08-26 실제로 겪음 - Main CD #65 "Load database endpoints" 실패).
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "extra_frontend_bucket_arns" {
+  description = "FrontendBucketList/Objects에 var.frontend_bucket_arn 말고 추가로 허용할 버킷 ARN 목록 (extra_ssm_read_prefixes와 같은 이유 - dev 프론트엔드 버킷은 마이그레이션 대상이 아니라서 integrated role이 기본적으로 접근 못 함)"
+  type        = list(string)
+  default     = []
+}
+
+variable "extra_media_bucket_arns" {
+  description = "FrontendBucketList/Objects에 var.media_bucket_arn 말고 추가로 허용할 버킷 ARN 목록 (extra_frontend_bucket_arns와 동일한 이유)"
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_cluster_name" {
   description = "eks:DescribeCluster를 이 이름으로 스코프하기 위한 값. 02-runtime의 eks_cluster 모듈이 실제로 쓸 cluster_name과 반드시 같아야 한다 - 00-base가 02-runtime을 참조할 수 없어(계층 역방향 의존 금지) 값을 호출부에서 명시적으로 맞춰준다. 인프라구성명세.md §4.1 네이밍 패턴(lion-team3-{environment})을 따를 것"
   type        = string
