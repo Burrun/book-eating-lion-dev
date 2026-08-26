@@ -150,6 +150,23 @@ jobs:
             | psql_q > /tmp/live_columns.txt
           echo "실 DB 컬럼 $(wc -l < /tmp/live_columns.txt) 개 수집"
 
+          # 값을 안 주면 INSERT 가 실패하는 컬럼: NOT NULL 인데 기본값도 IDENTITY 도 없는 것들.
+          #
+          # 🔴 이 검사가 따로 필요한 이유 - 시드 파일은 자기만의 CREATE TABLE 을 들고 있고
+          # 거기엔 DEFAULT 가 붙어 있다. 로컬 initdb 는 그 정의로 테이블이 만들어져서 통과하는데,
+          # 배포 DB 의 테이블은 Hibernate(ddl-auto: update)가 만들어서 DEFAULT 가 없다. 컬럼
+          # 이름은 양쪽 다 맞으니 위의 "컬럼 존재" 검사로는 안 걸리고, 실행해봐야 터진다.
+          printf "%s\n" "SELECT n.nspname||'.'||c.relname||'.'||a.attname
+                         FROM pg_attribute a
+                         JOIN pg_class c ON c.oid = a.attrelid
+                         JOIN pg_namespace n ON n.oid = c.relnamespace
+                         LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum
+                         WHERE c.relkind='r' AND a.attnum > 0 AND NOT a.attisdropped
+                           AND a.attnotnull AND d.adbin IS NULL AND a.attidentity = ''
+                           AND n.nspname IN ('member_db','catalog_db','order_db','ai_db');" \
+            | psql_q > /tmp/required_columns.txt
+          echo "값이 필수인 컬럼 $(wc -l < /tmp/required_columns.txt) 개"
+
           # 주석을 걷어낸 뒤 INSERT INTO <t> (<컬럼들>) 만 뽑는다. 줄바꿈이
           # 섞여 있어 한 줄로 접고 본다.
           sed 's/--.*$//' "$SEED_FILE" | tr '\n' ' ' \
@@ -177,6 +194,16 @@ jobs:
                 CONFLICT=1
               fi
             done
+
+            # 반대 방향 — INSERT 가 빠뜨린 필수 컬럼.
+            while read -r required; do
+              col="${required##*.}"
+              if ! echo "$cols" | grep -qx "$col"; then
+                echo "::error file=$SEED_FILE::CONFLICT - 필수 컬럼에 값을 안 준다: ${required}"
+                echo "    → NOT NULL 인데 기본값이 없다. INSERT 에 컬럼과 값을 추가해라."
+                CONFLICT=1
+              fi
+            done < <(grep "^${table}\." /tmp/required_columns.txt || true)
           done < /tmp/inserts.txt
 
           # 시드 파일은 "추가만" 이 정의다. 여기서 막는 이유는 이 파일이
