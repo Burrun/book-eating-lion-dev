@@ -28,7 +28,8 @@ class WikiRagServiceTest {
 
     private static final String MEMBER_ID = "test-cognito-sub-1";
 
-    private static final RagProperties PROPS = new RagProperties(8, 3, 0.75, 12288, 50);
+    // 쿼터 두 값은 이 테스트가 안 쓴다(DailyQuota 는 AskController 단계라 WikiRagService 밖이다).
+    private static final RagProperties PROPS = new RagProperties(8, 3, 0.75, 12288, 5, 50);
 
     private PurchasedBookCache purchasedBookCache;
     private GuardedAiCalls ai;

@@ -17,6 +17,7 @@ import com.bookeatinglion.order.client.CardClient;
 import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
 import com.bookeatinglion.order.client.CatalogClient.BookView;
+import com.bookeatinglion.order.client.MemberSubscriptionClient;
 import com.bookeatinglion.order.coupon.domain.Coupon;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
@@ -119,6 +120,9 @@ class OrderServiceTest {
     @Mock
     private BookPurchasePublisher bookPurchasePublisher;
 
+    @Mock
+    private MemberSubscriptionClient memberSubscriptionClient;
+
     private InventoryLockExecutor passThroughLockExecutor;
 
     private PaymentService paymentService;
@@ -145,7 +149,8 @@ class OrderServiceTest {
                 paymentService,
                 deliveryRepository,
                 reviewPermissionPublisher,
-                bookPurchasePublisher);
+                bookPurchasePublisher,
+                memberSubscriptionClient);
     }
 
     private Inventory inventory(Long bookId, int stock) {

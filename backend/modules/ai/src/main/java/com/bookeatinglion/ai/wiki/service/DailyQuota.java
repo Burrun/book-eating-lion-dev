@@ -1,5 +1,6 @@
 package com.bookeatinglion.ai.wiki.service;
 
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.wiki.config.RagProperties;
 import com.bookeatinglion.ai.wiki.exception.QuotaExceededException;
 import java.time.Duration;
@@ -13,7 +14,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 사용자별 일일 질의 상한.
+ * 사용자별 일일 질의 상한. 구독자와 비구독자의 상한이 다르다.
  *
  * <p>🔴 <b>Redis 장애 시 통과시킨다(fail-open).</b> 쿼터는 과금 방어선이지 인증이 아니고,
  * Redis 는 여러 서비스가 공유하므로 여기서 막으면 장애 반경만 넓어진다. 대신 WARN 을 남긴다 —
@@ -21,6 +22,11 @@ import org.springframework.stereotype.Component;
  *
  * <p>접근 제어({@link FedBookCache})는 반대로 fail-open 하지 않는다. 둘을 같은 규칙으로
  * 다루면 안 된다.
+ *
+ * <p>구독 조회는 무료 상한을 넘긴 뒤에만 한다. 대부분의 요청은 그 아래에서 끝나므로
+ * member-service 를 부를 일이 없다 — 매 질의마다 부르면 RAG 경로에 불필요한 왕복이 붙는다.
+ * 조회가 실패하면 {@code MemberSubscriptionClientFallback} 이 비구독으로 강등해 돌려주므로
+ * 무료 상한이 적용된다(먹이기 EXP 배율과 같은 처리다).
  */
 @Component
 @RequiredArgsConstructor
@@ -30,6 +36,7 @@ public class DailyQuota {
 
     private final StringRedisTemplate redis;
     private final RagProperties props;
+    private final MemberSubscriptionClient memberSubscriptionClient;
 
     public void consume(String memberId) {
         long used;
@@ -48,7 +55,15 @@ public class DailyQuota {
             return;
         }
 
-        if (used > props.dailyQuota()) {
+        // 무료 상한 안이면 구독 여부를 볼 필요가 없다.
+        if (used <= props.freeDailyQuota()) {
+            return;
+        }
+
+        boolean subscribed =
+                memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
+        long limit = subscribed ? props.subscribedDailyQuota() : props.freeDailyQuota();
+        if (used > limit) {
             throw new QuotaExceededException(secondsUntilMidnight());
         }
     }
