@@ -12,8 +12,10 @@ bedrock_model_arns = [
   "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0",
 ]
 
-# S3 Vectors는 아직 미생성 - dev와 마찬가지로 AWS CLI로 수동 생성 후 채울 것.
-recommendation_index_arn     = null
-purchased_book_rag_index_arn = null
+# dev의 기존 벡터 인덱스를 그대로 재사용한다 (dev 워크로드 임시 이전이라 별도
+# 인덱스 새로 만들 필요 없음 - dev/02-runtime/terraform.tfvars와 동일 값).
+# prod 실제 서비스를 이 클러스터에 올릴 땐 prod 전용 인덱스로 바꿔야 함.
+recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/recommendation-books-v1"
+purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-dev-vectors/index/wiki-v1"
 
 admin_principal_arns = []
