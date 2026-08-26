@@ -11,7 +11,7 @@ variable "aws_region" {
 # ── EC2 PostgreSQL (aurora_pg 대신, §6.3) ───────────────────────
 variable "database_name" {
   type    = string
-  default = "bookdb"
+  default = "bookdb_dev"
 }
 
 variable "master_username" {

@@ -1,0 +1,190 @@
+name: k3s Dev Deploy
+
+# main-cd.yml(EKS 정식 경로)과 별개다 - dev만 임시로 EC2 단일 k3s로 운영하는 동안 쓰는
+# 우회 배포 경로. EKS로 정식 전환하면 이 워크플로는 삭제한다.
+#
+# self-hosted 러너가 배포 대상 EC2(lion-team3-dev-ec2-kub) 자체다. 그래서 EKS 경로와
+# 달리 aws-actions/configure-aws-credentials(OIDC)도, aws eks update-kubeconfig도,
+# SSM send-command도 필요 없다 - 러너가 이미 그 인스턴스의 IAM Role(ECR push 권한
+# 포함)을 IMDS로 물려받고, kubectl도 로컬(/etc/rancher/k3s/k3s.yaml)로 바로 붙는다.
+#
+# dev 브랜치 push 시 자동 배포 + 수동 트리거(workflow_dispatch) 둘 다 지원.
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "배포할 서비스 (콤마 구분, 기본 전체)"
+        default: "catalog,order,member,ai"
+        required: true
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 061039804626.dkr.ecr.ap-northeast-2.amazonaws.com
+
+jobs:
+  deploy:
+    name: 빌드 + 배포 (k3s dev)
+    runs-on: [self-hosted, k3s-dev]
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ECR 로그인
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" | \
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # jar는 아키텍처 중립이다. 러너(=배포 대상 EC2)가 arm64라서 Dockerfile을 그대로
+      # --platform linux/amd64로 빌드하면 Gradle이 QEMU 에뮬레이션 밑에서 돌아 서비스당
+      # 수십 분씩 걸린다. 그래서 jar는 네이티브(arm64)로 한 번만 굽고, COPY만 하는 런타임
+      # 이미지만 2개 아키텍처로 만든다 - RUN이 없으니 에뮬레이션 자체가 필요 없다
+      # (setup-qemu-action을 뺀 이유).
+      - name: 이미지 빌드 + 푸시 (linux/amd64,linux/arm64)
+        env:
+          IMAGE_TAG: dev-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-ctx
+          cat > runtime-ctx/Dockerfile <<'DOCKERFILE'
+          FROM eclipse-temurin:21-jre-alpine
+          WORKDIR /app
+          COPY app.jar app.jar
+          EXPOSE 8080
+          ENTRYPOINT ["java", "-jar", "app.jar"]
+          DOCKERFILE
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services || 'catalog,order,member,ai' }}"
+          for svc in "${SERVICES[@]}"; do
+            echo "=== building $svc (jar, native arm64) ==="
+            docker build --target builder -t "k3s-dev-builder/${svc}" \
+              -f "backend/apps/${svc}-api/Dockerfile" backend
+            cid=$(docker create "k3s-dev-builder/${svc}")
+            docker cp "$cid:/app/apps/${svc}-api/build/libs/." runtime-ctx/libs
+            docker rm -f "$cid" > /dev/null
+            mv runtime-ctx/libs/*.jar runtime-ctx/app.jar
+            rm -rf runtime-ctx/libs
+            echo "=== pushing $svc (multi-arch) ==="
+            docker buildx build --platform linux/amd64,linux/arm64 \
+              -t "$ECR_REGISTRY/lion-team3-dev/${svc}:${IMAGE_TAG}" \
+              --push runtime-ctx
+            rm -f runtime-ctx/app.jar
+          done
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: 매니페스트 렌더링 + apply
+        env:
+          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          DEPLOY_ENV: dev
+          ECR_CATALOG_REPO: lion-team3-dev/catalog
+          ECR_ORDER_REPO: lion-team3-dev/order
+          ECR_MEMBER_REPO: lion-team3-dev/member
+          ECR_AI_REPO: lion-team3-dev/ai
+          # application-dev.yml은 존재하지 않는다 - main-cd.yml과 동일하게 dev/prod
+          # AWS 환경 둘 다 Spring 프로파일은 "prod"(env var 기반 외부화 설정)를 쓴다.
+          SPRING_PROFILE: prod
+          DB_SSL_MODE: disable
+          DB_NAME: bookdb_dev
+          AI_DB_NAME: bookdb_dev
+          API_HOST: dev.ajttk.com
+          FRONTEND_ORIGIN: https://dev.ajttk.com
+          VPC_CIDR: 10.13.0.0/16
+          CHAT_ALLOWED_ORIGINS: https://dev.ajttk.com
+          KAKAOPAY_FRONTEND_CALLBACK_URL: https://dev.ajttk.com/payments/kakao/callback
+          AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
+          AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
+          AWS_COGNITO_CLIENT_SECRET: ""
+          REDIS_HOST: ${{ vars.REDIS_HOST }}
+          SQS_INGEST_QUEUE_URL: ${{ vars.SQS_INGEST_QUEUE_URL }}
+          SQS_PURCHASE_QUEUE_URL: ${{ vars.SQS_PURCHASE_QUEUE_URL }}
+          EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
+          AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
+          # k3s는 IRSA(EKS 전용)가 없다. ai 파드는 node의 EC2 role을 그냥 물려받는다 -
+          # Bedrock/SQS/S3Vectors 권한은 그 role(lion-team3-dev-ec2-kub-role)에 직접 붙여야 한다.
+          AI_SERVICE_IRSA_ARN: ""
+          CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
+          CATALOG_DB_PASSWORD: ${{ secrets.CATALOG_DB_PASSWORD }}
+          ORDER_DB_USERNAME: ${{ secrets.ORDER_DB_USERNAME }}
+          ORDER_DB_PASSWORD: ${{ secrets.ORDER_DB_PASSWORD }}
+          MEMBER_DB_USERNAME: ${{ secrets.MEMBER_DB_USERNAME }}
+          MEMBER_DB_PASSWORD: ${{ secrets.MEMBER_DB_PASSWORD }}
+          AI_DB_USERNAME: ${{ secrets.AI_DB_USERNAME }}
+          AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
+          KAKAOPAY_SECRET_KEY: ${{ secrets.KAKAOPAY_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p rendered
+          for f in k8s/base/*.yaml; do
+            envsubst < "$f" > "rendered/$(basename "$f")"
+          done
+          kubectl apply -f rendered/
+
+          # k3s 전용 패치 - k8s/base/lion-app-baseline NetworkPolicy는 EKS/IRSA(443만
+          # 필요) 기준이라 IMDS(169.254.169.254:80, 평문 HTTP)를 안 열어준다. k3s는
+          # IRSA가 없어 노드 role을 IMDS로 받아야 하는데(AI_SERVICE_IRSA_ARN=""),
+          # 그 경로가 막혀 ai 파드가 기동 중 SdkClientException으로 죽었다(실측).
+          # EKS/prod가 쓰는 k8s/base엔 넣지 않고 여기서만 별도로 연다.
+          cat <<'NETPOL' | kubectl apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: lion-app-k3s-dev-imds
+            namespace: lion-app
+          spec:
+            podSelector:
+              matchLabels:
+                tier: backend
+            policyTypes:
+              - Egress
+            egress:
+              - to:
+                  - ipBlock:
+                      cidr: 169.254.169.254/32
+                ports:
+                  - port: 80
+                    protocol: TCP
+          NETPOL
+
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services || 'catalog,order,member,ai' }}"
+          for svc in "${SERVICES[@]}"; do
+            mkdir -p "rendered/$svc"
+            for f in "k8s/$svc"/*.yaml; do
+              envsubst < "$f" > "rendered/$svc/$(basename "$f")"
+            done
+            kubectl apply -f "rendered/$svc/"
+          done
+
+          # k3s 전용 패치 - k8s/*/deployment.yaml의 RollingUpdate(maxUnavailable: 0,
+          # maxSurge: 1)는 노드가 자동으로 늘어나는 EKS/Karpenter 기준이다. 여기는
+          # 노드가 t4g.xlarge 1대로 고정이라 롤아웃 때 잠깐 필요한 2배 리소스를 낼 수
+          # 없어서, 새 파드가 Pending에 걸리고 rollout이 타임아웃되는 게 매 배포마다
+          # 반복됐다(실측). Recreate는 옛 파드를 먼저 내리고 새 파드를 띄워 리소스가
+          # 2배로 안 든다 - 대가는 배포마다 수십 초 다운타임이고, dev라 감수한다.
+          # 같은 이유로 HPA도 노드 1대에 맞게 상한을 낮춘다(EKS용 원본은 20~30).
+          for d in $(kubectl -n lion-app get deploy -o name); do
+            kubectl -n lion-app patch "$d" -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+          done
+          for h in $(kubectl -n lion-app get hpa -o name); do
+            kubectl -n lion-app patch "$h" -p '{"spec":{"minReplicas":1,"maxReplicas":3}}'
+          done
+
+      - name: rollout 대기
+        env:
+          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+        run: |
+          set -euo pipefail
+          declare -A deployments=(
+            [catalog]="catalog-deployment"
+            [order]="order-deployment"
+            [member]="member-deployment"
+            [ai]="ai-rag-deployment ai-bot-deployment"
+          )
+          IFS=',' read -ra SERVICES <<< "${{ inputs.services || 'catalog,order,member,ai' }}"
+          for svc in "${SERVICES[@]}"; do
+            for d in ${deployments[$svc]}; do
+              kubectl -n lion-app rollout status "deployment/$d" --timeout=300s
+            done
+          done

@@ -13,6 +13,9 @@ data:
   DB_NAME: "${DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
   DB_SSL_MODE: "${DB_SSL_MODE}"
+  # dev EC2 PostgreSQL의 연결 한도를 여러 Pod가 나눠 쓰도록 풀을 작게 유지한다.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "0"
 
   # 서비스 간 동기 통신 주소. Eureka 없이 K8s Service DNS 가 해결한다(§4).
   # MemberNotificationClient(member-notification-profile)가 SERVICES_MEMBER_URL을

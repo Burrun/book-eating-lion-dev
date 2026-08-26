@@ -19,7 +19,13 @@
 
 set -euo pipefail
 
-ENV="${1:-}"
+if [[ $# -ne 1 ]]; then
+  echo "사용법: $0 <dev|prod>" >&2
+  echo "통합 환경은 기존 dev/prod GitHub Environment에 덮어쓰지 마세요." >&2
+  exit 1
+fi
+
+ENV="$1"
 if [[ "$ENV" != "dev" && "$ENV" != "prod" ]]; then
   echo "사용법: $0 <dev|prod>" >&2
   exit 1
@@ -100,14 +106,14 @@ for svc in CATALOG ORDER MEMBER AI; do
   fi
 done
 
-set_var "AURORA_ENDPOINT" "$(ssm data/db_endpoint)"
-set_var "AURORA_READER_ENDPOINT" "$(ssm data/db_reader_endpoint)"
-set_var "DB_NAME" "bookdb"
+# DB 주소는 GitHub Variables에 복사하지 않는다. main-cd.yml이 환경별 SSM
+# 파라미터에서 writer/reader endpoint를 배포 시점에 조회한다.
+set_var "DB_NAME" "bookdb_${ENV}"
 # ai_db도 스키마만 다를 뿐 같은 bookdb 안에 있다(AI_DB_HOST 옆 주석 참고) - 별도
 # AI 전용 DB를 새로 팠다면 이 값을 바꿀 것. 예전엔 이 값을 스킵하고 사람이
 # 수동 등록하도록 남겨뒀었는데, 아무도 안 채워서 ai-api가 빈 DB명으로 접속
 # 계정명("bookadmin")에 접속을 시도하다 죽는 사고가 났다(인프라구성명세.md §7.7.1 ⑫).
-set_var "AI_DB_NAME" "bookdb"
+set_var "AI_DB_NAME" "bookdb_${ENV}"
 
 set_var "REDIS_HOST" "$(ssm data/valkey_endpoint)"
 # 아래 ssm() 인자("ai/...")는 terraform/environments/{env}/01-data/main.tf의

@@ -20,6 +20,7 @@ public class Address extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "address_id")
     private Long id;
 
     @Column(name = "member_sub", nullable = false)
@@ -28,15 +29,16 @@ public class Address extends BaseEntity {
     @Column(nullable = false)
     private String recipientName;
 
-    @Column(nullable = false)
+    @Column(name = "recipient_phone", nullable = false)
     private String phoneNumber;
 
-    @Column(nullable = false)
+    @Column(name = "postal_code", nullable = false)
     private String zipcode;
 
     @Column(nullable = false)
     private String address;
 
+    @Column(name = "address_detail")
     private String detailAddress;
 
     @Column(nullable = false)

@@ -2,6 +2,10 @@ output "db_endpoint" {
   value = module.ec2_postgres.cluster_endpoint
 }
 
+output "db_reader_endpoint" {
+  value = module.ec2_postgres.reader_endpoint
+}
+
 output "valkey_endpoint" {
   value = module.cache_valkey.valkey_primary_endpoint
 }

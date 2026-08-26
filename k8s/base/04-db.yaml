@@ -1,5 +1,5 @@
-# Aurora 엔드포인트를 클러스터 내부 이름으로 노출한다.
-# Pod 는 이 이름만 바라보며, Aurora 주소가 바뀌어도 여기만 고치면 된다.
+# 환경별 DB endpoint를 클러스터 내부 이름으로 노출한다.
+# Pod는 이 Service 이름만 바라보고, 실제 DB 주소 변경은 배포 시 주입되는 endpoint가 흡수한다.
 #
 # 클러스터는 1개다.
 #   원래는 ai_db 만 별도 클러스터(Serverless v2)로 뺐었다. 근거는 두 가지였는데
@@ -13,16 +13,10 @@
 #
 # 엔진은 PostgreSQL. 스키마: catalog_db / order_db / member_db / ai_db.
 #
-# --- 엔드포인트 값 용도 (2026-08-13) ---
-# AURORA_ENDPOINT / AURORA_READER_ENDPOINT
-#   최종 목표. Terraform 으로 Aurora(RDS)를 프로비저닝하면 그 출력값을 여기에 채운다.
-#   아직 Terraform/인프라가 준비되지 않아 비어 있다.
-# TEST_DB_ENDPOINT (main-cd.yml 의 base job env 에 선언, 아직 이 파일에서는 미사용)
-#   비용 절감을 위해 Aurora 대신 EC2 위에 Docker 로 직접 띄운 Postgres 를 임시로
-#   쓸 때의 엔드포인트(EC2 프라이빗 IP/DNS). 인프라가 갖춰지기 전까지 값을 미리
-#   추적해두는 용도이며, 아래 externalName 은 여전히 AURORA_ENDPOINT 를 가리킨다 —
-#   실제로 EC2 Postgres 로 전환하기로 확정되면 이 줄을 ${TEST_DB_ENDPOINT} 로
-#   바꾸거나, db-primary-service 를 그대로 두고 이름을 바꾼 새 Service 를 추가한다.
+# Terraform 01-data가 환경별 endpoint를 SSM Parameter Store에 기록한다.
+#   dev  : EC2 PostgreSQL의 AWS 사설 DNS
+#   prod : writer.db.prod.internal.ajttk.com        -> RDS Proxy
+#          reader.db.prod.internal.ajttk.com        -> Aurora Reader
 apiVersion: v1
 kind: Service
 metadata:
@@ -30,7 +24,7 @@ metadata:
   namespace: lion-db
 spec:
   type: ExternalName
-  externalName: "${AURORA_ENDPOINT}"
+  externalName: "${DB_WRITER_ENDPOINT}"
   ports:
     - port: 5432
       protocol: TCP
@@ -43,7 +37,7 @@ metadata:
   namespace: lion-db
 spec:
   type: ExternalName
-  externalName: "${AURORA_READER_ENDPOINT}"
+  externalName: "${DB_READER_ENDPOINT}"
   ports:
     - port: 5432
       protocol: TCP

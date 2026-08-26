@@ -1,0 +1,39 @@
+name: Terraform Apply Example
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, prod]
+        required: true
+      layer:
+        type: choice
+        options: [00-base, 01-data, 02-runtime, 03-deploy]
+        required: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ inputs.environment }}/${{ inputs.layer }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+      - run: terraform init -input=false
+      - run: terraform fmt -check
+      - run: terraform validate
+      - run: terraform plan -out=tfplan -input=false
+      - run: terraform apply -input=false tfplan
+
+# 적용 순서: 00-base → 01-data → 02-runtime → 03-deploy
+# 최초 02-runtime은 프로젝트의 Karpenter bootstrap 절차를 별도로 따라야 한다.
