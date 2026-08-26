@@ -28,14 +28,12 @@ CREATE TABLE IF NOT EXISTS member_db.members (
     gender       VARCHAR(10),
     birth_date   DATE,
     role         VARCHAR(20) NOT NULL DEFAULT 'USER',
-    grade        VARCHAR(20) NOT NULL DEFAULT 'BRONZE',
-    point        INT NOT NULL DEFAULT 0,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO member_db.members (member_id, email, name, nickname, role, grade)
-VALUES ('00000000-0000-0000-0000-000000000001', 'test@lion.com', '테스트유저', '테스트유저', 'USER', 'BRONZE')
+INSERT INTO member_db.members (member_id, email, name, nickname, role)
+VALUES ('00000000-0000-0000-0000-000000000001', 'test@lion.com', '테스트유저', '테스트유저', 'USER')
 ON CONFLICT (member_id) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -463,9 +461,24 @@ CREATE TABLE IF NOT EXISTS ai_db.faqs (
 INSERT INTO ai_db.lions (member_id, growth_stage) VALUES (1, 'CUB')
 ON CONFLICT (member_id) DO NOTHING;
 
-INSERT INTO ai_db.faqs (category, question, answer, sort_order) VALUES
+-- sort_order 로 멱등이다. 이 파일은 로컬 initdb 뿐 아니라 db-seed 워크플로가
+-- 배포된 DB 에도 몇 번이든 다시 돌리므로, 재실행이 행을 늘리면 안 된다.
+-- faq_id 는 IDENTITY 라 값 비교가 안 되고, question 에는 UNIQUE 가 없어서
+-- ON CONFLICT 를 쓸 대상이 없다 - sort_order 존재 여부로 거른다.
+INSERT INTO ai_db.faqs (category, question, answer, sort_order)
+SELECT v.category, v.question, v.answer, v.sort_order
+FROM (VALUES
     ('배송', '배송은 얼마나 걸리나요?', '결제 완료 후 영업일 기준 2~3일 소요됩니다.', 1),
-    ('주문', '주문 취소는 어떻게 하나요?', '배송 준비중 상태까지는 마이페이지에서 직접 취소할 수 있습니다.', 2);
+    ('주문', '주문 취소는 어떻게 하나요?', '배송 준비중 상태까지는 마이페이지 > 주문내역에서 직접 취소할 수 있습니다.', 2),
+    ('반품/교환', '반품 및 교환 신청은 어떻게 하나요?', '상품 수령 후 7일 이내에 마이페이지 > 주문내역에서 신청 가능합니다. 단순 변심의 경우 반품 배송비가 발생할 수 있습니다.', 3),
+    ('구독', '구독 서비스 혜택이 궁금해요.', '책 먹는 사자 멤버십 구독 시 매월 엄선된 도서 무료 대여 및 무제한 전자책 열람, 추가 적립금 혜택을 제공합니다.', 4),
+    ('쿠폰/혜택', '쿠폰은 어디서 확인하나요?', '마이페이지 > 쿠폰함에서 보유 중인 할인 쿠폰과 유효기간을 확인하실 수 있으며, 주문 결제 시 적용 가능합니다.', 5),
+    ('전자책', '구매한 전자책(eBook)은 어떻게 읽나요?', '마이페이지 > 내 서재에서 구매한 전자책을 웹 뷰어로 즉시 열람하실 수 있습니다.', 6),
+    ('결제', '지원되는 결제 수단은 무엇이 있나요?', '신용/체크카드 및 카카오페이 간편결제를 지원하고 있습니다.', 7),
+    ('회원', '회원 탈퇴는 어떻게 하나요?', '마이페이지 > 회원 정보 관리 페이지 하단의 회원 탈퇴 버튼을 통해 진행하실 수 있습니다.', 8),
+    ('서비스', '책 먹는 사자는 어떻게 성장하나요?', '도서 구매 및 독서 리뷰 작성 등 활동에 따라 사자가 경험치를 얻어 아기 사자(CUB)에서 어른 사자(ADULT)로 성장합니다.', 9)
+) AS v(category, question, answer, sort_order)
+WHERE NOT EXISTS (SELECT 1 FROM ai_db.faqs f WHERE f.sort_order = v.sort_order);
 
 DO $$
 DECLARE

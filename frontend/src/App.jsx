@@ -57,7 +57,11 @@ function Layout() {
     <div className="min-h-screen bg-[var(--color-paper)]">
       <Header cartCount={cartCount} wishlistCount={wishlistCount} />
       <Outlet />
-      <ChatContainer />
+      {/* 로그인/로그아웃 시 key가 바뀌어 위젯이 리마운트된다 — 이전 사용자의 메시지와
+          seq 중복제거 캐시가 남아 다음 사용자 화면에 보이거나(로그아웃 후 그대로 노출),
+          새 방의 seq가 이미 본 것으로 판정돼 메시지가 버려지는 것을 막는다.
+          서버 쪽 방은 그대로 둔다 — 진행 중인 상담사 연결을 끊지 않기 위함. */}
+      <ChatContainer key={isAuthenticated ? "auth" : "guest"} />
     </div>
   );
 }
