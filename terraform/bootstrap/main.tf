@@ -8,7 +8,10 @@
 # 먼저 지우거나 deletion_protection을 false로 바꾸고 apply한 다음 destroy할 것.
 
 locals {
-  environments = ["dev", "prod"]
+  # integrated 추가 - dev/prod를 한 EKS로 합쳐 운영하는 세 번째 tfstate.
+  # 기존 dev/prod 버킷·테이블은 그대로 두고 새 항목만 추가되므로
+  # for_each에 새 키가 하나 늘어날 뿐, 기존 리소스는 건드리지 않는다.
+  environments = ["dev", "prod", "integrated"]
 }
 
 resource "aws_s3_bucket" "tfstate" {
