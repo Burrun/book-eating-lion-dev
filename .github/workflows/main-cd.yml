@@ -357,6 +357,14 @@ jobs:
           # 그대로 쓰여 실결제 후 사용자가 localhost로 리다이렉트된다 — FRONTEND_ORIGIN에
           # 경로만 붙인 값이라 별도 GH Variable 없이 재사용한다(인프라-트러블슈팅.md ⑲).
           KAKAOPAY_FRONTEND_CALLBACK_URL: ${{ vars.FRONTEND_ORIGIN }}/payments/kakao/callback
+          # 구독권 상품의 bookId. 환경마다 카탈로그에 상품을 따로 만들어야 해서 GH Variable 로 받는다.
+          #
+          # 🔴 여기서 반드시 -1 로 폴백한다. Variable 이 없으면 envsubst 가 빈 문자열을 넣는데,
+          # 그러면 ConfigMap 이 SUBSCRIPTION_BOOK_ID="" 가 되고 order-api 의
+          # ${app.subscription.book-id:-1} 은 "변수가 없을 때"만 -1 을 쓰므로 빈 문자열을
+          # long 에 바인딩하려다 기동 자체가 실패한다. -1 이면 어떤 주문과도 안 맞아
+          # 구독 결제 연동만 조용히 꺼진다 - 상품을 아직 안 만든 환경에서 이게 맞는 동작이다.
+          SUBSCRIPTION_BOOK_ID: ${{ vars.SUBSCRIPTION_BOOK_ID || '-1' }}
         run: |
           set -euo pipefail
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
@@ -382,7 +390,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL $SUBSCRIPTION_BOOK_ID'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"

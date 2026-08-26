@@ -438,6 +438,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/SubscriptionStatusResponse"
 
+  /internal/members/{memberId}/subscription:
+    post:
+      summary: 내부 구독 활성화(결제 확정 후)
+      description: |
+        클러스터 내부 전용이며 Ingress에 노출하지 않는다. order-service 가 구독권 결제를
+        확정한 직후 호출한다(OrderService#activateSubscriptionIfOrdered).
+
+        공개 계약 `POST /api/members/me/subscription` 은 본인 JWT 로만 부를 수 있어
+        order-service 가 사용자를 대신해 부를 수 없다. 그래서 memberId 를 경로로 받는
+        내부용을 따로 둔다.
+
+        **멱등하다.** 이미 ACTIVE 구독이 있으면 409 가 아니라 그 구독을 그대로 200 으로
+        돌려준다 — 이 시점엔 이미 결제가 끝나 있어서, 여기서 실패로 응답하면 돈만 나가고
+        구독은 없는 상태로 굳는다. 호출측이 재시도해도 안전해야 한다.
+
+        ApiResponse 로 감싸지 않고 Subscription 을 그대로 반환한다(subscription-status 와 같은 규칙).
+      tags: [internal-members]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, description: Cognito sub }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "200":
+          description: 활성화 성공. 이미 ACTIVE 였으면 기존 구독을 그대로 반환한다.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "400":
+          description: planType 이 없거나 알 수 없는 값
+
   /internal/members/{memberId}/notification-profile:
     get:
       summary: 내부 알림 수신 프로필 조회

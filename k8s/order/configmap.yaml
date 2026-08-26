@@ -36,6 +36,14 @@ data:
   SERVICES_CATALOG_URL: "http://catalog-service:8080"
   SERVICES_MEMBER_URL: "http://member-service:8080"
 
+  # 구독권 상품의 bookId. 이 책이 든 주문이 결제 확정되면 order 가 member-service 의
+  # POST /internal/members/{id}/subscription 을 불러 구독을 만든다.
+  #
+  # 값을 안 넣으면 코드 기본값 -1 로 떨어져 기능이 통째로 꺼진다(bookId 는 1 부터라
+  # 어떤 주문과도 안 맞는다). 상품은 환경마다 따로 만들어야 하므로 이게 맞는 기본값이다 -
+  # 구독권 도서를 카탈로그에 등록한 뒤 그 id 를 GitHub Variables 에 넣어야 동작한다.
+  SUBSCRIPTION_BOOK_ID: "${SUBSCRIPTION_BOOK_ID}"
+
   # 결제 완료 후 카카오가 사용자를 돌려보낼 프론트엔드 콜백 페이지. 이 값이
   # 없으면 코드 기본값(localhost:5173)으로 떨어져 실제 결제 후 사용자가
   # localhost로 리다이렉트된다(인프라-트러블슈팅.md ⑲, 2026-08-21 실제로

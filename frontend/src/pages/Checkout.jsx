@@ -248,6 +248,9 @@ export default function Checkout() {
       // VIRTUAL_CARD는 createOrder 안에서 이미 서버가 장바구니를 비웠으므로 다시 지우지 않고
       // 캐시만 무효화한다(중복 삭제를 시도하면 이미 없는 아이템이라 404로 실패한다).
       queryClient.invalidateQueries({ queryKey: ["cart"] });
+      // 구독권 주문이었으면 서버가 결제 확정과 함께 구독을 만들었다. 캐시를 안 비우면
+      // 목록/상세의 구독 CTA가 한동안 "구독하기"로 남아 이미 산 사람에게 또 권한다.
+      queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
 
       setIsConfirmOpen(false);
       toast.success("결제가 완료되었습니다.");

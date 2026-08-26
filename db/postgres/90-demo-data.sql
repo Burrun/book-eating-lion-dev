@@ -144,7 +144,43 @@ INSERT INTO catalog_db.books (
     '앨리스가 조끼를 입은 흰토끼를 쫓아 굴에 빠진 뒤, 몸이 커졌다 작아졌다 하며 미친 모자장수의 다과회와 하트 여왕의 재판을 거치는 이야기.',
     'ON_SALE',
     '1865-11-26',
-    0
+    0,
+    0.00, 0, FALSE
+) ON CONFLICT (isbn) DO NOTHING;
+
+-- 정기구독 상품. 도서가 아니라 "구독권"이라 저자/출판사/ISBN 은 형식을 맞추려고 지어낸
+-- 값이다(ISBN 은 9999 로 시작해 실제 도서 대역과 안 겹친다).
+--
+-- 구독을 별도 상품 타입으로 두지 않고 도서 한 행으로 표현한다 - 가격 조회·주문 항목
+-- 스냅샷·결제·주문내역이 전부 기존 경로를 그대로 탄다. 대신 이 세 필드가 가짜다.
+--
+-- sale_status = STOPPED 인 이유: 베스트셀러/신간/추천 목록이 전부 sale_status='ON_SALE'
+-- 로 조회하므로(BookRepository) 매장 화면에 안 뜬다. 반면 BookService#getBook 은
+-- sale_status 를 안 보므로 order-service 의 가격 조회와 주문은 정상 동작한다 -
+-- "목록엔 없고 /checkout 경로로만 살 수 있는 상품"이 된다.
+--
+-- book_id 를 명시하는 이유는 order-api 의 SUBSCRIPTION_BOOK_ID 설정과 짝을 맞춰야
+-- 하기 때문이다. 자동 채번에 맡기면 환경마다 값이 달라진다. 9001 은 101/102 와 같은
+-- 이유로 자동 채번 대역에서 멀리 띄운 값이다.
+INSERT INTO catalog_db.books (
+    book_id, title, author, publisher, isbn, category, price,
+    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count,
+    rating_avg, review_count, is_deleted
+) VALUES (
+    9001,
+    '책 먹는 사자 정기구독 (월간)',
+    '책 먹는 사자',
+    '책 먹는 사자',
+    '9999000000001',
+    '구독',
+    9900,
+    NULL,
+    '월 9,900원에 웹툰 요약 컷 열람과 사자 먹이 2배 적립 혜택을 받습니다.',
+    '결제가 확정되면 order-service 가 member-service 에 구독 활성화를 요청한다(OrderService#activateSubscriptionIfOrdered).',
+    'STOPPED',
+    NULL,
+    0,
+    0.00, 0, FALSE
 ) ON CONFLICT (isbn) DO NOTHING;
 
 -- 카탈로그 화면 데모용 추가 도서 21권 (가상 도서 — 실존 도서 아님, 저작권/사실관계
@@ -311,10 +347,20 @@ INSERT INTO catalog_db.books (
 )
 ON CONFLICT (isbn) DO NOTHING;
 
--- 🔴 위에서 book_id 를 직접 넣었으므로 시퀀스는 그대로 2에 머물러 있다.
--- 그냥 두면 이후 자동 채번이 2, 3, ... 으로 올라가다 101 에서 충돌한다.
--- 데모 데이터가 앱의 정상 동작을 나중에 깨뜨리지 않도록 여기서 밀어둔다.
-ALTER TABLE catalog_db.books ALTER COLUMN book_id RESTART WITH 103;
+-- 🔴 위에서 book_id 를 직접 넣었으므로 시퀀스가 그 값들을 모른다. 그냥 두면 이후
+-- 자동 채번이 1, 2, ... 으로 올라가다 101 에서 충돌한다. 여기서 밀어둔다.
+--
+-- 🔴 RESTART WITH 103 을 쓰지 않는다. 그건 멱등하지 않다 - db-seed 워크플로가 이 파일을
+-- 여러 번 돌리는데, 그 사이 앱이 103·104 를 만들었다면 시퀀스를 103 으로 되돌려 다음
+-- INSERT 가 기존 행과 충돌한다. 실제 최대값과 103 중 큰 쪽으로 맞춰 뒤로 가지 않게 한다.
+--
+-- 9001(구독권)은 자동 채번 대역이 아니라 제외한다 - 포함하면 시퀀스가 9002 로 뛰어
+-- 이후 모든 도서 id 가 그 뒤에 붙는다.
+SELECT setval(
+    pg_get_serial_sequence('catalog_db.books', 'book_id'),
+    GREATEST(103, (SELECT COALESCE(MAX(book_id), 0) + 1 FROM catalog_db.books WHERE book_id < 9000)),
+    false
+);
 
 -- book_id 101/102 는 S3 에 실제 업로드된 EPUB 을 가리킨다 (aws s3 ls 로 확인).
 UPDATE catalog_db.books SET epub_s3_key = 'books/101/frankenstein.epub' WHERE book_id = 101;
@@ -382,7 +428,10 @@ CREATE TABLE IF NOT EXISTS order_db.inventory (
 
 -- 101/102 는 RAG 인제스트 테스트용 도서다. 재고가 없으면 주문 자체가 막혀
 -- 구매확정 이벤트가 발행되지 않고, 그러면 "구매한 책만 검색" 권한도 생기지 않는다.
-INSERT INTO order_db.inventory (book_id, stock) VALUES (1, 100), (101, 100), (102, 100)
+-- 9001 은 구독권이다. 재고 개념이 없지만 createOrder 가 checkStock 을 타므로 행이 있어야
+-- 주문이 통과한다. 소진될 일이 없게 크게 잡는다 - 재고 관리 대상이 아니라는 뜻이다.
+INSERT INTO order_db.inventory (book_id, stock)
+VALUES (1, 100), (101, 100), (102, 100), (9001, 999999)
 ON CONFLICT (book_id) DO NOTHING;
 
 -- CREATE TABLE IF NOT EXISTS order_db.orders (

@@ -37,6 +37,10 @@ export default function KakaoPayCallback() {
       .then(() => {
         // 승인 성공 시 서버가 장바구니를 이미 비웠으므로 캐시만 무효화한다.
         queryClient.invalidateQueries({ queryKey: ["cart"] });
+        // 구독권 주문이었으면 서버가 결제 확정과 함께 구독을 만들었다(OrderService#
+        // activateSubscriptionIfOrdered). 캐시를 안 비우면 목록/상세의 구독 CTA가
+        // 한동안 "구독하기"로 남아 이미 산 사람에게 또 권한다.
+        queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
         navigate("/payment/kakao/success", { replace: true });
       })
       .catch(() => {
