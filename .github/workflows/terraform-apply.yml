@@ -6,7 +6,7 @@ on:
       environment:
         description: "적용할 환경"
         type: choice
-        options: [dev, prod]
+        options: [dev, prod, integrated]
         default: dev
         required: true
       layer:
@@ -39,7 +39,7 @@ jobs:
     name: ${{ inputs.environment }} / ${{ inputs.layer }} 적용
     if: inputs.confirmation == format('APPLY-{0}', inputs.environment)
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment == 'integrated' && 'integrated-prod' || inputs.environment }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       TF_IN_AUTOMATION: "true"
@@ -54,17 +54,17 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.TERRAFORM_AWS_ROLE_ARN }}
           role-session-name: terraform-${{ inputs.environment }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify required configuration
         env:
-          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          TERRAFORM_AWS_ROLE_ARN: ${{ vars.TERRAFORM_AWS_ROLE_ARN }}
         run: |
           set -euo pipefail
-          if [ -z "$AWS_ROLE_ARN" ]; then
-            echo "::error::GitHub Environment '${{ inputs.environment }}'의 AWS_ROLE_ARN Variable이 비어 있습니다."
+          if [ -z "$TERRAFORM_AWS_ROLE_ARN" ]; then
+            echo "::error::Terraform 대상 '${{ inputs.environment }}'의 TERRAFORM_AWS_ROLE_ARN Variable이 비어 있습니다. 배포 전용 AWS_ROLE_ARN을 대신 사용하면 안 됩니다."
             exit 1
           fi
           aws sts get-caller-identity
@@ -150,14 +150,24 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'main-cd.yml',
-              ref: context.ref.replace('refs/heads/', ''),
-              inputs: { environment: '${{ inputs.environment }}' }
-            });
-            core.notice('Main CD를 호출했습니다. 모듈 Pod 배포 상태는 별도 Main CD 실행에서 확인하세요.');
+            const target = '${{ inputs.environment }}';
+            const deployments = target === 'integrated'
+              ? [
+                  { environment: 'dev', deployment_mode: 'integrated' },
+                  { environment: 'prod', deployment_mode: 'integrated' },
+                ]
+              : [{ environment: target, deployment_mode: 'split' }];
+
+            for (const inputs of deployments) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'main-cd.yml',
+                ref: context.ref.replace('refs/heads/', ''),
+                inputs,
+              });
+            }
+            core.notice(`Main CD를 ${deployments.length}건 호출했습니다. 별도 실행에서 Pod rollout 결과를 확인하세요.`);
 
       - name: Deployment handoff summary
         if: inputs.deploy_modules
@@ -165,7 +175,8 @@ jobs:
           {
             echo "## 모듈 배포 요청 완료"
             echo "- Workflow: \`Main CD (EKS)\`"
-            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Infrastructure: \`${{ inputs.environment }}\`"
+            echo "- Deployment mode: \`${{ inputs.environment == 'integrated' && 'integrated (dev + prod)' || 'split' }}\`"
             echo "- Services: Catalog, Order, Member, AI"
             echo "- Main CD 실행 화면에서 이미지 빌드와 Pod rollout 결과를 확인하세요."
           } >> "$GITHUB_STEP_SUMMARY"

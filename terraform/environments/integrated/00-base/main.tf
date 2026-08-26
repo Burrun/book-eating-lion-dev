@@ -103,11 +103,11 @@ module "github_oidc" {
 
   environment          = var.environment
   create_oidc_provider = false # 계정 공유 Provider 재사용 - dev/prod와 동일한 이유
-  github_org            = var.github_org
-  github_repo           = var.github_repo
-  ecr_repository_arns   = values(module.container_reg.repository_arns)
-  frontend_bucket_arn    = module.storage.frontend_bucket_arn
-  media_bucket_arn       = module.storage.media_bucket_arn
+  github_org           = var.github_org
+  github_repo          = var.github_repo
+  ecr_repository_arns  = values(module.container_reg.repository_arns)
+  frontend_bucket_arn  = module.storage.frontend_bucket_arn
+  media_bucket_arn     = module.storage.media_bucket_arn
   # dev 배포도 이 role(github-actions-lion-team3-integrated)로 도는데, dev의
   # DB/프론트엔드 버킷은 마이그레이션 대상이 아니라 여전히 /dev/* 소유다.
   extra_ssm_read_prefixes    = ["dev"]

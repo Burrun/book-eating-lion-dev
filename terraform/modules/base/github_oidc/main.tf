@@ -129,9 +129,9 @@ data "aws_iam_policy_document" "permissions" {
   # Frontend → S3 & CloudFront 잡의 `aws s3 sync --delete`용. ListBucket은 버킷
   # 자체, 나머지는 객체(/*) 스코프.
   statement {
-    sid       = "FrontendBucketList"
-    effect    = "Allow"
-    actions   = ["s3:ListBucket"]
+    sid     = "FrontendBucketList"
+    effect  = "Allow"
+    actions = ["s3:ListBucket"]
     resources = concat(
       [var.frontend_bucket_arn, var.media_bucket_arn],
       var.extra_frontend_bucket_arns,

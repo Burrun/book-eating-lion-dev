@@ -266,8 +266,18 @@ module "ai_service_iam_dev" {
   bedrock_model_arns           = var.bedrock_model_arns
 }
 
-resource "aws_ssm_parameter" "ai_service_irsa_arn_dev" {
-  name  = "/dev/ai/service_irsa_arn"
+removed {
+  from = aws_ssm_parameter.ai_service_irsa_arn_dev
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "aws_ssm_parameter" "ai_service_irsa_arn_integrated_dev" {
+  # 분리 모드의 /dev/ai/service_irsa_arn을 덮어쓰면 두 모드를 동시에
+  # 유지할 수 없으므로 integrated 전용 경로에 저장한다.
+  name  = "${local.ssm_prefix}/dev/ai/service_irsa_arn"
   type  = "String"
   value = module.ai_service_iam_dev.ai_service_irsa_arn
 }
@@ -301,8 +311,16 @@ module "member_service_iam_dev" {
   user_pool_arn     = data.aws_ssm_parameter.dev_cognito_user_pool_arn.value
 }
 
-resource "aws_ssm_parameter" "member_service_irsa_arn_dev" {
-  name  = "/dev/member/service_irsa_arn"
+removed {
+  from = aws_ssm_parameter.member_service_irsa_arn_dev
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "aws_ssm_parameter" "member_service_irsa_arn_integrated_dev" {
+  name  = "${local.ssm_prefix}/dev/member/service_irsa_arn"
   type  = "String"
   value = module.member_service_iam_dev.member_service_irsa_arn
 }

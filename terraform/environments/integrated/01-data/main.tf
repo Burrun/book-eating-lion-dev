@@ -87,12 +87,12 @@ module "cache_valkey" {
   source = "../../../modules/data/cache_valkey"
 
   environment           = var.environment
-  vpc_id                 = data.aws_ssm_parameter.vpc_id.value
-  data_subnet_ids        = split(",", data.aws_ssm_parameter.data_subnet_ids.value)
-  app_security_group_id  = data.aws_ssm_parameter.app_security_group_id.value
-  node_type              = var.valkey_node_type
-  sns_topic_arn          = data.aws_ssm_parameter.sns_topic_arn.value
-  replica_count          = var.valkey_replica_count
+  vpc_id                = data.aws_ssm_parameter.vpc_id.value
+  data_subnet_ids       = split(",", data.aws_ssm_parameter.data_subnet_ids.value)
+  app_security_group_id = data.aws_ssm_parameter.app_security_group_id.value
+  node_type             = var.valkey_node_type
+  sns_topic_arn         = data.aws_ssm_parameter.sns_topic_arn.value
+  replica_count         = var.valkey_replica_count
 }
 
 module "auth" {

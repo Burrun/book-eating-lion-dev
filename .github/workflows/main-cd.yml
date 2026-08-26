@@ -22,6 +22,12 @@ on:
         options: [ dev, prod ]
         default: dev
         required: true
+      deployment_mode:
+        description: "인프라 운영 모드 (split=환경별 클러스터, integrated=공용 클러스터+namespace)"
+        type: choice
+        options: [ split, integrated ]
+        default: split
+        required: true
       services:
         description: "배포할 서비스 (콤마 구분: catalog,order,member,ai,frontend). 기본 all=전체"
         type: string
@@ -44,7 +50,7 @@ permissions:
 # environment: 3곳에 이 조건식을 그대로 반복한다 - DRY보다 "실제로 파싱되는
 # 워크플로"가 우선이다.
 concurrency:
-  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
   cancel-in-progress: true
 
 jobs:
@@ -120,7 +126,7 @@ jobs:
     name: 공통 매니페스트
     needs: changes
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -132,23 +138,28 @@ jobs:
       - name: Validate deployment environment isolation
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
           ACTUAL_CLUSTER: ${{ vars.EKS_CLUSTER }}
           ACTUAL_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
           ACTUAL_DB_NAME: ${{ vars.DB_NAME }}
           ACTUAL_AI_DB_NAME: ${{ vars.AI_DB_NAME }}
         run: |
           set -euo pipefail
-          # dev/prod 둘 다 integrated 클러스터 하나에서 namespace로만 나뉜다.
-          # EKS_CLUSTER는 두 환경 모두 lion-team3-integrated여야 하고, 실제 격리는
-          # namespace(K8S_NAMESPACE)로 한다 - 여기서 그 값도 같이 검증한다.
+          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
+            EXPECTED_CLUSTER="lion-team3-integrated"
+            EXPECTED_NAMESPACE="$DEPLOY_ENV"
+          elif [[ "$DEPLOYMENT_MODE" == "split" ]]; then
+            EXPECTED_CLUSTER="lion-team3-${DEPLOY_ENV}"
+            EXPECTED_NAMESPACE="lion-app"
+          else
+            echo "Unsupported deployment mode: $DEPLOYMENT_MODE" >&2
+            exit 1
+          fi
+
           if [[ "$DEPLOY_ENV" == "dev" ]]; then
-            EXPECTED_CLUSTER="lion-team3-integrated"
             EXPECTED_DB_NAME="bookdb_dev"
-            EXPECTED_NAMESPACE="dev"
           elif [[ "$DEPLOY_ENV" == "prod" ]]; then
-            EXPECTED_CLUSTER="lion-team3-integrated"
             EXPECTED_DB_NAME="bookdb_prod"
-            EXPECTED_NAMESPACE="prod"
           else
             echo "Unsupported deployment environment: $DEPLOY_ENV" >&2
             exit 1
@@ -180,13 +191,18 @@ jobs:
       - name: Load database endpoints
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
         run: |
           set -euo pipefail
-          DB_WRITER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)"
-          DB_READER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)"
+          DATA_ENV="$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" && "$DEPLOY_ENV" == "prod" ]]; then
+            DATA_ENV="integrated"
+          fi
+          DB_WRITER_ENDPOINT="$(aws ssm get-parameter --name "/${DATA_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)"
+          DB_READER_ENDPOINT="$(aws ssm get-parameter --name "/${DATA_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)"
 
           if [[ -z "$DB_WRITER_ENDPOINT" || -z "$DB_READER_ENDPOINT" ]]; then
-            echo "Database endpoint parameter is empty for environment '$DEPLOY_ENV'." >&2
+            echo "Database endpoint parameter is empty for data environment '$DATA_ENV'." >&2
             exit 1
           fi
 
@@ -239,7 +255,7 @@ jobs:
     name: ${{ matrix.service }} → ECR & EKS
     needs: [changes, base]
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     strategy:
       fail-fast: false
       matrix:
@@ -259,9 +275,6 @@ jobs:
             deployments: ai-rag-deployment ai-bot-deployment
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      # 'lion-app' 폴백을 없앴다 - integrated 클러스터에서 dev/prod는 namespace로
-      # 나뉘므로(K8S_NAMESPACE=dev|prod) 값이 비어 있으면 조용히 넘어가지 말고
-      # 아래 렌더링 단계에서 바로 에러를 내야 한다.
       K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
@@ -449,7 +462,7 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
