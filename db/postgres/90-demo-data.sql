@@ -50,8 +50,12 @@ CREATE TABLE IF NOT EXISTS catalog_db.categories (
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO catalog_db.categories (category_name, sort_order)
-VALUES ('IT/컴퓨터', 1), ('소설', 2), ('자기계발', 3), ('경제경영', 4), ('에세이', 5), ('인문', 6)
+-- is_active 를 명시한다. 아래 CREATE TABLE 에는 DEFAULT 가 있지만 배포 DB 의 테이블은
+-- Hibernate(ddl-auto: update)가 만들어서 DEFAULT 가 없다 - 생략하면 NOT NULL 위반으로
+-- 배포 DB 에서만 터진다. 이 파일의 다른 INSERT 들도 같은 이유로 필수 컬럼을 다 적는다.
+INSERT INTO catalog_db.categories (category_name, sort_order, is_active)
+VALUES ('IT/컴퓨터', 1, TRUE), ('소설', 2, TRUE), ('자기계발', 3, TRUE),
+       ('경제경영', 4, TRUE), ('에세이', 5, TRUE), ('인문', 6, TRUE)
 ON CONFLICT (category_name) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS catalog_db.books (
@@ -79,7 +83,8 @@ CREATE TABLE IF NOT EXISTS catalog_db.books (
 
 INSERT INTO catalog_db.books (
     title, author, publisher, isbn, category, price,
-    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count
+    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count,
+    rating_avg, review_count, is_deleted
 ) VALUES (
     '클라우드 엔지니어링 교재',
     '북이팅라이언',
@@ -92,7 +97,8 @@ INSERT INTO catalog_db.books (
     '1장 클라우드 개론, 2장 컨테이너와 오케스트레이션, 3장 CI/CD 파이프라인 구축, 4장 관측성과 운영을 다루며, 마지막 장에서는 실제 장애 대응 사례를 상세히 재구성하여 소개한다.',
     'ON_SALE',
     '2026-01-15',
-    42
+    42,
+    0.00, 0, FALSE
 ) ON CONFLICT (isbn) DO NOTHING;
 
 -- RAG 인제스트 테스트용 도서 2권.
@@ -108,7 +114,8 @@ INSERT INTO catalog_db.books (
 -- 버킷은 AI_EPUB_BUCKET 이며 메시지에는 키만 담긴다.
 INSERT INTO catalog_db.books (
     book_id, title, author, publisher, isbn, category, price,
-    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count
+    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count,
+    rating_avg, review_count, is_deleted
 ) VALUES (
     101,
     'Frankenstein',
@@ -122,7 +129,8 @@ INSERT INTO catalog_db.books (
     '빅터 프랑켄슈타인이 생명의 비밀을 밝혀 피조물을 만들지만 그 모습에 스스로 도망치고, 버려진 피조물이 창조주를 뒤쫓으며 벌어지는 추격과 대화를 담는다.',
     'ON_SALE',
     '1818-01-01',
-    0
+    0,
+    0.00, 0, FALSE
 ), (
     102,
     'Alice''s Adventures in Wonderland',
@@ -136,7 +144,43 @@ INSERT INTO catalog_db.books (
     '앨리스가 조끼를 입은 흰토끼를 쫓아 굴에 빠진 뒤, 몸이 커졌다 작아졌다 하며 미친 모자장수의 다과회와 하트 여왕의 재판을 거치는 이야기.',
     'ON_SALE',
     '1865-11-26',
-    0
+    0,
+    0.00, 0, FALSE
+) ON CONFLICT (isbn) DO NOTHING;
+
+-- 정기구독 상품. 도서가 아니라 "구독권"이라 저자/출판사/ISBN 은 형식을 맞추려고 지어낸
+-- 값이다(ISBN 은 9999 로 시작해 실제 도서 대역과 안 겹친다).
+--
+-- 구독을 별도 상품 타입으로 두지 않고 도서 한 행으로 표현한다 - 가격 조회·주문 항목
+-- 스냅샷·결제·주문내역이 전부 기존 경로를 그대로 탄다. 대신 이 세 필드가 가짜다.
+--
+-- sale_status = STOPPED 인 이유: 베스트셀러/신간/추천 목록이 전부 sale_status='ON_SALE'
+-- 로 조회하므로(BookRepository) 매장 화면에 안 뜬다. 반면 BookService#getBook 은
+-- sale_status 를 안 보므로 order-service 의 가격 조회와 주문은 정상 동작한다 -
+-- "목록엔 없고 /checkout 경로로만 살 수 있는 상품"이 된다.
+--
+-- book_id 를 명시하는 이유는 order-api 의 SUBSCRIPTION_BOOK_ID 설정과 짝을 맞춰야
+-- 하기 때문이다. 자동 채번에 맡기면 환경마다 값이 달라진다. 9001 은 101/102 와 같은
+-- 이유로 자동 채번 대역에서 멀리 띄운 값이다.
+INSERT INTO catalog_db.books (
+    book_id, title, author, publisher, isbn, category, price,
+    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count,
+    rating_avg, review_count, is_deleted
+) VALUES (
+    9001,
+    '책 먹는 사자 정기구독 (월간)',
+    '책 먹는 사자',
+    '책 먹는 사자',
+    '9999000000001',
+    '구독',
+    9900,
+    NULL,
+    '월 9,900원에 웹툰 요약 컷 열람과 사자 먹이 2배 적립 혜택을 받습니다.',
+    '결제가 확정되면 order-service 가 member-service 에 구독 활성화를 요청한다(OrderService#activateSubscriptionIfOrdered).',
+    'STOPPED',
+    NULL,
+    0,
+    0.00, 0, FALSE
 ) ON CONFLICT (isbn) DO NOTHING;
 
 -- 카탈로그 화면 데모용 추가 도서 21권 (가상 도서 — 실존 도서 아님, 저작권/사실관계
@@ -145,7 +189,8 @@ INSERT INTO catalog_db.books (
 -- 전부 "일반" 도서로 epub_s3_key는 없다(NULL 기본값 유지).
 INSERT INTO catalog_db.books (
     title, author, publisher, isbn, category, price,
-    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count
+    cover_image_url, description, detailed_synopsis, sale_status, published_date, sales_count,
+    rating_avg, review_count, is_deleted
 ) VALUES
 -- IT/컴퓨터
 (
@@ -153,21 +198,21 @@ INSERT INTO catalog_db.books (
     '/covers/it-02.png',
     '서비스 분리 기준부터 장애 대응까지, 실무에서 바로 쓰는 마이크로서비스 설계 가이드.',
     '도메인 경계를 나누는 기준, 서비스 간 통신 패턴, 장애 전파를 막는 회복 탄력성 설계까지 다룬다.',
-    'ON_SALE', '2024-03-10', 58
+    'ON_SALE', '2024-03-10', 58, 0.00, 0, FALSE
 ),
 (
     '처음 배우는 파이썬 데이터 분석', '윤소라', '비트북스', '9791100000003', 'IT/컴퓨터', 24000,
     '/covers/it-03.png',
     '파이썬 기초부터 데이터 시각화까지 손에 잡히는 데이터 분석 입문서.',
     '판다스로 데이터를 다루고 그래프로 시각화하는 과정을 실습 예제로 따라가며 익힌다.',
-    'ON_SALE', '2023-09-01', 121
+    'ON_SALE', '2023-09-01', 121, 0.00, 0, FALSE
 ),
 (
     '쉽게 이해하는 네트워크의 원리', '강태민', '테크노트', '9791100000004', 'IT/컴퓨터', 22000,
     '/covers/it-04.png',
     'TCP/IP부터 HTTP까지, 그림으로 이해하는 네트워크 기초.',
     '패킷이 오가는 과정을 그림으로 풀어 설명하며, 실무에서 자주 마주치는 네트워크 트러블슈팅 사례도 함께 다룬다.',
-    'ON_SALE', '2024-11-20', 34
+    'ON_SALE', '2024-11-20', 34, 0.00, 0, FALSE
 ),
 -- 소설
 (
@@ -175,14 +220,14 @@ INSERT INTO catalog_db.books (
     '/covers/novel-03.png',
     '한 계절의 끝에서 만난 두 사람의 짧고 깊은 인연을 그린 소설.',
     '바닷가 마을에서 우연히 재회한 두 사람이 서로의 상처를 알아가며 여름을 함께 통과하는 이야기.',
-    'ON_SALE', '2024-07-05', 76
+    'ON_SALE', '2024-07-05', 76, 0.00, 0, FALSE
 ),
 (
     '밤의 지도', '이서준', '소요서가', '9791100000104', '소설', 16500,
     '/covers/novel-04.png',
     '잠 못 이루는 도시의 밤, 각자의 사정을 안고 걷는 사람들의 이야기.',
     '택시기사, 편의점 야간 알바생, 불면증에 시달리는 회사원의 시선이 교차하며 하나의 밤을 완성한다.',
-    'ON_SALE', '2025-01-22', 19
+    'ON_SALE', '2025-01-22', 19, 0.00, 0, FALSE
 ),
 -- 자기계발
 (
@@ -190,28 +235,28 @@ INSERT INTO catalog_db.books (
     '/covers/selfhelp-01.png',
     '거창한 결심 대신 하루 5분의 작은 습관으로 삶을 바꾸는 법.',
     '습관이 자리 잡는 데 필요한 최소 단위의 행동을 제안하고, 실패해도 다시 시작하는 회복 루틴을 소개한다.',
-    'ON_SALE', '2023-05-15', 145
+    'ON_SALE', '2023-05-15', 145, 0.00, 0, FALSE
 ),
 (
     '오늘부터 미루지 않기로 했다', '최유리', '라이프하우스', '9791100000202', '자기계발', 15000,
     '/covers/selfhelp-02.png',
     '미루는 습관의 심리적 원인과 실전 극복법을 담은 자기계발서.',
     '완벽주의와 불안이 어떻게 지연 행동으로 이어지는지 짚고, 5분만 시작해보는 작은 트리거들을 제시한다.',
-    'ON_SALE', '2024-02-14', 88
+    'ON_SALE', '2024-02-14', 88, 0.00, 0, FALSE
 ),
 (
     '생각을 정리하는 기술', '정다솔', '클리어마인드', '9791100000203', '자기계발', 15500,
     '/covers/selfhelp-03.png',
     '머릿속이 복잡할 때 생각을 글로 꺼내 정리하는 방법.',
     '메모, 마인드맵, 우선순위표 등 도구별 활용법을 소개하며 결정 피로를 줄이는 루틴을 제안한다.',
-    'ON_SALE', '2024-08-30', 41
+    'ON_SALE', '2024-08-30', 41, 0.00, 0, FALSE
 ),
 (
     '나를 지키는 대화법', '한소이', '마음정원', '9791100000204', '자기계발', 14800,
     '/covers/selfhelp-04.png',
     '관계에서 지치지 않고 내 의견을 전하는 대화 기술.',
     '거절하는 법, 감정을 다치지 않게 표현하는 법 등 실생활 대화 예시로 경계 세우기를 연습한다.',
-    'ON_SALE', '2025-03-03', 12
+    'ON_SALE', '2025-03-03', 12, 0.00, 0, FALSE
 ),
 -- 경제경영
 (
@@ -219,28 +264,28 @@ INSERT INTO catalog_db.books (
     '/covers/biz-01.png',
     '돈에 대한 우리의 태도가 어디서 비롯되는지 살펴보는 실용 경제 교양서.',
     '저축과 소비, 투자 앞에서 사람들이 반복하는 비합리적 선택들을 사례 중심으로 짚어보고, 돈과 건강한 거리를 두는 법을 제안한다.',
-    'ON_SALE', '2023-11-11', 103
+    'ON_SALE', '2023-11-11', 103, 0.00, 0, FALSE
 ),
 (
     '스타트업 재무제표 읽는 법', '윤재국', '비즈니스맵', '9791100000302', '경제경영', 19500,
     '/covers/biz-02.png',
     '숫자에 약한 창업자를 위한 손익계산서·재무상태표 입문서.',
     '매출과 이익의 차이부터 현금흐름표를 읽는 법까지, 실제 스타트업 사례로 재무제표의 뼈대를 짚는다.',
-    'ON_SALE', '2024-06-18', 27
+    'ON_SALE', '2024-06-18', 27, 0.00, 0, FALSE
 ),
 (
     '투자자의 첫걸음', '서인우', '웰스노트', '9791100000303', '경제경영', 17000,
     '/covers/biz-03.png',
     '주식 투자를 처음 시작하는 사람을 위한 개념 정리.',
     '분산 투자, 복리, 시장 사이클 같은 기본 개념을 쉬운 비유로 설명하며 조급함을 다스리는 법을 함께 이야기한다.',
-    'ON_SALE', '2024-04-09', 64
+    'ON_SALE', '2024-04-09', 64, 0.00, 0, FALSE
 ),
 (
     '브랜드는 어떻게 살아남는가', '오하람', '마케팅랩', '9791100000304', '경제경영', 18500,
     '/covers/biz-04.png',
     '치열한 시장에서 오래가는 브랜드의 공통점을 분석한 마케팅 에세이.',
     '국내외 브랜드 사례를 통해 일관된 메시지와 고객 신뢰가 어떻게 브랜드 수명을 늘리는지 살펴본다.',
-    'ON_SALE', '2025-02-01', 8
+    'ON_SALE', '2025-02-01', 8, 0.00, 0, FALSE
 ),
 -- 에세이
 (
@@ -248,28 +293,28 @@ INSERT INTO catalog_db.books (
     '/covers/essay-01.png',
     '혼자 보내는 시간의 의미를 담담히 풀어낸 에세이.',
     '여행, 식사, 산책 같은 일상의 장면들을 통해 혼자 있는 시간이 주는 위로를 이야기한다.',
-    'ON_SALE', '2023-10-05', 97
+    'ON_SALE', '2023-10-05', 97, 0.00, 0, FALSE
 ),
 (
     '느리게 걷는 하루', '배지원', '나무그늘', '9791100000402', '에세이', 14000,
     '/covers/essay-02.png',
     '바쁜 일상 속 잠시 멈춰 걷는 시간의 소중함을 담은 산문집.',
     '출퇴근길, 동네 산책, 계절의 변화를 관찰하며 느리게 사는 감각을 되찾는 기록이다.',
-    'ON_SALE', '2024-09-12', 53
+    'ON_SALE', '2024-09-12', 53, 0.00, 0, FALSE
 ),
 (
     '커피 한 잔의 위로', '김라온', '온기출판', '9791100000403', '에세이', 13500,
     '/covers/essay-03.png',
     '카페에서 마주친 사람들과 순간들을 담은 짧은 에세이 모음.',
     '낯선 이의 다정함, 익숙한 단골 가게의 온기 같은 소소한 장면들을 통해 하루를 견디는 힘을 이야기한다.',
-    'ON_SALE', '2024-12-25', 31
+    'ON_SALE', '2024-12-25', 31, 0.00, 0, FALSE
 ),
 (
     '서툴러도 괜찮아', '이하늘', '소소책방', '9791100000404', '에세이', 14200,
     '/covers/essay-04.png',
     '완벽하지 않아도 나아가는 삶의 태도를 다룬 에세이.',
     '실수와 실패를 마주하는 저자의 경험을 통해 서툰 나 자신과 화해하는 과정을 그린다.',
-    'ON_SALE', '2025-01-08', 15
+    'ON_SALE', '2025-01-08', 15, 0.00, 0, FALSE
 ),
 -- 인문
 (
@@ -277,35 +322,45 @@ INSERT INTO catalog_db.books (
     '/covers/humanities-01.png',
     '인간을 인간답게 만드는 것은 답이 아니라 질문이라는 주제의 인문 교양서.',
     '철학사 속 유명한 질문들을 따라가며 스스로 사고하는 힘을 기르는 법을 이야기한다.',
-    'ON_SALE', '2023-08-20', 112
+    'ON_SALE', '2023-08-20', 112, 0.00, 0, FALSE
 ),
 (
     '역사를 바꾼 열 가지 순간', '남궁민', '지식정원', '9791100000502', '인문', 20000,
     '/covers/humanities-02.png',
     '역사의 흐름을 바꾼 결정적 사건 열 가지를 골라 다시 읽는 교양서.',
     '우연과 선택이 뒤섞인 순간들을 통해 역사가 필연이 아니라 사람의 결정이었음을 보여준다.',
-    'ON_SALE', '2024-05-27', 46
+    'ON_SALE', '2024-05-27', 46, 0.00, 0, FALSE
 ),
 (
     '철학이 있는 저녁', '백유진', '사색출판', '9791100000503', '인문', 17500,
     '/covers/humanities-03.png',
     '퇴근 후 잠깐, 철학자들의 생각을 가볍게 곱씹어보는 인문 에세이.',
     '소크라테스부터 현대 철학자까지, 일상의 질문에 빗대어 철학의 핵심 개념을 풀어낸다.',
-    'ON_SALE', '2024-10-14', 22
+    'ON_SALE', '2024-10-14', 22, 0.00, 0, FALSE
 ),
 (
     '우리는 왜 이야기를 좋아하는가', '심다인', '인문서가', '9791100000504', '인문', 18800,
     '/covers/humanities-04.png',
     '인간이 이야기에 끌리는 이유를 심리와 문화 양쪽에서 살펴보는 책.',
     '신화, 소설, 영화 속 이야기 구조를 비교하며 이야기가 공동체를 묶는 힘을 설명한다.',
-    'ON_SALE', '2025-02-19', 6
+    'ON_SALE', '2025-02-19', 6, 0.00, 0, FALSE
 )
 ON CONFLICT (isbn) DO NOTHING;
 
--- 🔴 위에서 book_id 를 직접 넣었으므로 시퀀스는 그대로 2에 머물러 있다.
--- 그냥 두면 이후 자동 채번이 2, 3, ... 으로 올라가다 101 에서 충돌한다.
--- 데모 데이터가 앱의 정상 동작을 나중에 깨뜨리지 않도록 여기서 밀어둔다.
-ALTER TABLE catalog_db.books ALTER COLUMN book_id RESTART WITH 103;
+-- 🔴 위에서 book_id 를 직접 넣었으므로 시퀀스가 그 값들을 모른다. 그냥 두면 이후
+-- 자동 채번이 1, 2, ... 으로 올라가다 101 에서 충돌한다. 여기서 밀어둔다.
+--
+-- 🔴 RESTART WITH 103 을 쓰지 않는다. 그건 멱등하지 않다 - db-seed 워크플로가 이 파일을
+-- 여러 번 돌리는데, 그 사이 앱이 103·104 를 만들었다면 시퀀스를 103 으로 되돌려 다음
+-- INSERT 가 기존 행과 충돌한다. 실제 최대값과 103 중 큰 쪽으로 맞춰 뒤로 가지 않게 한다.
+--
+-- 9001(구독권)은 자동 채번 대역이 아니라 제외한다 - 포함하면 시퀀스가 9002 로 뛰어
+-- 이후 모든 도서 id 가 그 뒤에 붙는다.
+SELECT setval(
+    pg_get_serial_sequence('catalog_db.books', 'book_id'),
+    GREATEST(103, (SELECT COALESCE(MAX(book_id), 0) + 1 FROM catalog_db.books WHERE book_id < 9000)),
+    false
+);
 
 -- book_id 101/102 는 S3 에 실제 업로드된 EPUB 을 가리킨다 (aws s3 ls 로 확인).
 UPDATE catalog_db.books SET epub_s3_key = 'books/101/frankenstein.epub' WHERE book_id = 101;
@@ -354,8 +409,8 @@ CREATE TABLE IF NOT EXISTS catalog_db.review_permissions (
     PRIMARY KEY (member_id, order_item_id)
 );
 
-INSERT INTO catalog_db.review_permissions (member_id, order_item_id, book_id, nickname)
-VALUES (1, 1, 1, '테스트유저')
+INSERT INTO catalog_db.review_permissions (member_id, order_item_id, book_id, nickname, granted_at)
+VALUES (1, 1, 1, '테스트유저', CURRENT_TIMESTAMP)
 ON CONFLICT (member_id, order_item_id) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -373,7 +428,10 @@ CREATE TABLE IF NOT EXISTS order_db.inventory (
 
 -- 101/102 는 RAG 인제스트 테스트용 도서다. 재고가 없으면 주문 자체가 막혀
 -- 구매확정 이벤트가 발행되지 않고, 그러면 "구매한 책만 검색" 권한도 생기지 않는다.
-INSERT INTO order_db.inventory (book_id, stock) VALUES (1, 100), (101, 100), (102, 100)
+-- 9001 은 구독권이다. 재고 개념이 없지만 createOrder 가 checkStock 을 타므로 행이 있어야
+-- 주문이 통과한다. 소진될 일이 없게 크게 잡는다 - 재고 관리 대상이 아니라는 뜻이다.
+INSERT INTO order_db.inventory (book_id, stock)
+VALUES (1, 100), (101, 100), (102, 100), (9001, 999999)
 ON CONFLICT (book_id) DO NOTHING;
 
 -- CREATE TABLE IF NOT EXISTS order_db.orders (
@@ -458,7 +516,7 @@ CREATE TABLE IF NOT EXISTS ai_db.faqs (
 
 -- member_id 는 member_db 의 값이지만 FK 가 없다. 같은 클러스터가 됐어도 걸지 않는다 —
 -- 스키마 경계를 넘는 조인은 계정 권한이 막고, FK 는 그 경계를 다시 뚫는 짓이다.
-INSERT INTO ai_db.lions (member_id, growth_stage) VALUES (1, 'CUB')
+INSERT INTO ai_db.lions (member_id, growth_stage, exp, level) VALUES (1, 'CUB', 0, 1)
 ON CONFLICT (member_id) DO NOTHING;
 
 -- sort_order 로 멱등이다. 이 파일은 로컬 initdb 뿐 아니라 db-seed 워크플로가

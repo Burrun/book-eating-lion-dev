@@ -33,6 +33,26 @@ public class SubscriptionService {
         return SubscriptionResponse.from(subscription);
     }
 
+    /**
+     * 결제가 확정된 뒤 order-service 가 부른다.
+     *
+     * <p>🔴 {@link #subscribe}와 달리 이미 ACTIVE 여도 예외를 던지지 않고 그 구독을 그대로
+     * 돌려준다. 이 시점엔 이미 돈이 빠져나갔다 — 여기서 409 를 던지면 결제만 되고 구독은
+     * 없는 상태로 굳는다. 호출측이 재시도해도 안전해야 하므로 멱등이어야 한다.
+     *
+     * <p>같은 이유로 "이미 구독 중인데 또 결제한" 경우의 환불/기간연장은 여기서 판단하지
+     * 않는다. 그건 결제를 받기 전에 막아야 하는 문제다(프론트의 구독 CTA 가 ACTIVE 면
+     * 결제로 보내지 않는다).
+     */
+    @Transactional
+    public SubscriptionResponse activateByPayment(String memberSub, PlanType planType) {
+        return subscriptionRepository
+                .findByMemberSubAndStatus(memberSub, SubscriptionStatus.ACTIVE)
+                .map(SubscriptionResponse::from)
+                .orElseGet(() -> SubscriptionResponse.from(
+                        subscriptionRepository.save(Subscription.start(memberSub, planType))));
+    }
+
     /** 구독 이력이 없으면 null(호출측이 data: null 로 200 응답한다). */
     @Transactional
     public SubscriptionResponse getMySubscription(String memberSub) {

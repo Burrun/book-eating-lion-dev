@@ -71,9 +71,17 @@ paths:
         되묻기는 LLM 호출을 2회로 늘리고 서버가 대화 상태를 들어야 해서
         stateless 설계가 깨진다.
 
-        쿼터는 사용자별 일일 상한이다. Redis 장애 시에는 **통과시킨다(fail-open)** —
-        쿼터는 과금 방어선이지 인증이 아니고, Redis 는 여러 서비스가 공유하므로
-        여기서 막으면 장애 반경만 넓어진다. 대신 WARN 로그와 경보를 남긴다.
+        쿼터는 사용자별 일일 상한이며 **구독 여부로 갈린다** — 비구독 5회, 구독 50회
+        (기본값. AI_DAILY_QUOTA_FREE / AI_DAILY_QUOTA_SUBSCRIBED 로 조정한다).
+        구독 조회는 무료 상한을 넘긴 요청에서만 일어난다 — 대부분의 질의는 그 아래에서
+        끝나므로 member-service 왕복이 붙지 않는다.
+
+        Redis 장애 시에는 **통과시킨다(fail-open)** — 쿼터는 과금 방어선이지 인증이 아니고,
+        Redis 는 여러 서비스가 공유하므로 여기서 막으면 장애 반경만 넓어진다. 대신 WARN
+        로그와 경보를 남긴다.
+
+        반대로 member-service 조회 실패는 **비구독으로 강등한다(fail-closed)** — 근거 없이
+        상한을 올려주지 않는다(먹이기 EXP 배율과 같은 처리다).
       operationId: askWiki
       tags: [ai-wiki]
       security:

@@ -22,6 +22,11 @@ on:
         options: [ dev, prod ]
         default: dev
         required: true
+      services:
+        description: "배포할 서비스 (콤마 구분: catalog,order,member,ai,frontend). 기본 all=전체"
+        type: string
+        default: "all"
+        required: false
 
 permissions:
   id-token: write   # AWS OIDC AssumeRole 용
@@ -58,10 +63,14 @@ jobs:
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     outputs:
-      catalog: ${{ steps.filter.outputs.catalog }}
-      order: ${{ steps.filter.outputs.order }}
-      member: ${{ steps.filter.outputs.member }}
-      ai: ${{ steps.filter.outputs.ai }}
+      # workflow_dispatch는 커밋 범위가 불명확해(마지막 배포 이후 여러 PR이
+      # 쌓였을 수 있음) paths-filter의 diff 결과를 못 믿는다 - 수동 실행 시엔
+      # 대신 services 입력값(콤마구분/all)을 직접 본다. 자동 트리거(Backend CI
+      # 완료)는 push 1건에 대응하는 diff라 paths-filter 결과를 그대로 쓴다.
+      catalog: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'catalog'))) || steps.filter.outputs.catalog == 'true' }}
+      order: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'order'))) || steps.filter.outputs.order == 'true' }}
+      member: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'member'))) || steps.filter.outputs.member == 'true' }}
+      ai: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'ai'))) || steps.filter.outputs.ai == 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,7 +79,6 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # workflow_dispatch 로 수동 실행하면 전부 배포한다.
           predicate-quantifier: 'some'
           filters: |
             shared: &shared
@@ -213,6 +221,7 @@ jobs:
           done
 
           VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -250,16 +259,16 @@ jobs:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: 변경 없음 — 건너뜀
-        if: matrix.changed != 'true' && github.event_name != 'workflow_dispatch'
+        if: matrix.changed != 'true'
         run: echo "${{ matrix.service }} 관련 변경이 없어 배포를 건너뜁니다."
 
       - uses: actions/checkout@v4
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
       - name: Configure AWS credentials (OIDC)
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -267,12 +276,18 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # GHA 캐시 백엔드(type=gha)로 레이어 캐싱하려면 docker-container 드라이버가
+      # 필요하다 - 기본 docker 드라이버는 --cache-to/--cache-from type=gha를 못 씀.
+      - name: Set up Docker Buildx
+        if: matrix.changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
       - name: Build & push image
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -292,7 +307,14 @@ jobs:
           fi
 
           IMAGE="$REGISTRY/$REPOSITORY"
-          docker build \
+          # GH-hosted 러너는 매번 새 상태라 로컬 도커 캐시가 없다 - GHA 캐시에
+          # 레이어를 저장/재사용해서 매번 처음부터 빌드하는 걸 피한다. 서비스별로
+          # scope를 나눠서 4개 서비스 캐시가 서로 안 섞이게 한다. --load로 로컬
+          # 도커 데몬에 올려야 아래 기존 docker push 로직(태그 불변 회피)을 그대로 쓴다.
+          docker buildx build \
+            --cache-from "type=gha,scope=${{ matrix.service }}" \
+            --cache-to "type=gha,mode=max,scope=${{ matrix.service }}" \
+            --load \
             -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
             -t "$IMAGE:main-${{ github.run_number }}" \
             -f backend/apps/${{ matrix.service }}-api/Dockerfile backend
@@ -312,11 +334,11 @@ jobs:
           docker push "$IMAGE:main-${{ github.run_number }}"
 
       - name: Update EKS kubeconfig
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
 
       - name: Render & apply service manifests
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           ECR_CATALOG_REPO: ${{ vars.ECR_CATALOG_REPO }}
@@ -390,14 +412,14 @@ jobs:
           kubectl apply -f rendered/
 
       - name: Wait for rollout
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         run: |
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=600s
           done
 
       - name: Rollback on failure
-        if: failure() && (matrix.changed == 'true' || github.event_name == 'workflow_dispatch')
+        if: failure() && matrix.changed == 'true'
         run: |
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
@@ -407,7 +429,8 @@ jobs:
   deploy-frontend:
     name: Frontend → S3 & CloudFront
     if: >
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'frontend'))) ||
       (github.event.workflow_run.name == 'Frontend CI' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success')
