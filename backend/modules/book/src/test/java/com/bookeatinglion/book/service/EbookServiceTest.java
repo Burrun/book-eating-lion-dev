@@ -1,14 +1,17 @@
 package com.bookeatinglion.book.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.EbookAccessResponse;
+import com.bookeatinglion.book.exception.EbookOwnershipRequiredException;
 import com.bookeatinglion.book.port.EbookStoragePort;
 import com.bookeatinglion.book.repository.BookRepository;
+import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -25,39 +28,58 @@ class EbookServiceTest {
     private BookRepository bookRepository;
 
     @Mock
+    private ReviewPermissionRepository reviewPermissionRepository;
+
+    @Mock
     private EbookStoragePort ebookStoragePort;
 
     private EbookService ebookService;
 
     @BeforeEach
     void setUp() {
-        ebookService =
-                new EbookService(bookRepository, ebookStoragePort, Duration.ofMinutes(10), Duration.ofMinutes(10));
+        ebookService = new EbookService(
+                bookRepository,
+                reviewPermissionRepository,
+                ebookStoragePort,
+                Duration.ofMinutes(10),
+                Duration.ofMinutes(10));
     }
 
     @Test
-    void ebook이_없는_도서는_미지원으로_응답한다() {
+    void ebook이_없는_도서는_구매_여부와_무관하게_미지원으로_응답한다() {
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book(null)));
 
-        EbookAccessResponse result = ebookService.getAccess(1L);
+        EbookAccessResponse result = ebookService.getAccess(1L, "member-1");
 
         assertThat(result.ebookAvailable()).isFalse();
         assertThat(result.presignedUrl()).isNull();
         verifyNoInteractions(ebookStoragePort);
+        verifyNoInteractions(reviewPermissionRepository);
     }
 
     @Test
-    void 등록된_ebook의_열람_URL을_발급한다() {
+    void 구매_확정한_회원에게는_열람_URL을_발급한다() {
         OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(10);
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book("ebooks/alice.epub")));
+        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-1", 1L)).thenReturn(true);
         when(ebookStoragePort.createReadUrl("ebooks/alice.epub", Duration.ofMinutes(10)))
                 .thenReturn(new EbookStoragePort.ReadUrl("https://signed.example/alice", expiresAt));
 
-        EbookAccessResponse result = ebookService.getAccess(1L);
+        EbookAccessResponse result = ebookService.getAccess(1L, "member-1");
 
         assertThat(result.ebookAvailable()).isTrue();
         assertThat(result.presignedUrl()).isEqualTo("https://signed.example/alice");
         assertThat(result.expiresAt()).isEqualTo(expiresAt);
+    }
+
+    @Test
+    void 구매하지_않은_회원은_403에_해당하는_예외를_받는다() {
+        when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book("ebooks/alice.epub")));
+        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-2", 1L)).thenReturn(false);
+
+        assertThatThrownBy(() -> ebookService.getAccess(1L, "member-2"))
+                .isInstanceOf(EbookOwnershipRequiredException.class);
+        verifyNoInteractions(ebookStoragePort);
     }
 
     @Test

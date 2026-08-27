@@ -1,12 +1,17 @@
 package com.bookeatinglion.book.service;
 
 import com.bookeatinglion.book.domain.Book;
+import com.bookeatinglion.book.domain.ReviewPermission;
+import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.dto.EbookAccessResponse;
 import com.bookeatinglion.book.dto.EpubUploadUrlResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
+import com.bookeatinglion.book.exception.EbookOwnershipRequiredException;
 import com.bookeatinglion.book.port.EbookStoragePort;
 import com.bookeatinglion.book.repository.BookRepository;
+import com.bookeatinglion.book.repository.ReviewPermissionRepository;
 import java.time.Duration;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,27 +21,37 @@ import org.springframework.transaction.annotation.Transactional;
 public class EbookService {
 
     private final BookRepository bookRepository;
+    private final ReviewPermissionRepository reviewPermissionRepository;
     private final EbookStoragePort ebookStoragePort;
     private final Duration readUrlValidity;
     private final Duration uploadUrlValidity;
 
     public EbookService(
             BookRepository bookRepository,
+            ReviewPermissionRepository reviewPermissionRepository,
             EbookStoragePort ebookStoragePort,
             @Value("${ebooks.read-url-validity:PT10M}") Duration readUrlValidity,
             @Value("${ebooks.upload-url-validity:PT10M}") Duration uploadUrlValidity) {
         this.bookRepository = bookRepository;
+        this.reviewPermissionRepository = reviewPermissionRepository;
         this.ebookStoragePort = ebookStoragePort;
         this.readUrlValidity = readUrlValidity;
         this.uploadUrlValidity = uploadUrlValidity;
     }
 
-    public EbookAccessResponse getAccess(Long bookId) {
+    /**
+     * eBook 미지원 도서는 구매 여부와 무관하게 미지원으로 응답한다. 지원 도서는 review_permissions에
+     * 구매 확정 기록이 있는 회원에게만 presigned URL을 발급한다 — 없으면 403(EbookOwnershipRequiredException).
+     */
+    public EbookAccessResponse getAccess(Long bookId, String memberId) {
         Book book = bookRepository
                 .findByBookIdAndIsDeletedFalse(bookId)
                 .orElseThrow(() -> new BookNotFoundException(bookId));
         if (!book.isEbookAvailable()) {
             return EbookAccessResponse.unavailable(bookId);
+        }
+        if (!reviewPermissionRepository.existsByIdMemberIdAndBookId(memberId, bookId)) {
+            throw new EbookOwnershipRequiredException(bookId);
         }
         EbookStoragePort.ReadUrl readUrl = ebookStoragePort.createReadUrl(book.getEpubS3Key(), readUrlValidity);
         return new EbookAccessResponse(bookId, true, readUrl.url(), readUrl.expiresAt());
@@ -46,5 +61,19 @@ public class EbookService {
     public EpubUploadUrlResponse issueUploadUrl(String fileName) {
         EbookStoragePort.UploadUrl uploadUrl = ebookStoragePort.createUploadUrl(fileName, uploadUrlValidity);
         return new EpubUploadUrlResponse(uploadUrl.url(), uploadUrl.key(), uploadUrl.expiresAt());
+    }
+
+    /** 내 이북 보관함: 구매 확정(review_permissions) + eBook 보유(epub_s3_key) 도서만 반환한다. */
+    public List<BookSummaryResponse> getMyEbooks(String memberId) {
+        List<Long> purchasedBookIds = reviewPermissionRepository.findByIdMemberId(memberId).stream()
+                .map(ReviewPermission::getBookId)
+                .distinct()
+                .toList();
+        if (purchasedBookIds.isEmpty()) {
+            return List.of();
+        }
+        return bookRepository.findByBookIdInAndEpubS3KeyIsNotNullAndIsDeletedFalse(purchasedBookIds).stream()
+                .map(BookSummaryResponse::from)
+                .toList();
     }
 }

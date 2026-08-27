@@ -19,6 +19,8 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     Page<Book> findByEpubS3KeyIsNotNullAndIsDeletedFalse(Pageable pageable);
 
+    List<Book> findByBookIdInAndEpubS3KeyIsNotNullAndIsDeletedFalse(List<Long> bookIds);
+
     Optional<Book> findByBookIdAndIsDeletedFalse(Long bookId);
 
     boolean existsByBookIdAndIsDeletedFalse(Long bookId);
