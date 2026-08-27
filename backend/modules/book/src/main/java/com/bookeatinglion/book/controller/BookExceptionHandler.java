@@ -5,6 +5,7 @@ import com.bookeatinglion.book.exception.BookNotFoundException;
 import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.exception.CategoryNotFoundException;
 import com.bookeatinglion.book.exception.EbookAccessUnavailableException;
+import com.bookeatinglion.book.exception.EbookOwnershipRequiredException;
 import com.bookeatinglion.book.exception.FaqNotFoundException;
 import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
 import com.bookeatinglion.book.exception.InquiryNotFoundException;
@@ -108,6 +109,12 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleEbookAccessUnavailable(EbookAccessUnavailableException e) {
         return ResponseEntity.status(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.getStatus())
                 .body(ApiResponse.error(BookErrorCode.EBOOK_ACCESS_UNAVAILABLE.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(EbookOwnershipRequiredException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEbookOwnershipRequired(EbookOwnershipRequiredException e) {
+        return ResponseEntity.status(BookErrorCode.EBOOK_OWNERSHIP_REQUIRED.getStatus())
+                .body(ApiResponse.error(BookErrorCode.EBOOK_OWNERSHIP_REQUIRED.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
