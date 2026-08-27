@@ -15,8 +15,10 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -115,11 +117,21 @@ public class AdminBookService {
     }
 
     /** 기존 EPUB 도서를 SQS 인제스트 파이프라인에 다시 넣어 wiki-v1을 최초 적재하거나 복구한다. */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int reindexEbooks() {
-        List<Book> books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse();
-        books.forEach(this::publishIngestEvent);
-        return books.size();
+        int queued = 0;
+        int page = 0;
+        Page<Book> books;
+        do {
+            books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse(PageRequest.of(page++, 100));
+            for (Book book : books) {
+                if (bookIngestPublisher.publish(
+                        book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key())) {
+                    queued++;
+                }
+            }
+        } while (books.hasNext());
+        return queued;
     }
 
     /**

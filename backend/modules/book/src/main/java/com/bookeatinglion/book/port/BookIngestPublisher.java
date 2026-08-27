@@ -7,5 +7,5 @@ package com.bookeatinglion.book.port;
  * (order 모듈의 BookPurchasePublisher/SqsBookPurchasePublisher 와 같은 이유).
  */
 public interface BookIngestPublisher {
-    void publish(Long bookId, String title, String category, String epubS3Key);
+    boolean publish(Long bookId, String title, String category, String epubS3Key);
 }
