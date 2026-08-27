@@ -78,6 +78,7 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_mode || 'split' }}
       # 자동 실행(dev 머지)은 바로 반영한다. preflight 가 앞에서 막아주므로
       # 스키마가 어긋난 상태로는 어차피 못 쓴다.
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
@@ -98,14 +99,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update EKS kubeconfig
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
+        run: |
+          INFRA_ENV="$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then INFRA_ENV="integrated"; fi
+          aws eks update-kubeconfig --name "lion-team3-${INFRA_ENV}" --region "$AWS_REGION"
 
       # master 자격증명은 러너를 거치지만 어디에도 출력하지 않는다.
       # kubectl create secret 은 --from-literal 값을 stdout 에 안 찍는다.
       - name: Launch psql pod
         run: |
           set -euo pipefail
-          ARN="$(aws ssm get-parameter --name "/$DEPLOY_ENV/data/db_master_secret_arn" \
+          DATA_ENV="$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" && "$DEPLOY_ENV" == "prod" ]]; then DATA_ENV="integrated"; fi
+          ARN="$(aws ssm get-parameter --name "/$DATA_ENV/data/db_master_secret_arn" \
                    --query Parameter.Value --output text --region "$AWS_REGION")"
           JSON="$(aws secretsmanager get-secret-value --secret-id "$ARN" \
                     --query SecretString --output text --region "$AWS_REGION")"

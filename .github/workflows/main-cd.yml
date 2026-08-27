@@ -135,16 +135,29 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-prod-base-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load deployment configuration from SSM
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
       - name: Validate deployment environment isolation
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
           DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-          ACTUAL_CLUSTER: ${{ vars.EKS_CLUSTER }}
           ACTUAL_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
-          ACTUAL_DB_NAME: ${{ vars.DB_NAME }}
-          ACTUAL_AI_DB_NAME: ${{ vars.AI_DB_NAME }}
         run: |
           set -euo pipefail
+          ACTUAL_CLUSTER="$EKS_CLUSTER"
+          ACTUAL_DB_NAME="$DB_NAME"
+          ACTUAL_AI_DB_NAME="$AI_DB_NAME"
           if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
             EXPECTED_CLUSTER="lion-team3-integrated"
             EXPECTED_NAMESPACE="$DEPLOY_ENV"
@@ -178,45 +191,12 @@ jobs:
           validate DB_NAME "$ACTUAL_DB_NAME" "$EXPECTED_DB_NAME"
           validate AI_DB_NAME "$ACTUAL_AI_DB_NAME" "$EXPECTED_DB_NAME"
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          role-session-name: gha-prod-base-${{ github.run_id }}
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Update EKS kubeconfig
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
-
-      - name: Load database endpoints
-        env:
-          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-        run: |
-          set -euo pipefail
-          DATA_ENV="$DEPLOY_ENV"
-          if [[ "$DEPLOYMENT_MODE" == "integrated" && "$DEPLOY_ENV" == "prod" ]]; then
-            DATA_ENV="integrated"
-          fi
-          DB_WRITER_ENDPOINT="$(aws ssm get-parameter --name "/${DATA_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)"
-          DB_READER_ENDPOINT="$(aws ssm get-parameter --name "/${DATA_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)"
-
-          if [[ -z "$DB_WRITER_ENDPOINT" || -z "$DB_READER_ENDPOINT" ]]; then
-            echo "Database endpoint parameter is empty for data environment '$DATA_ENV'." >&2
-            exit 1
-          fi
-
-          echo "DB_WRITER_ENDPOINT=$DB_WRITER_ENDPOINT" >> "$GITHUB_ENV"
-          echo "DB_READER_ENDPOINT=$DB_READER_ENDPOINT" >> "$GITHUB_ENV"
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Render & apply base manifests
         env:
-          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
           K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
-          API_HOST: ${{ vars.API_HOST }}
-          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
-          VPC_CIDR: ${{ vars.VPC_CIDR }}
           AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
           AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
           CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
@@ -295,6 +275,13 @@ jobs:
           role-session-name: gha-prod-${{ matrix.service }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Load deployment configuration from SSM
+        if: matrix.changed == 'true'
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
       - name: Login to Amazon ECR
         if: matrix.changed == 'true'
         id: ecr
@@ -314,12 +301,12 @@ jobs:
           set -euo pipefail
           # ECR 리포지터리 4개 (Phase 3-1)
           REPO_VAR="ECR_$(echo ${{ matrix.service }} | tr a-z A-Z)_REPO"
-          REPOSITORY="${{ vars.ECR_CATALOG_REPO }}"
+          REPOSITORY="$ECR_CATALOG_REPO"
           case "${{ matrix.service }}" in
-            catalog) REPOSITORY="${{ vars.ECR_CATALOG_REPO }}" ;;
-            order)   REPOSITORY="${{ vars.ECR_ORDER_REPO }}" ;;
-            member)  REPOSITORY="${{ vars.ECR_MEMBER_REPO }}" ;;
-            ai)      REPOSITORY="${{ vars.ECR_AI_REPO }}" ;;
+            catalog) REPOSITORY="$ECR_CATALOG_REPO" ;;
+            order)   REPOSITORY="$ECR_ORDER_REPO" ;;
+            member)  REPOSITORY="$ECR_MEMBER_REPO" ;;
+            ai)      REPOSITORY="$ECR_AI_REPO" ;;
           esac
           if [ -z "$REPOSITORY" ]; then
             echo "::error::$REPO_VAR 가 비어 있습니다."
@@ -355,52 +342,26 @@ jobs:
 
       - name: Update EKS kubeconfig
         if: matrix.changed == 'true'
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Render & apply service manifests
         if: matrix.changed == 'true'
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_CATALOG_REPO: ${{ vars.ECR_CATALOG_REPO }}
-          ECR_ORDER_REPO: ${{ vars.ECR_ORDER_REPO }}
-          ECR_MEMBER_REPO: ${{ vars.ECR_MEMBER_REPO }}
-          ECR_AI_REPO: ${{ vars.ECR_AI_REPO }}
           IMAGE_TAG: ${{ env.DEPLOY_SHA }}
-          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          DB_SSL_MODE: ${{ vars.DB_SSL_MODE || 'require' }}
-          DB_NAME: ${{ vars.DB_NAME }}
-          AI_DB_NAME: ${{ vars.AI_DB_NAME }}
-          AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
-          REDIS_HOST: ${{ vars.REDIS_HOST }}
-          AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
-          SQS_PURCHASE_QUEUE_URL: ${{ vars.SQS_PURCHASE_QUEUE_URL }}
-          SQS_INGEST_QUEUE_URL: ${{ vars.SQS_INGEST_QUEUE_URL }}
-          # ebook 전용 버킷은 따로 없다 — 설계상 S3는 frontend/media 2개뿐이라
-          # (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming) media 버킷을 재사용한다.
-          EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
-          # ai-rag/ai-bot ServiceAccount의 IRSA role-arn (terraform ai_service_iam 모듈).
-          # 비어 있으면 k8s/ai/serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이
-          # 그대로 박혀 두 파드 다 default SA로 떠서 AWS SDK 자격증명 체인이 빈다.
-          AI_SERVICE_IRSA_ARN: ${{ vars.AI_SERVICE_IRSA_ARN }}
-          # member-service ServiceAccount의 IRSA role-arn (terraform member_service_iam
-          # 모듈). 비어 있으면 k8s/member/serviceaccount.yaml에 리터럴
-          # "${MEMBER_SERVICE_IRSA_ARN}"이 그대로 박혀 default SA로 떠서 Cognito
-          # AdminCreateUser/AdminInitiateAuth 호출용 AWS SDK 자격증명 체인이 빈다
-          # (2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입 500).
-          MEMBER_SERVICE_IRSA_ARN: ${{ vars.MEMBER_SERVICE_IRSA_ARN }}
           # /ws/ai/chat 의 유일한 Origin 방어선(k8s/ai/configmap.yaml 참고). 이 VARS 목록에
           # 빠져 있으면 envsubst 가 손대지 않아 ConfigMap 에 "${CHAT_ALLOWED_ORIGINS}" 리터럴이
           # 그대로 박히고, 그 값이 그대로 allowed-origin-pattern 이 돼서 실제 브라우저 Origin과
           # 절대 매치되지 않아 핸드셰이크가 전부 거절된다 — FRONTEND_ORIGIN 과 같은 값이어야
           # 하므로 별도 GH Variable 없이 재사용한다.
-          CHAT_ALLOWED_ORIGINS: ${{ vars.FRONTEND_ORIGIN }}
           # 카카오페이 결제 완료 후 되돌아올 프론트엔드 콜백 페이지. 이 VARS 목록에
           # 빠져 있으면(과거 실제로 그랬음) order-api 코드 기본값(localhost:5173)이
           # 그대로 쓰여 실결제 후 사용자가 localhost로 리다이렉트된다 — FRONTEND_ORIGIN에
           # 경로만 붙인 값이라 별도 GH Variable 없이 재사용한다(인프라-트러블슈팅.md ⑲).
-          KAKAOPAY_FRONTEND_CALLBACK_URL: ${{ vars.FRONTEND_ORIGIN }}/payments/kakao/callback
         run: |
           set -euo pipefail
+          export CHAT_ALLOWED_ORIGINS="$FRONTEND_ORIGIN"
+          export KAKAOPAY_FRONTEND_CALLBACK_URL="$FRONTEND_ORIGIN/payments/kakao/callback"
           # 비어 있으면 모든 매니페스트에 리터럴 "${K8S_NAMESPACE}"가 그대로 박혀
           # kubectl apply가 그 이름 그대로의(존재하지 않는) 네임스페이스를 만들려다
           # base 매니페스트가 만든 실제 네임스페이스와 어긋난다.
@@ -495,31 +456,16 @@ jobs:
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
           DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-        run: |
-          set -euo pipefail
-          DATA_ENV="$DEPLOY_ENV"
-          EDGE_PREFIX="/$DEPLOY_ENV"
-          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
-            if [[ "$DEPLOY_ENV" == "prod" ]]; then
-              DATA_ENV="integrated"
-              EDGE_PREFIX="/integrated"
-            else
-              EDGE_PREFIX="/integrated/dev"
-            fi
-          fi
-
-          FRONTEND_S3_BUCKET="$(aws ssm get-parameter --name "/${DATA_ENV}/storage/frontend_bucket_id" --query 'Parameter.Value' --output text)"
-          CLOUDFRONT_DIST_ID="$(aws ssm get-parameter --name "${EDGE_PREFIX}/edge/cloudfront_distribution_id" --query 'Parameter.Value' --output text)"
-          test -n "$FRONTEND_S3_BUCKET"
-          test -n "$CLOUDFRONT_DIST_ID"
-          echo "FRONTEND_S3_BUCKET=$FRONTEND_S3_BUCKET" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DIST_ID=$CLOUDFRONT_DIST_ID" >> "$GITHUB_ENV"
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
 
       - name: Sync to Amazon S3
-        run: aws s3 sync ./frontend/dist "s3://${FRONTEND_S3_BUCKET}" --delete
+        run: |
+          test -n "$FRONTEND_S3_BUCKET"
+          aws s3 sync ./frontend/dist "s3://${FRONTEND_S3_BUCKET}" --delete
 
       - name: Invalidate CloudFront cache
         run: |
+          test -n "$CLOUDFRONT_DIST_ID"
           aws cloudfront create-invalidation \
             --distribution-id "$CLOUDFRONT_DIST_ID" \
             --paths "/*"
