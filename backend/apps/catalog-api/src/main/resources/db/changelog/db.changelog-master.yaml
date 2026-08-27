@@ -2,6 +2,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-1
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: book_swipes
     changes:
     - createTable:
         columns:
@@ -38,6 +43,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-2
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: books
     changes:
     - createTable:
         columns:
@@ -132,6 +142,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-3
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: product_inquiries
     changes:
     - createTable:
         columns:
@@ -200,6 +215,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-4
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: restock_alerts
     changes:
     - createTable:
         columns:
@@ -259,6 +279,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-5
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: categories
     changes:
     - createTable:
         columns:
@@ -298,6 +323,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-6
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: book_memos
     changes:
     - createTable:
         columns:
@@ -337,6 +367,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-7
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: reading_progress
     changes:
     - createTable:
         columns:
@@ -376,6 +411,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-8
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: wishlists
     changes:
     - createTable:
         columns:
@@ -407,6 +447,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-9
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: recent_books
     changes:
     - createTable:
         columns:
@@ -448,6 +493,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-10
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: book_swipes
+          constraintName: ukmm6mpsdb52bjjuac3sd65qkjt
     changes:
     - addUniqueConstraint:
         columnNames: member_id, book_id
@@ -456,6 +507,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-11
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: books
+          constraintName: ukkibbepcitr0a3cpk3rfr7nihn
     changes:
     - addUniqueConstraint:
         columnNames: isbn
@@ -464,6 +521,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-12
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: restock_alerts
+          constraintName: ukfr1kuo62kqh58dht6tvvdp420
     changes:
     - addUniqueConstraint:
         columnNames: member_id, book_id
@@ -472,6 +535,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-13
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: categories
+          constraintName: uk41g4n0emuvcm3qyf1f6cn43c0
     changes:
     - addUniqueConstraint:
         columnNames: category_name
@@ -480,6 +549,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-14
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: book_memos
+          constraintName: uk9ld94lug3qnwpi0u10bb6231n
     changes:
     - addUniqueConstraint:
         columnNames: member_sub, book_id
@@ -488,6 +563,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-15
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: reading_progress
+          constraintName: ukfcng9kysi8yu0wh7jdlfk20si
     changes:
     - addUniqueConstraint:
         columnNames: member_sub, book_id
@@ -496,6 +577,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-16
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: wishlists
+          constraintName: ukgavtjhfj7htlfgaaiii15bybf
     changes:
     - addUniqueConstraint:
         columnNames: member_id, book_id
@@ -504,6 +591,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-17
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: recent_books
+          constraintName: ukka9h26v4v0n1okyb483jk2o77
     changes:
     - addUniqueConstraint:
         columnNames: member_id, book_id
@@ -512,6 +605,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-18
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: faqs
     changes:
     - createTable:
         columns:
@@ -558,6 +656,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-19
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: processed_restock_events
     changes:
     - createTable:
         columns:
@@ -582,6 +685,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-20
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: recommendation_exposures
     changes:
     - createTable:
         columns:
@@ -623,6 +731,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-21
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: review_permissions
     changes:
     - createTable:
         columns:
@@ -660,6 +773,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-22
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: reviews
     changes:
     - createTable:
         columns:
@@ -707,6 +825,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-23
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: search_history
     changes:
     - createTable:
         columns:
@@ -738,6 +861,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-24
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: subscription_banners
     changes:
     - createTable:
         columns:
@@ -792,6 +920,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-25
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: product_inquiries
+          foreignKeyName: fk22oy9kmbis0b9gf8h75bgwabe
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -807,6 +941,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-26
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: reviews
+          foreignKeyName: fk6a9k6xvev80se5rreqvuqr7f9
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -822,6 +962,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-27
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: book_memos
+          foreignKeyName: fk9a1qqvyl9fbulrm7efm47xbpd
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -837,6 +983,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-28
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: restock_alerts
+          foreignKeyName: fkh4x07sf9n35jh7b91yvhgykui
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -852,6 +1004,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-29
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: recommendation_exposures
+          foreignKeyName: fkjf3smancysg06ideu16c1adjg
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -867,6 +1025,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-30
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: book_swipes
+          foreignKeyName: fknoho20xmwwxe3dgf8vpwonijk
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -882,6 +1046,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-31
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: reading_progress
+          foreignKeyName: fknsqk9v56xoseduaqe6r5dqqm3
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -897,6 +1067,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-32
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: wishlists
+          foreignKeyName: fko69vdp48axn9ovctfp0jrlgum
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id
@@ -912,6 +1088,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-33
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: categories
+          foreignKeyName: fksaok720gsu4u2wrgbk10b5n8d
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: parent_id
@@ -927,6 +1109,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810674065-34
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: recent_books
+          foreignKeyName: fksxegvmaeb0p0ddnb9xwhvkdw7
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: book_id

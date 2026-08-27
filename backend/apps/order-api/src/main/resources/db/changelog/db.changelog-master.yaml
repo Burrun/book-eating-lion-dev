@@ -2,6 +2,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-1
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: inventory
     changes:
     - createTable:
         columns:
@@ -33,6 +38,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-2
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: deliveries
     changes:
     - createTable:
         columns:
@@ -70,6 +80,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-3
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: orders
     changes:
     - createTable:
         columns:
@@ -132,6 +147,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-4
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: payments
     changes:
     - createTable:
         columns:
@@ -181,6 +201,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-5
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: member_coupons
     changes:
     - createTable:
         columns:
@@ -217,6 +242,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-6
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: coupons
     changes:
     - createTable:
         columns:
@@ -257,6 +287,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-7
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: cart_items
     changes:
     - createTable:
         columns:
@@ -293,6 +328,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-8
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: deliveries
+          constraintName: ukk36n9p5v7dd96hpgkwybvbogt
     changes:
     - addUniqueConstraint:
         columnNames: order_id
@@ -301,6 +342,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-9
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: payments
+          constraintName: ukj4pdqn1207fuhx2gybp1ue799
     changes:
     - addUniqueConstraint:
         columnNames: idempotency_key
@@ -309,6 +356,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-10
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: member_coupons
+          constraintName: uk7vsr5ony482pybavca21axk7v
     changes:
     - addUniqueConstraint:
         columnNames: member_id, coupon_id
@@ -317,6 +370,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-11
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: coupons
+          constraintName: ukf1u99ssbdsqass9ntq968codg
     changes:
     - addUniqueConstraint:
         columnNames: coupon_code
@@ -325,6 +384,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-12
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: cart_items
+          constraintName: ukmndjhvfk5vjuaaoqt7tg9iu74
     changes:
     - addUniqueConstraint:
         columnNames: member_id, book_id
@@ -333,6 +398,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-13
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: order_items
     changes:
     - createTable:
         columns:
@@ -373,6 +443,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-14
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: payments
+          foreignKeyName: fk81gagumt0r8y3rmudcgpbk42l
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: order_id
@@ -388,6 +464,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-15
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: order_items
+          foreignKeyName: fkbioxgbv59vetrxe0ejfubep1w
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: order_id
@@ -403,6 +485,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810701866-16
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: member_coupons
+          foreignKeyName: fkjhl4s4jqkkpowc6m9dwtr5muj
     changes:
     - addForeignKeyConstraint:
         baseColumnNames: coupon_id

@@ -2,6 +2,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-1
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: cards
     changes:
     - createTable:
         columns:
@@ -60,6 +65,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-2
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: member_subscriptions
     changes:
     - createTable:
         columns:
@@ -109,6 +119,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-3
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: members
     changes:
     - createTable:
         columns:
@@ -158,6 +173,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-4
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: cards
+          constraintName: ukgp02yuws4kxpbq5ujvc28llix
     changes:
     - addUniqueConstraint:
         columnNames: card_token
@@ -166,6 +187,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-5
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: members
+          constraintName: uk9d30a9u1qpg8eou0otgkwrp5d
     changes:
     - addUniqueConstraint:
         columnNames: email
@@ -174,6 +201,12 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-6
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: members
+          constraintName: uke6u9u9ypoc7oldnpxdjwcdx3
     changes:
     - addUniqueConstraint:
         columnNames: nickname
@@ -182,6 +215,11 @@ databaseChangeLog:
 - changeSet:
     id: 1787810695667-7
     author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: addresses
     changes:
     - createTable:
         columns:
