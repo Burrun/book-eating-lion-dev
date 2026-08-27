@@ -13,10 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
  * 구독 여부만 필요해서 응답의 status/expiresAt은 무시한다 —
  * {@link JsonIgnoreProperties}(ignoreUnknown = true)로 계약이 필드를 더 줘도 깨지지 않는다.
  */
-@FeignClient(
-        name = "member-subscription",
-        url = "${services.member.url}",
-        fallback = MemberSubscriptionFallback.class)
+@FeignClient(name = "member-subscription", url = "${services.member.url}", fallback = MemberSubscriptionFallback.class)
 public interface MemberSubscriptionClient {
 
     @GetMapping("/internal/members/{memberId}/subscription-status")
