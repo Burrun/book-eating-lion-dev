@@ -14,7 +14,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -30,8 +30,9 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
-  flyway:
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   # ReviewPermissionStreamConfig(Redis Streams 컨슈머 그룹)가 spring.data.redis.host/port
   # 를 쓴다. 값이 없으면 Redis 연결이 조용히 localhost:6379 로 fallback 해서, order-service
