@@ -24,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class AdminBookServiceTest {
@@ -115,7 +116,9 @@ class AdminBookServiceTest {
                 .saleStatus(SaleStatus.ON_SALE)
                 .salesCount(0)
                 .build();
-        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse()).thenReturn(List.of(ebook));
+        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalseAndBookIdGreaterThanOrderByBookIdAsc(
+                        any(Long.class), any(PageRequest.class)))
+                .thenReturn(List.of(ebook));
         when(bookIngestPublisher.publish(null, "앨리스", "소설", "epubs/alice.epub")).thenReturn(true);
 
         int count = adminBookService.reindexEbooks();
@@ -137,7 +140,9 @@ class AdminBookServiceTest {
                 .saleStatus(SaleStatus.ON_SALE)
                 .salesCount(0)
                 .build();
-        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse()).thenReturn(List.of(ebook));
+        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalseAndBookIdGreaterThanOrderByBookIdAsc(
+                        any(Long.class), any(PageRequest.class)))
+                .thenReturn(List.of(ebook));
         when(bookIngestPublisher.publish(null, "실패 도서", "소설", "epubs/failure.epub"))
                 .thenReturn(false);
 
