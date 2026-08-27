@@ -19,6 +19,8 @@ import {
   fetchLionStatus,
 } from "../api/mypage.js";
 import { getFeedableMemos, getFedMemos, markMemoFed } from "../api/bookMemo.ts";
+import { getEbookAccess, getMyEbooks } from "../api/books.ts";
+import EbookViewer from "../components/EbookViewer.jsx";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
@@ -172,6 +174,8 @@ export default function MyPage() {
         <OrdersSection />
       </div>
 
+      <MyEbookShelfSection />
+
       <BookActivitySection />
 
       <ReviewsSection />
@@ -191,6 +195,109 @@ const RESTOCK_STATUS_LABELS = {
   FAILED: "발송 재시도",
   CANCELLED: "신청 취소",
 };
+
+/**
+ * 구매 확정 + eBook 보유 도서만 GET /api/catalog/ebooks/me 로 받아 목록을 보여준다.
+ * 클릭하면 Catalog 상세 페이지를 거치지 않고 바로 EbookViewer를 연다 — 소유권 검증은
+ * getEbookAccess가 호출하는 서버 쪽(EbookService.getAccess)에서 한다. EbookViewer 내부의
+ * 이어읽기 위치 복원/저장(useReadingProgress)과 완독 판정 로직은 그대로 재사용한다 —
+ * bookId/url만 넘기면 된다.
+ */
+function MyEbookShelfSection() {
+  const toast = useToast();
+  const [ebooks, setEbooks] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [openingBookId, setOpeningBookId] = useState(null);
+  const [activeBook, setActiveBook] = useState(null); // { id, title } | null
+  const [ebookUrl, setEbookUrl] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    getMyEbooks()
+      .then((data) => {
+        if (!ignore) setEbooks(data);
+      })
+      .catch(() => {
+        if (!ignore) {
+          setEbooks([]);
+          setLoadError(true);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleOpen = async (book) => {
+    setOpeningBookId(book.id);
+    try {
+      const access = await getEbookAccess(book.id);
+      if (!access.ebookAvailable || !access.presignedUrl) {
+        toast.error("아직 eBook이 준비되지 않은 도서입니다.");
+        return;
+      }
+      setEbookUrl(access.presignedUrl);
+      setActiveBook(book);
+    } catch (err) {
+      const code = err?.code;
+      toast.error(
+        code === "EBOOK_OWNERSHIP_REQUIRED"
+          ? "구매 확정된 도서만 열람할 수 있어요."
+          : "eBook을 열지 못했습니다. 잠시 후 다시 시도해주세요.",
+      );
+    } finally {
+      setOpeningBookId(null);
+    }
+  };
+
+  const handleClose = () => {
+    setActiveBook(null);
+    setEbookUrl(null);
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
+      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">내 이북 보관함</h2>
+
+      <div className="pt-5">
+        {ebooks === null ? (
+          <TabSkeleton />
+        ) : loadError ? (
+          <EmptyState message="이북 보관함을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." />
+        ) : ebooks.length === 0 ? (
+          <EmptyState message="구매한 eBook이 없어요. eBook이 있는 도서를 구매하면 여기서 바로 읽을 수 있어요." />
+        ) : (
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {ebooks.map((book) => (
+              <li key={book.id}>
+                <button
+                  type="button"
+                  onClick={() => handleOpen(book)}
+                  disabled={openingBookId === book.id}
+                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--color-forest)]/10 p-4 text-left transition-colors hover:bg-[var(--color-forest)]/5 disabled:opacity-60"
+                >
+                  <BookActivityTitle
+                    title={book.title}
+                    detail={openingBookId === book.id ? "여는 중..." : "📱 eBook 보기"}
+                    coverImageUrl={book.coverImageUrl}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <EbookViewer
+        isOpen={Boolean(activeBook)}
+        onClose={handleClose}
+        url={ebookUrl}
+        title={activeBook?.title}
+        bookId={activeBook?.id}
+      />
+    </section>
+  );
+}
 
 function BookActivitySection() {
   const toast = useToast();
