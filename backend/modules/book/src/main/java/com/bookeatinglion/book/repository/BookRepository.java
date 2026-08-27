@@ -19,6 +19,9 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     Page<Book> findByEpubS3KeyIsNotNullAndIsDeletedFalse(Pageable pageable);
 
+    /** 구독 회원의 내 이북 보관함용 — 개별 구매 여부와 무관하게 eBook 보유 도서 전체. */
+    List<Book> findByEpubS3KeyIsNotNullAndIsDeletedFalse();
+
     List<Book> findByBookIdInAndEpubS3KeyIsNotNullAndIsDeletedFalse(List<Long> bookIds);
 
     Optional<Book> findByBookIdAndIsDeletedFalse(Long bookId);
