@@ -20,8 +20,7 @@ class ReviewPermissionRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        reviewPermissionRepository.save(
-                new ReviewPermission("member-1", 1L, 101L, "닉네임", LocalDateTime.now()));
+        reviewPermissionRepository.save(new ReviewPermission("member-1", 1L, 101L, "닉네임", LocalDateTime.now()));
     }
 
     @Test
