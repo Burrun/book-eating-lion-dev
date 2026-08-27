@@ -71,9 +71,11 @@ apiClient.interceptors.response.use(
     }
 
     original._retried = true;
-    refreshInFlight = refreshInFlight ?? refreshAccessToken().finally(() => {
-      refreshInFlight = null;
-    });
+    refreshInFlight =
+      refreshInFlight ??
+      refreshAccessToken().finally(() => {
+        refreshInFlight = null;
+      });
     const accessToken = await refreshInFlight;
 
     if (!accessToken) {
