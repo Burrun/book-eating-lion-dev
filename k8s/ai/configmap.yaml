@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ai-config
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
 data:
   SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
   SERVER_PORT: "8080"

@@ -129,6 +129,19 @@ module "ingress_alb" {
 }
 
 # ── 4. CloudFront + Route53 (ALB가 준비된 뒤에만 가능) ─────────────
+# ⚠️ integrated/02-runtime 쪽에서 enable_dev_cutover=true로 dev.ajttk.com을
+# 이 환경 대신 integrated 클러스터로 컷오버해둔 상태라면, 이 모듈을 다시
+# apply하면 안 된다 - 같은 Route53 레코드(dev.ajttk.com, www.dev.ajttk.com)를
+# 두 tfstate가 동시에 소유하려고 해서 충돌한다(AWS가 CREATE 액션을 거부).
+#
+# 분리 클러스터 모드(이 환경)로 되돌리려면 순서를 지킬 것:
+#   1. integrated/02-runtime에서 enable_dev_cutover=false로 바꾸고 apply
+#      (module.edge_routing_dev가 destroy되어 레코드 소유권을 반납)
+#   2. 그다음 이 환경(dev/02-runtime)을 apply
+#
+# 통합 모드와 분리 클러스터 모드는 둘 다 계속 유효한 운영 방식이다 -
+# 이 모듈이 폐기된 건 아니고, 동시에 같은 도메인을 두 곳에서 소유할 수만
+# 없는 것뿐이다.
 module "edge_routing" {
   source = "../../../modules/compute/edge_routing"
 
@@ -141,6 +154,16 @@ module "edge_routing" {
   frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id.value
   frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
+}
+
+# CD가 CloudFront 재생성 후 GitHub Variable을 수동 갱신하지 않고 실행 시점에
+# 최신 배포 ID를 찾을 수 있게 Parameter Store에 발행한다.
+resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  name  = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
+  type  = "String"
+  value = module.edge_routing.cloudfront_distribution_id
+  # 기존 수동 등록 값을 첫 apply에서 Terraform 관리로 인수한다.
+  overwrite = true
 }
 
 # ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───

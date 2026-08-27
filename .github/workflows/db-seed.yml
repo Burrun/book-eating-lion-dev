@@ -48,6 +48,11 @@ on:
         type: choice
         options: [ dev, prod ]
         default: dev
+      deployment_mode:
+        description: "인프라 운영 모드"
+        type: choice
+        options: [ split, integrated ]
+        default: split
       dry_run:
         description: "preflight 만 돌리고 쓰지 않는다"
         type: boolean
@@ -62,21 +67,24 @@ permissions:
 # concurrency.group 과 jobs.<id>.environment 는 env 컨텍스트를 못 쓰므로
 # 이 식을 그대로 반복한다.
 concurrency:
-  group: db-seed-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  group: db-seed-${{ github.event_name == 'workflow_dispatch' && inputs.deployment_mode || 'split' }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 jobs:
   seed:
     name: DB Seed
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'integrated' && format('integrated-{0}', inputs.environment) || github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_mode || 'split' }}
       # 자동 실행(dev 머지)은 바로 반영한다. preflight 가 앞에서 막아주므로
       # 스키마가 어긋난 상태로는 어차피 못 쓴다.
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
-      NS: lion-app
+      # 실제 배포용 GitHub Environment에 동기화된 namespace를 사용한다.
+      # split은 lion-app, integrated는 dev/prod라 환경 이름으로 추론하면 안 된다.
+      NS: ${{ vars.K8S_NAMESPACE }}
       POD: db-seed-${{ github.run_id }}
       SECRET: db-seed-${{ github.run_id }}
       SEED_FILE: db/postgres/90-demo-data.sql
@@ -91,14 +99,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update EKS kubeconfig
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
+        run: |
+          INFRA_ENV="$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then INFRA_ENV="integrated"; fi
+          aws eks update-kubeconfig --name "lion-team3-${INFRA_ENV}" --region "$AWS_REGION"
 
       # master 자격증명은 러너를 거치지만 어디에도 출력하지 않는다.
       # kubectl create secret 은 --from-literal 값을 stdout 에 안 찍는다.
       - name: Launch psql pod
         run: |
           set -euo pipefail
-          ARN="$(aws ssm get-parameter --name "/$DEPLOY_ENV/data/db_master_secret_arn" \
+          DATA_ENV="$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" && "$DEPLOY_ENV" == "prod" ]]; then DATA_ENV="integrated"; fi
+          ARN="$(aws ssm get-parameter --name "/$DATA_ENV/data/db_master_secret_arn" \
                    --query Parameter.Value --output text --region "$AWS_REGION")"
           JSON="$(aws secretsmanager get-secret-value --secret-id "$ARN" \
                     --query SecretString --output text --region "$AWS_REGION")"

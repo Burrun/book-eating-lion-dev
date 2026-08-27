@@ -17,7 +17,7 @@ data "aws_iam_policy_document" "trust" {
     condition {
       test     = "StringEquals"
       variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:lion-app:member-service"]
+      values   = ["system:serviceaccount:${var.namespace}:member-service"]
     }
   }
 }

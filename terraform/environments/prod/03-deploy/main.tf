@@ -44,3 +44,10 @@ module "edge_routing" {
   frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
 }
+
+resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  name      = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
+  type      = "String"
+  value     = module.edge_routing.cloudfront_distribution_id
+  overwrite = true
+}

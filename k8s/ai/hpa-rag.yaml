@@ -19,7 +19,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: ai-rag-hpa
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
   annotations:
     lion.io/metric-rationale: >-
       Phase 0-2b 에서 외부 임베딩 API 로 확정 → I/O 바운드.

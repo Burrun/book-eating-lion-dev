@@ -23,10 +23,18 @@ output "public_domain_url_dev" {
   value       = var.enable_dev_cutover ? module.edge_routing_dev[0].public_domain_url : null
 }
 
-output "ai_service_irsa_arn" {
-  value = module.ai_service_iam.ai_service_irsa_arn
+output "ai_service_irsa_arn_prod" {
+  value = module.ai_service_iam_prod.ai_service_irsa_arn
 }
 
-output "member_service_irsa_arn" {
-  value = module.member_service_iam.member_service_irsa_arn
+output "ai_service_irsa_arn_dev" {
+  value = module.ai_service_iam_dev.ai_service_irsa_arn
+}
+
+output "member_service_irsa_arn_prod" {
+  value = module.member_service_iam_prod.member_service_irsa_arn
+}
+
+output "member_service_irsa_arn_dev" {
+  value = module.member_service_iam_dev.member_service_irsa_arn
 }

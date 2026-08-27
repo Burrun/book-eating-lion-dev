@@ -78,6 +78,22 @@ data "aws_ssm_parameter" "cognito_user_pool_arn" {
   name = "${local.ssm_prefix}/auth/user_pool_arn"
 }
 
+# ── dev 네임스페이스용 IRSA가 참조할, dev의 기존(별도) SQS/Cognito ──────
+# dev/01-data가 만든 자원을 그대로 재사용한다 (edge_routing_dev와 같은 패턴).
+# prod용 위 4개 data source(/integrated/...)와는 완전히 다른 실제 자원을 가리킨다 -
+# 이게 있어야 dev 네임스페이스 Role이 prod의 SQS/Cognito에 접근 못 하게 막을 수 있다.
+data "aws_ssm_parameter" "dev_ai_ingest_channel_arn" {
+  name = "/dev/ai/ingest_channel_arn"
+}
+
+data "aws_ssm_parameter" "dev_ai_purchase_channel_arn" {
+  name = "/dev/ai/purchase_channel_arn"
+}
+
+data "aws_ssm_parameter" "dev_cognito_user_pool_arn" {
+  name = "/dev/auth/user_pool_arn"
+}
+
 # ── 1. EKS 클러스터 (최초 apply 시 -target으로 먼저 만들 것) ────────
 module "eks_cluster" {
   source = "../../../modules/compute/eks_cluster"
@@ -154,6 +170,13 @@ module "edge_routing" {
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
 }
 
+resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  name      = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
+  type      = "String"
+  value     = module.edge_routing.cloudfront_distribution_id
+  overwrite = true
+}
+
 # ── 4b. CloudFront + Route53 - dev 임시 컷오버 (enable_dev_cutover=true일 때만) ──
 # dev.ajttk.com을 dev의 기존 클러스터 대신 이 integrated 클러스터로 붙인다.
 #
@@ -210,40 +233,111 @@ module "edge_routing_dev" {
   depends_on = [module.ingress_alb]
 }
 
+resource "aws_ssm_parameter" "cloudfront_distribution_id_dev" {
+  count     = var.enable_dev_cutover ? 1 : 0
+  name      = "${local.ssm_prefix}/dev/edge/cloudfront_distribution_id"
+  type      = "String"
+  value     = module.edge_routing_dev[0].cloudfront_distribution_id
+  overwrite = true
+}
+
 # ── 5. AI 서비스 IRSA ───────────────────────────────────────────
-module "ai_service_iam" {
+# dev/prod가 같은 클러스터를 namespace(var.dev_namespace / var.prod_namespace)로만
+# 나눠 쓰므로, Role도 반드시 둘로 나눈다 - 하나로 합쳐서 두 namespace 다 trust하게
+# 만들면 dev 파드가 prod의 SQS/Bedrock 인덱스에 그대로 접근 가능해진다.
+module "ai_service_iam_prod" {
   source = "../../../modules/compute/ai_service_iam"
 
-  environment                  = var.environment
+  environment                  = "${var.environment}-prod"
+  namespace                    = var.prod_namespace
   oidc_provider_arn            = module.eks_cluster.oidc_provider_arn
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.ai_ingest_channel_arn.value
   purchase_channel_arn         = data.aws_ssm_parameter.ai_purchase_channel_arn.value
-  recommendation_index_arn     = var.recommendation_index_arn
-  purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
+  recommendation_index_arn     = var.prod_recommendation_index_arn
+  purchased_book_rag_index_arn = var.prod_purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
 }
 
-resource "aws_ssm_parameter" "ai_service_irsa_arn" {
+resource "aws_ssm_parameter" "ai_service_irsa_arn_prod" {
   name  = "${local.ssm_prefix}/ai/service_irsa_arn"
   type  = "String"
-  value = module.ai_service_iam.ai_service_irsa_arn
+  value = module.ai_service_iam_prod.ai_service_irsa_arn
+}
+
+# dev 워크로드를 이 클러스터로 옮기는 동안 쓸 dev용 AI Role. dev/01-data의
+# 기존 SQS를 그대로 참조한다 (위 dev_ai_* data source 참고) - prod 큐와 완전히 별개.
+module "ai_service_iam_dev" {
+  source = "../../../modules/compute/ai_service_iam"
+
+  environment                  = "${var.environment}-dev"
+  namespace                    = var.dev_namespace
+  oidc_provider_arn            = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url            = module.eks_cluster.oidc_provider_url
+  ingest_channel_arn           = data.aws_ssm_parameter.dev_ai_ingest_channel_arn.value
+  purchase_channel_arn         = data.aws_ssm_parameter.dev_ai_purchase_channel_arn.value
+  recommendation_index_arn     = var.dev_recommendation_index_arn
+  purchased_book_rag_index_arn = var.dev_purchased_book_rag_index_arn
+  bedrock_model_arns           = var.bedrock_model_arns
+}
+
+removed {
+  from = aws_ssm_parameter.ai_service_irsa_arn_dev
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "aws_ssm_parameter" "ai_service_irsa_arn_integrated_dev" {
+  # 분리 모드의 /dev/ai/service_irsa_arn을 덮어쓰면 두 모드를 동시에
+  # 유지할 수 없으므로 integrated 전용 경로에 저장한다.
+  name  = "${local.ssm_prefix}/dev/ai/service_irsa_arn"
+  type  = "String"
+  value = module.ai_service_iam_dev.ai_service_irsa_arn
 }
 
 # ── 6. member-service IRSA ──────────────────────────────────────
-module "member_service_iam" {
+module "member_service_iam_prod" {
   source = "../../../modules/compute/member_service_iam"
 
-  environment       = var.environment
+  environment       = "${var.environment}-prod"
+  namespace         = var.prod_namespace
   oidc_provider_arn = module.eks_cluster.oidc_provider_arn
   oidc_provider_url = module.eks_cluster.oidc_provider_url
   user_pool_arn     = data.aws_ssm_parameter.cognito_user_pool_arn.value
 }
 
-resource "aws_ssm_parameter" "member_service_irsa_arn" {
+resource "aws_ssm_parameter" "member_service_irsa_arn_prod" {
   name  = "${local.ssm_prefix}/member/service_irsa_arn"
   type  = "String"
-  value = module.member_service_iam.member_service_irsa_arn
+  value = module.member_service_iam_prod.member_service_irsa_arn
+}
+
+# dev 워크로드용. dev/01-data의 기존 Cognito User Pool을 그대로 참조한다 - prod
+# User Pool과 완전히 별개라, dev Role은 prod 회원 계정에 손을 못 댄다.
+module "member_service_iam_dev" {
+  source = "../../../modules/compute/member_service_iam"
+
+  environment       = "${var.environment}-dev"
+  namespace         = var.dev_namespace
+  oidc_provider_arn = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url = module.eks_cluster.oidc_provider_url
+  user_pool_arn     = data.aws_ssm_parameter.dev_cognito_user_pool_arn.value
+}
+
+removed {
+  from = aws_ssm_parameter.member_service_irsa_arn_dev
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+resource "aws_ssm_parameter" "member_service_irsa_arn_integrated_dev" {
+  name  = "${local.ssm_prefix}/dev/member/service_irsa_arn"
+  type  = "String"
+  value = module.member_service_iam_dev.member_service_irsa_arn
 }
 
 # ── 7. apply 후 GitHub Actions 자동 실행 (trigger_github_actions=true일 때만) ──
