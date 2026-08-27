@@ -48,9 +48,8 @@ dependencies {
     // 문의봇 WebSocket. modules:ai 가 implementation 으로 선언해 전이되지 않으므로 여기서도 건다.
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
-    // Flyway — ai_db 스키마만. 다른 서비스와 같은 클러스터지만 계정이 달라 남의 스키마는 못 본다.
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-database-postgresql'
+    // Liquibase — ai_db 스키마만. 다른 서비스와 같은 클러스터지만 계정이 달라 남의 스키마는 못 본다.
+    implementation 'org.liquibase:liquibase-core'
 
     runtimeOnly 'org.postgresql:postgresql'
 

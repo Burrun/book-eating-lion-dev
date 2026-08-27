@@ -1,0 +1,274 @@
+databaseChangeLog:
+- changeSet:
+    id: 1787810695667-1
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: cards
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: cards_pkey
+            name: card_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: card_status
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: card_token
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: current_usage
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: expiry_date
+            type: date
+        - column:
+            constraints:
+              nullable: false
+            name: issued_date
+            type: date
+        - column:
+            constraints:
+              nullable: false
+            name: masked_card_number
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: monthly_limit
+            type: BIGINT
+        - column:
+            name: version
+            type: BIGINT
+        tableName: cards
+- changeSet:
+    id: 1787810695667-2
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: member_subscriptions
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: member_subscriptions_pkey
+            name: subscription_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: cancelled_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: expires_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: plan_type
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: started_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: status
+            type: VARCHAR(255)
+        tableName: member_subscriptions
+- changeSet:
+    id: 1787810695667-3
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: members
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: members_pkey
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: birth_date
+            type: date
+        - column:
+            constraints:
+              nullable: false
+            name: email
+            type: VARCHAR(255)
+        - column:
+            name: gender
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: name
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: nickname
+            type: VARCHAR(255)
+        - column:
+            name: phone_number
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: role
+            type: VARCHAR(255)
+        tableName: members
+- changeSet:
+    id: 1787810695667-4
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: cards
+          constraintName: ukgp02yuws4kxpbq5ujvc28llix
+    changes:
+    - addUniqueConstraint:
+        columnNames: card_token
+        constraintName: ukgp02yuws4kxpbq5ujvc28llix
+        tableName: cards
+- changeSet:
+    id: 1787810695667-5
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: members
+          constraintName: uk9d30a9u1qpg8eou0otgkwrp5d
+    changes:
+    - addUniqueConstraint:
+        columnNames: email
+        constraintName: uk9d30a9u1qpg8eou0otgkwrp5d
+        tableName: members
+- changeSet:
+    id: 1787810695667-6
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - uniqueConstraintExists:
+          tableName: members
+          constraintName: uke6u9u9ypoc7oldnpxdjwcdx3
+    changes:
+    - addUniqueConstraint:
+        columnNames: nickname
+        constraintName: uke6u9u9ypoc7oldnpxdjwcdx3
+        tableName: members
+- changeSet:
+    id: 1787810695667-7
+    author: anth5810 (generated)
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: addresses
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: addresses_pkey
+            name: address_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: address
+            type: VARCHAR(255)
+        - column:
+            name: address_detail
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: is_default
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: recipient_phone
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: recipient_name
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: postal_code
+            type: VARCHAR(255)
+        tableName: addresses
+

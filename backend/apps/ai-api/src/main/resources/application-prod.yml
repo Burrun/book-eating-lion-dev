@@ -19,7 +19,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -34,8 +34,9 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
-  flyway:
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   # DailyQuota/FedBookCache 가 spring.data.redis.host/port 를 쓴다. DailyQuota 는
   # Redis 장애 시 fail-open 이라 이 값이 없으면 일일 사용량 제한(AI_DAILY_QUOTA)이
