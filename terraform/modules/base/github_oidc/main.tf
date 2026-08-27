@@ -108,8 +108,18 @@ data "aws_iam_policy_document" "permissions" {
     resources = ["*"]
   }
 
-  # CD가 환경별 데이터 계층에서 기록한 DB writer/reader endpoint를 읽는다.
-  # 환경 경로로 제한해 dev 역할이 prod 파라미터를 읽거나 그 반대가 되지 않게 한다.
+  # CD 설정 로더가 VPC ID에 대응하는 CIDR을 보안 설정에 주입한다.
+  # DescribeVpcs는 AWS에서 리소스 수준 권한을 지원하지 않는다.
+  statement {
+    sid       = "Ec2DescribeVpcs"
+    effect    = "Allow"
+    actions   = ["ec2:DescribeVpcs"]
+    resources = ["*"]
+  }
+
+  # CD가 네트워크, 스토리지, 인증, 메시징, 데이터, edge 설정을 SSM에서 읽는다.
+  # 환경 경로 전체로 제한해 dev 역할이 prod 파라미터를 읽거나 그 반대가 되지
+  # 않게 한다. integrated 역할은 같은 클러스터의 dev 배포를 위해 /dev/*도 읽는다.
   statement {
     sid    = "ReadEnvironmentDataParameters"
     effect = "Allow"
@@ -118,10 +128,10 @@ data "aws_iam_policy_document" "permissions" {
       "ssm:GetParameters",
     ]
     resources = concat(
-      ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/data/*"],
+      ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${var.environment}/*"],
       [
         for prefix in var.extra_ssm_read_prefixes :
-        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${prefix}/data/*"
+        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/${prefix}/*"
       ]
     )
   }
