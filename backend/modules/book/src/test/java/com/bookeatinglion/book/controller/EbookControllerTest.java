@@ -37,8 +37,9 @@ class EbookControllerTest {
     @Test
     void 구매한_회원은_200과_열람_URL을_받는다() throws Exception {
         when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        OffsetDateTime expiresAt = OffsetDateTime.now();
         when(ebookService.getAccess(101L, "member-1"))
-                .thenReturn(new EbookAccessResponse(101L, true, "https://signed.example/frankenstein", OffsetDateTime.now()));
+                .thenReturn(new EbookAccessResponse(101L, true, "https://signed.example/frankenstein", expiresAt));
 
         mockMvc.perform(get("/api/catalog/books/101/ebook"))
                 .andExpect(status().isOk())
