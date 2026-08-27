@@ -118,8 +118,14 @@ public class AdminBookService {
     @Transactional
     public int reindexEbooks() {
         List<Book> books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse();
-        books.forEach(this::publishIngestEvent);
-        return books.size();
+        int queued = 0;
+        for (Book book : books) {
+            if (bookIngestPublisher.publish(
+                    book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key())) {
+                queued++;
+            }
+        }
+        return queued;
     }
 
     /**

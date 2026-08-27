@@ -33,7 +33,7 @@ public class SqsBookIngestPublisher implements BookIngestPublisher {
     }
 
     @Override
-    public void publish(Long bookId, String title, String category, String epubS3Key) {
+    public boolean publish(Long bookId, String title, String category, String epubS3Key) {
         try {
             String body = objectMapper.writeValueAsString(new BookIngestMessage(bookId, title, category, epubS3Key));
             sqsClient.sendMessage(SendMessageRequest.builder()
@@ -41,8 +41,10 @@ public class SqsBookIngestPublisher implements BookIngestPublisher {
                     .messageBody(body)
                     .build());
             log.info("신간 등록 이벤트 발행: bookId={}, title={}", bookId, title);
+            return true;
         } catch (Exception e) {
             log.error("신간 등록 이벤트 발행 실패: bookId={}, title={}", bookId, title, e);
+            return false;
         }
     }
 

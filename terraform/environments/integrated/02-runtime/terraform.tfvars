@@ -27,4 +27,4 @@ admin_principal_arns = []
 # 현재 dev.ajttk.com은 integrated CloudFront가 담당한다. 운영 상태와 코드 기본값을
 # 일치시켜 옵션 없는 apply가 dev edge 리소스를 제거하지 않게 한다. split dev로
 # 되돌릴 때만 별도 PR에서 false로 바꾸고 의도적인 컷백 절차를 수행한다.
-enable_dev_cutover = true
+enable_dev_cutover = false

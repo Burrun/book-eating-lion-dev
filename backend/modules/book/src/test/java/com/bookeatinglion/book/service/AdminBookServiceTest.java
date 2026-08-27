@@ -116,11 +116,32 @@ class AdminBookServiceTest {
                 .salesCount(0)
                 .build();
         when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse()).thenReturn(List.of(ebook));
+        when(bookIngestPublisher.publish(null, "앨리스", "소설", "epubs/alice.epub")).thenReturn(true);
 
         int count = adminBookService.reindexEbooks();
 
         assertThat(count).isEqualTo(1);
         verify(bookIngestPublisher).publish(null, "앨리스", "소설", "epubs/alice.epub");
+    }
+
+    @Test
+    void EPUB_인제스트_발행_실패는_성공_건수에서_제외한다() {
+        Book ebook = Book.builder()
+                .title("실패 도서")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000002")
+                .category("소설")
+                .price(10000)
+                .epubS3Key("epubs/failure.epub")
+                .saleStatus(SaleStatus.ON_SALE)
+                .salesCount(0)
+                .build();
+        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse()).thenReturn(List.of(ebook));
+        when(bookIngestPublisher.publish(null, "실패 도서", "소설", "epubs/failure.epub"))
+                .thenReturn(false);
+
+        assertThat(adminBookService.reindexEbooks()).isZero();
     }
 
     @Test
