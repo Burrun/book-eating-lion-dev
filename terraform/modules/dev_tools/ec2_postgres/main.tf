@@ -144,9 +144,10 @@ resource "aws_instance" "this" {
     ignore_changes = [ami, user_data]
   }
 
-  # PostgreSQL 16 설치 + 마스터 계정 생성. 스키마(00-init.sql, 01~04-*.sql) 적용은
-  # 이 모듈의 책임이 아니다 - db/postgres/*.sql을 psql로 실행하는 건 배포 파이프라인/
-  # 애플리케이션 쪽 몫이다 (docker-compose가 로컬에서 하는 것과 같은 역할).
+  # PostgreSQL 16 설치 + 마스터 계정 생성. 테이블 DDL 적용은 이 모듈의 책임이 아니다.
+  # 스키마는 아래 aws_ssm_association 이 빈 채로 4개 만들고, 그 안의 테이블은
+  # Hibernate(ddl-auto: update)가 만든다. 시드 데이터만 db-seed 워크플로가
+  # db/postgres/90-demo-data.sql 로 넣는다.
   #
   # 비밀번호는 스크립트에 직접 넣지 않는다 - 부팅 시점에 Secrets Manager에서 읽어온다
   # (var.aws_region이 없어 aws cli의 기본 리전 탐지에 의존하지 않도록 명시적으로 넘김).
