@@ -7,5 +7,9 @@ package com.bookeatinglion.book.port;
  * (order 모듈의 BookPurchasePublisher/SqsBookPurchasePublisher 와 같은 이유).
  */
 public interface BookIngestPublisher {
+    /**
+     * 발행 성공 여부를 반환한다. 일반 등록 경로는 결과를 무시할 수 있지만, 관리자 재구축은
+     * 실패 건수를 정확히 집계해야 한다.
+     */
     boolean publish(Long bookId, String title, String category, String epubS3Key);
 }

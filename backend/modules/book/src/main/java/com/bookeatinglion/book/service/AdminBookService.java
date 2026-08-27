@@ -120,17 +120,25 @@ public class AdminBookService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int reindexEbooks() {
         int queued = 0;
-        int page = 0;
-        Page<Book> books;
+        long lastBookId = 0L;
+        List<Book> books;
         do {
-            books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse(PageRequest.of(page++, 100));
+            books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalseAndBookIdGreaterThanOrderByBookIdAsc(
+                    lastBookId, PageRequest.of(0, 100));
             for (Book book : books) {
                 if (bookIngestPublisher.publish(
                         book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key())) {
                     queued++;
                 }
             }
-        } while (books.hasNext());
+            if (!books.isEmpty()) {
+                Long currentLastBookId = books.get(books.size() - 1).getBookId();
+                if (currentLastBookId == null) {
+                    break;
+                }
+                lastBookId = currentLastBookId;
+            }
+        } while (books.size() == 100);
         return queued;
     }
 
