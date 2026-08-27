@@ -60,12 +60,22 @@ variable "prod_namespace" {
   default     = "prod"
 }
 
-variable "recommendation_index_arn" {
+variable "dev_recommendation_index_arn" {
   type    = string
   default = null
 }
 
-variable "purchased_book_rag_index_arn" {
+variable "dev_purchased_book_rag_index_arn" {
+  type    = string
+  default = null
+}
+
+variable "prod_recommendation_index_arn" {
+  type    = string
+  default = null
+}
+
+variable "prod_purchased_book_rag_index_arn" {
   type    = string
   default = null
 }

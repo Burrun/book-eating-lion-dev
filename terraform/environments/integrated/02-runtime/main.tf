@@ -170,6 +170,13 @@ module "edge_routing" {
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
 }
 
+resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  name      = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
+  type      = "String"
+  value     = module.edge_routing.cloudfront_distribution_id
+  overwrite = true
+}
+
 # ── 4b. CloudFront + Route53 - dev 임시 컷오버 (enable_dev_cutover=true일 때만) ──
 # dev.ajttk.com을 dev의 기존 클러스터 대신 이 integrated 클러스터로 붙인다.
 #
@@ -226,6 +233,14 @@ module "edge_routing_dev" {
   depends_on = [module.ingress_alb]
 }
 
+resource "aws_ssm_parameter" "cloudfront_distribution_id_dev" {
+  count     = var.enable_dev_cutover ? 1 : 0
+  name      = "${local.ssm_prefix}/dev/edge/cloudfront_distribution_id"
+  type      = "String"
+  value     = module.edge_routing_dev[0].cloudfront_distribution_id
+  overwrite = true
+}
+
 # ── 5. AI 서비스 IRSA ───────────────────────────────────────────
 # dev/prod가 같은 클러스터를 namespace(var.dev_namespace / var.prod_namespace)로만
 # 나눠 쓰므로, Role도 반드시 둘로 나눈다 - 하나로 합쳐서 두 namespace 다 trust하게
@@ -239,8 +254,8 @@ module "ai_service_iam_prod" {
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.ai_ingest_channel_arn.value
   purchase_channel_arn         = data.aws_ssm_parameter.ai_purchase_channel_arn.value
-  recommendation_index_arn     = var.recommendation_index_arn
-  purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
+  recommendation_index_arn     = var.prod_recommendation_index_arn
+  purchased_book_rag_index_arn = var.prod_purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
 }
 
@@ -261,8 +276,8 @@ module "ai_service_iam_dev" {
   oidc_provider_url            = module.eks_cluster.oidc_provider_url
   ingest_channel_arn           = data.aws_ssm_parameter.dev_ai_ingest_channel_arn.value
   purchase_channel_arn         = data.aws_ssm_parameter.dev_ai_purchase_channel_arn.value
-  recommendation_index_arn     = var.recommendation_index_arn
-  purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
+  recommendation_index_arn     = var.dev_recommendation_index_arn
+  purchased_book_rag_index_arn = var.dev_purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
 }
 

@@ -95,7 +95,9 @@ VPC_ID=$(ssm "$INFRA_ENV" network/vpc_id)
 VPC_CIDR=$(aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --region "$REGION" --query 'Vpcs[0].CidrBlock' --output text 2>/dev/null || true)
 set_var "VPC_CIDR" "$VPC_CIDR"
 
-set_var "FRONTEND_S3_BUCKET" "$(ssm "$DATA_ENV" storage/frontend_bucket_id)"
+# FRONTEND_S3_BUCKET과 CLOUDFRONT_DIST_ID는 Terraform이 SSM에 발행하고
+# main-cd.yml이 배포 때 직접 읽는다. CloudFront를 재생성해도 GitHub Variable을
+# 다시 등록할 필요가 없다.
 
 # ebook 전용 버킷은 따로 없다 - main-cd.yml 주석대로 media 버킷을 재사용한다
 # (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming).
@@ -104,9 +106,6 @@ set_var "EBOOK_S3_BUCKET" "$(ssm "$DATA_ENV" storage/media_bucket_id)"
 # S3 Vectors는 provider 미지원으로 Terraform이 아직 안 만듦 (인프라구성명세.md §7.5 참고)
 # - §7.5 가이드대로 aws s3vectors create-vector-bucket을 먼저 돌렸다면 아래 이름으로 채워짐
 VECTOR_ENV="$DEPLOY_ENV"
-if [[ "$MODE" == "integrated" ]]; then
-  VECTOR_ENV="dev"
-fi
 AI_VECTOR_BUCKET="lion-team3-${VECTOR_ENV}-vectors"
 if aws s3vectors get-vector-bucket --vector-bucket-name "$AI_VECTOR_BUCKET" --region "$REGION" >/dev/null 2>&1; then
   set_var "AI_VECTOR_BUCKET" "$AI_VECTOR_BUCKET"
@@ -165,13 +164,6 @@ if [[ "$MODE" == "integrated" ]]; then
   set_var "K8S_NAMESPACE" "$DEPLOY_ENV"
 else
   set_var "K8S_NAMESPACE" "lion-app"
-fi
-
-CF_DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items[?@=='${DOMAIN}']].Id | [0]" --output text 2>/dev/null || true)
-if [[ -n "$CF_DIST_ID" && "$CF_DIST_ID" != "None" ]]; then
-  set_var "CLOUDFRONT_DIST_ID" "$CF_DIST_ID"
-else
-  echo "  ⚠️  SKIP  CLOUDFRONT_DIST_ID — edge_routing이 아직 안 올라간 것 같음 (선택 항목이라 안 넣어도 배포는 됨)"
 fi
 
 echo ""

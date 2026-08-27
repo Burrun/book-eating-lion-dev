@@ -491,12 +491,35 @@ jobs:
           role-session-name: gha-prod-frontend-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Load frontend deployment targets from SSM
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: |
+          set -euo pipefail
+          DATA_ENV="$DEPLOY_ENV"
+          EDGE_PREFIX="/$DEPLOY_ENV"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
+            if [[ "$DEPLOY_ENV" == "prod" ]]; then
+              DATA_ENV="integrated"
+              EDGE_PREFIX="/integrated"
+            else
+              EDGE_PREFIX="/integrated/dev"
+            fi
+          fi
+
+          FRONTEND_S3_BUCKET="$(aws ssm get-parameter --name "/${DATA_ENV}/storage/frontend_bucket_id" --query 'Parameter.Value' --output text)"
+          CLOUDFRONT_DIST_ID="$(aws ssm get-parameter --name "${EDGE_PREFIX}/edge/cloudfront_distribution_id" --query 'Parameter.Value' --output text)"
+          test -n "$FRONTEND_S3_BUCKET"
+          test -n "$CLOUDFRONT_DIST_ID"
+          echo "FRONTEND_S3_BUCKET=$FRONTEND_S3_BUCKET" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DIST_ID=$CLOUDFRONT_DIST_ID" >> "$GITHUB_ENV"
+
       - name: Sync to Amazon S3
-        run: aws s3 sync ./frontend/dist "s3://${{ vars.FRONTEND_S3_BUCKET }}" --delete
+        run: aws s3 sync ./frontend/dist "s3://${FRONTEND_S3_BUCKET}" --delete
 
       - name: Invalidate CloudFront cache
-        if: vars.CLOUDFRONT_DIST_ID != ''
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ vars.CLOUDFRONT_DIST_ID }}" \
+            --distribution-id "$CLOUDFRONT_DIST_ID" \
             --paths "/*"

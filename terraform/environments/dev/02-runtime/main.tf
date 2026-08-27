@@ -156,6 +156,16 @@ module "edge_routing" {
   frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
 }
 
+# CD가 CloudFront 재생성 후 GitHub Variable을 수동 갱신하지 않고 실행 시점에
+# 최신 배포 ID를 찾을 수 있게 Parameter Store에 발행한다.
+resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  name  = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
+  type  = "String"
+  value = module.edge_routing.cloudfront_distribution_id
+  # 기존 수동 등록 값을 첫 apply에서 Terraform 관리로 인수한다.
+  overwrite = true
+}
+
 # ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───
 module "ai_service_iam" {
   source = "../../../modules/compute/ai_service_iam"
