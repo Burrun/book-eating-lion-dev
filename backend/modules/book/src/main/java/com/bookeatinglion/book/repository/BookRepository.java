@@ -19,6 +19,8 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     Page<Book> findByEpubS3KeyIsNotNullAndIsDeletedFalse(Pageable pageable);
 
+    List<Book> findByEpubS3KeyIsNotNullAndIsDeletedFalse();
+
     // 아래 SaleStatusNot 3종은 고객용 목록 전용이다. 판매중지 도서를 페이지네이션
     // 이전에 걸러야 하므로 쿼리에서 뺀다 - 조회 후 자바에서 필터하면 20개를 받아
     // 19개만 보여주게 되고 totalElements 도 틀어진다.

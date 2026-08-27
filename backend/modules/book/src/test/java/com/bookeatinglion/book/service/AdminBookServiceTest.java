@@ -16,6 +16,7 @@ import com.bookeatinglion.book.exception.CatalogConflictException;
 import com.bookeatinglion.book.port.BookIngestPublisher;
 import com.bookeatinglion.book.repository.BookRepository;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,6 +100,27 @@ class AdminBookServiceTest {
         adminBookService.create(request);
 
         verify(bookIngestPublisher, never()).publish(any(), any(), any(), any());
+    }
+
+    @Test
+    void 기존_EPUB_도서를_인제스트_큐에_전체_재발행한다() {
+        Book ebook = Book.builder()
+                .title("앨리스")
+                .author("루이스 캐럴")
+                .publisher("출판사")
+                .isbn("9791100000001")
+                .category("소설")
+                .price(10000)
+                .epubS3Key("epubs/alice.epub")
+                .saleStatus(SaleStatus.ON_SALE)
+                .salesCount(0)
+                .build();
+        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse()).thenReturn(List.of(ebook));
+
+        int count = adminBookService.reindexEbooks();
+
+        assertThat(count).isEqualTo(1);
+        verify(bookIngestPublisher).publish(null, "앨리스", "소설", "epubs/alice.epub");
     }
 
     @Test
