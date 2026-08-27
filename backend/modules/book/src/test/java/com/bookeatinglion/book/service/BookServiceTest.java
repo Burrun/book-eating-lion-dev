@@ -63,7 +63,7 @@ class BookServiceTest {
     void 카테고리가_없으면_전체_목록을_조회한다() throws Exception {
         Pageable pageable = PageRequest.of(0, 20);
         Page<Book> page = new PageImpl<>(List.of(book(1L, "책1")));
-        when(bookRepository.findByIsDeletedFalse(pageable)).thenReturn(page);
+        when(bookRepository.findBySaleStatusNotAndIsDeletedFalse(SaleStatus.STOPPED, pageable)).thenReturn(page);
 
         Page<BookSummaryResponse> result = bookService.getBooks(null, null, pageable);
 
@@ -74,7 +74,9 @@ class BookServiceTest {
     void 카테고리가_있으면_필터링해서_조회한다() throws Exception {
         Pageable pageable = PageRequest.of(0, 20);
         Page<Book> page = new PageImpl<>(List.of(book(1L, "소설책")));
-        when(bookRepository.findByCategoryAndIsDeletedFalse(eq("소설"), any())).thenReturn(page);
+        when(bookRepository.findByCategoryAndSaleStatusNotAndIsDeletedFalse(
+                        eq("소설"), eq(SaleStatus.STOPPED), any()))
+                .thenReturn(page);
 
         Page<BookSummaryResponse> result = bookService.getBooks("소설", null, pageable);
 
@@ -85,7 +87,8 @@ class BookServiceTest {
     void hasEbook이_true면_카테고리는_무시하고_전자책_보유_도서만_조회한다() throws Exception {
         Pageable pageable = PageRequest.of(0, 20);
         Page<Book> page = new PageImpl<>(List.of(book(1L, "전자책책")));
-        when(bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse(pageable)).thenReturn(page);
+        when(bookRepository.findByEpubS3KeyIsNotNullAndSaleStatusNotAndIsDeletedFalse(SaleStatus.STOPPED, pageable))
+                .thenReturn(page);
 
         Page<BookSummaryResponse> result = bookService.getBooks("소설", true, pageable);
 
