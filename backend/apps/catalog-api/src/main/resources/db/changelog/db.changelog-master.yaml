@@ -1,0 +1,942 @@
+databaseChangeLog:
+- changeSet:
+    id: 1787810674065-1
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: book_swipes_pkey
+            name: book_swipe_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: swipe_action
+            type: VARCHAR(10)
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: book_swipes
+- changeSet:
+    id: 1787810674065-2
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: books_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: author
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: rating_avg
+            type: numeric(3, 2)
+        - column:
+            constraints:
+              nullable: false
+            name: category
+            type: VARCHAR(100)
+        - column:
+            name: cover_image_url
+            type: VARCHAR(500)
+        - column:
+            name: deleted_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: description
+            type: TEXT
+        - column:
+            name: detailed_synopsis
+            type: TEXT
+        - column:
+            name: epub_s3_key
+            type: VARCHAR(500)
+        - column:
+            constraints:
+              nullable: false
+            name: is_deleted
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: isbn
+            type: VARCHAR(13)
+        - column:
+            constraints:
+              nullable: false
+            name: price
+            type: INTEGER
+        - column:
+            name: published_date
+            type: date
+        - column:
+            constraints:
+              nullable: false
+            name: publisher
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: review_count
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: sale_status
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: sales_count
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(255)
+        tableName: books
+- changeSet:
+    id: 1787810674065-3
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: product_inquiries_pkey
+            name: inquiry_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: answer
+            type: TEXT
+        - column:
+            name: answered_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: answered_by
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: content
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            name: is_deleted
+            type: BOOLEAN
+        - column:
+            name: deleted_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: is_private
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: status
+            type: VARCHAR(20)
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(200)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: product_inquiries
+- changeSet:
+    id: 1787810674065-4
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: restock_alerts_pkey
+            name: restock_alert_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: cancelled_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: last_attempted_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: last_error
+            type: VARCHAR(1000)
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            name: next_retry_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: notified_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: requested_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: retry_count
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: status
+            type: VARCHAR(20)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: restock_alerts
+- changeSet:
+    id: 1787810674065-5
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: categories_pkey
+            name: category_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: is_active
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: category_name
+            type: VARCHAR(100)
+        - column:
+            constraints:
+              nullable: false
+            name: sort_order
+            type: INTEGER
+        - column:
+            name: parent_id
+            type: BIGINT
+        tableName: categories
+- changeSet:
+    id: 1787810674065-6
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: book_memos_pkey
+            name: book_memo_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: fed_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: memo_text
+            type: VARCHAR(4000)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: book_memos
+- changeSet:
+    id: 1787810674065-7
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: reading_progress_pkey
+            name: reading_progress_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: cfi
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            name: percentage
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: reading_progress
+- changeSet:
+    id: 1787810674065-8
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: wishlists_pkey
+            name: wishlist_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: wishlists
+- changeSet:
+    id: 1787810674065-9
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: recent_books_pkey
+            name: recent_book_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: view_count
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: viewed_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: recent_books
+- changeSet:
+    id: 1787810674065-10
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, book_id
+        constraintName: ukmm6mpsdb52bjjuac3sd65qkjt
+        tableName: book_swipes
+- changeSet:
+    id: 1787810674065-11
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: isbn
+        constraintName: ukkibbepcitr0a3cpk3rfr7nihn
+        tableName: books
+- changeSet:
+    id: 1787810674065-12
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, book_id
+        constraintName: ukfr1kuo62kqh58dht6tvvdp420
+        tableName: restock_alerts
+- changeSet:
+    id: 1787810674065-13
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: category_name
+        constraintName: uk41g4n0emuvcm3qyf1f6cn43c0
+        tableName: categories
+- changeSet:
+    id: 1787810674065-14
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_sub, book_id
+        constraintName: uk9ld94lug3qnwpi0u10bb6231n
+        tableName: book_memos
+- changeSet:
+    id: 1787810674065-15
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_sub, book_id
+        constraintName: ukfcng9kysi8yu0wh7jdlfk20si
+        tableName: reading_progress
+- changeSet:
+    id: 1787810674065-16
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, book_id
+        constraintName: ukgavtjhfj7htlfgaaiii15bybf
+        tableName: wishlists
+- changeSet:
+    id: 1787810674065-17
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, book_id
+        constraintName: ukka9h26v4v0n1okyb483jk2o77
+        tableName: recent_books
+- changeSet:
+    id: 1787810674065-18
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: faqs_pkey
+            name: faq_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: is_active
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: answer
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            name: category
+            type: VARCHAR(50)
+        - column:
+            constraints:
+              nullable: false
+            name: question
+            type: VARCHAR(500)
+        - column:
+            constraints:
+              nullable: false
+            name: sort_order
+            type: INTEGER
+        tableName: faqs
+- changeSet:
+    id: 1787810674065-19
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: processed_restock_events_pkey
+            name: event_id
+            type: VARCHAR(36)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: processed_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: processed_restock_events
+- changeSet:
+    id: 1787810674065-20
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: recommendation_exposures_pkey
+            name: exposure_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: position
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: queue_id
+            type: UUID
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: recommendation_exposures
+- changeSet:
+    id: 1787810674065-21
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: review_permissions_pkey
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: review_permissions_pkey
+            name: order_item_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: granted_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: nickname
+            type: VARCHAR(255)
+        - column:
+            name: used_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: review_permissions
+- changeSet:
+    id: 1787810674065-22
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: reviews_pkey
+            name: review_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: content
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            name: nickname
+            type: VARCHAR(255)
+        - column:
+            name: order_item_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: rating
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        tableName: reviews
+- changeSet:
+    id: 1787810674065-23
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: search_history_pkey
+            name: search_history_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: query_text
+            type: VARCHAR(200)
+        tableName: search_history
+- changeSet:
+    id: 1787810674065-24
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: subscription_banners_pkey
+            name: banner_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: active
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: end_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: image_url
+            type: VARCHAR(500)
+        - column:
+            name: link_url
+            type: VARCHAR(500)
+        - column:
+            constraints:
+              nullable: false
+            name: sort_order
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: start_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(200)
+        tableName: subscription_banners
+- changeSet:
+    id: 1787810674065-25
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: product_inquiries
+        constraintName: fk22oy9kmbis0b9gf8h75bgwabe
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-26
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: reviews
+        constraintName: fk6a9k6xvev80se5rreqvuqr7f9
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-27
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: book_memos
+        constraintName: fk9a1qqvyl9fbulrm7efm47xbpd
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-28
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: restock_alerts
+        constraintName: fkh4x07sf9n35jh7b91yvhgykui
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-29
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: recommendation_exposures
+        constraintName: fkjf3smancysg06ideu16c1adjg
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-30
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: book_swipes
+        constraintName: fknoho20xmwwxe3dgf8vpwonijk
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-31
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: reading_progress
+        constraintName: fknsqk9v56xoseduaqe6r5dqqm3
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-32
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: wishlists
+        constraintName: fko69vdp48axn9ovctfp0jrlgum
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+- changeSet:
+    id: 1787810674065-33
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: parent_id
+        baseTableName: categories
+        constraintName: fksaok720gsu4u2wrgbk10b5n8d
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: category_id
+        referencedTableName: categories
+        validate: true
+- changeSet:
+    id: 1787810674065-34
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: recent_books
+        constraintName: fksxegvmaeb0p0ddnb9xwhvkdw7
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+

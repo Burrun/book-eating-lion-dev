@@ -1,0 +1,268 @@
+databaseChangeLog:
+- changeSet:
+    id: 1787810707256-1
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: inquiries_pkey
+            name: inquiry_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: BIGINT
+        - column:
+            name: nickname
+            type: VARCHAR(50)
+        - column:
+            name: book_id
+            type: BIGINT
+        - column:
+            name: book_title
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: content
+            type: TEXT
+        - column:
+            name: admin_answer
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            defaultValueBoolean: false
+            name: answered
+            type: BOOLEAN
+        - column:
+            name: answered_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            defaultValueComputed: CURRENT_TIMESTAMP
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            defaultValueComputed: CURRENT_TIMESTAMP
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: inquiries
+- changeSet:
+    id: 1787810707256-2
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: lions_pkey
+            name: lion_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: exp
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: growth_stage
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: level
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        tableName: lions
+- changeSet:
+    id: 1787810707256-3
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id
+        constraintName: ukq1h34ba7sl7m01wdx2bm9abc3
+        tableName: lions
+- changeSet:
+    id: 1787810707256-4
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: faqs_pkey
+            name: faq_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: answer
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            name: category
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: question
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: sort_order
+            type: INTEGER
+        tableName: faqs
+- changeSet:
+    id: 1787810707256-5
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: fed_books_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: fed_books_pkey
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: fed_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: fed_books
+- changeSet:
+    id: 1787810707256-6
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: purchased_books_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: purchased_books_pkey
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: purchased_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: purchased_books
+- changeSet:
+    id: 1787810707256-7
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: wiki_book_chunks_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: wiki_book_chunks_pkey
+            name: chunk_seq
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: wiki_book_chunks_pkey
+            name: page
+            type: INTEGER
+        tableName: wiki_book_chunks
+- changeSet:
+    id: 1787810707256-8
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: wiki_books_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: chunk_count
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: ingested_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: pages
+            type: INTEGER
+        - column:
+            name: source_hash
+            type: VARCHAR(64)
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(255)
+        tableName: wiki_books
+

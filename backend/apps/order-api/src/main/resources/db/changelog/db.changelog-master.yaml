@@ -1,0 +1,418 @@
+databaseChangeLog:
+- changeSet:
+    id: 1787810701866-1
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: inventory_pkey
+            name: book_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: stock
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            defaultValueNumeric: 0
+            name: version
+            type: BIGINT
+        tableName: inventory
+- changeSet:
+    id: 1787810701866-2
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: deliveries_pkey
+            name: id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: courier_company
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: delivery_status
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: order_id
+            type: BIGINT
+        - column:
+            name: tracking_number
+            type: VARCHAR(255)
+        tableName: deliveries
+- changeSet:
+    id: 1787810701866-3
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: orders_pkey
+            name: order_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: address
+            type: VARCHAR(255)
+        - column:
+            name: address_detail
+            type: VARCHAR(255)
+        - column:
+            name: delivery_request
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: order_status
+            type: VARCHAR(255)
+        - column:
+            name: pending_member_coupon_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: postal_code
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: recipient_name
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: recipient_phone
+            type: VARCHAR(255)
+        - column:
+            name: return_reason
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: total_amount
+            type: INTEGER
+        tableName: orders
+- changeSet:
+    id: 1787810701866-4
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: payments_pkey
+            name: payment_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: amount
+            type: INTEGER
+        - column:
+            name: approval_number
+            type: VARCHAR(255)
+        - column:
+            name: card_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: idempotency_key
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: payment_method
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: payment_status
+            type: VARCHAR(255)
+        - column:
+            name: pg_tid
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: order_id
+            type: BIGINT
+        tableName: payments
+- changeSet:
+    id: 1787810701866-5
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: member_coupons_pkey
+            name: member_coupon_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: is_used
+            type: BOOLEAN
+        - column:
+            name: used_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: used_order_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: coupon_id
+            type: BIGINT
+        tableName: member_coupons
+- changeSet:
+    id: 1787810701866-6
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: coupons_pkey
+            name: coupon_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: coupon_code
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: coupon_name
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: discount_amount
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: expires_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: minimum_order_amount
+            type: INTEGER
+        tableName: coupons
+- changeSet:
+    id: 1787810701866-7
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: cart_items_pkey
+            name: cart_item_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: member_id
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: quantity
+            type: INTEGER
+        tableName: cart_items
+- changeSet:
+    id: 1787810701866-8
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: order_id
+        constraintName: ukk36n9p5v7dd96hpgkwybvbogt
+        tableName: deliveries
+- changeSet:
+    id: 1787810701866-9
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: idempotency_key
+        constraintName: ukj4pdqn1207fuhx2gybp1ue799
+        tableName: payments
+- changeSet:
+    id: 1787810701866-10
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, coupon_id
+        constraintName: uk7vsr5ony482pybavca21axk7v
+        tableName: member_coupons
+- changeSet:
+    id: 1787810701866-11
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: coupon_code
+        constraintName: ukf1u99ssbdsqass9ntq968codg
+        tableName: coupons
+- changeSet:
+    id: 1787810701866-12
+    author: anth5810 (generated)
+    changes:
+    - addUniqueConstraint:
+        columnNames: member_id, book_id
+        constraintName: ukmndjhvfk5vjuaaoqt7tg9iu74
+        tableName: cart_items
+- changeSet:
+    id: 1787810701866-13
+    author: anth5810 (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: order_items_pkey
+            name: order_item_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: book_title
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: quantity
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: unit_price
+            type: INTEGER
+        - column:
+            constraints:
+              nullable: false
+            name: order_id
+            type: BIGINT
+        tableName: order_items
+- changeSet:
+    id: 1787810701866-14
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: order_id
+        baseTableName: payments
+        constraintName: fk81gagumt0r8y3rmudcgpbk42l
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: order_id
+        referencedTableName: orders
+        validate: true
+- changeSet:
+    id: 1787810701866-15
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: order_id
+        baseTableName: order_items
+        constraintName: fkbioxgbv59vetrxe0ejfubep1w
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: order_id
+        referencedTableName: orders
+        validate: true
+- changeSet:
+    id: 1787810701866-16
+    author: anth5810 (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: coupon_id
+        baseTableName: member_coupons
+        constraintName: fkjhl4s4jqkkpowc6m9dwtr5muj
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: coupon_id
+        referencedTableName: coupons
+        validate: true
+

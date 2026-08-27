@@ -15,7 +15,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -25,8 +25,9 @@ spring:
   # Redis(ElastiCache) 설정은 application-redis-prod.yml import 로 온다
   # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
 
-  flyway:
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   # JWT(spring.security.oauth2.resourceserver.jwt) 검증 설정은
   # application-security-prod.yml import 로 온다(공유 파일 참고 — 4개
