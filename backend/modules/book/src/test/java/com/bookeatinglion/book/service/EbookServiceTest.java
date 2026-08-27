@@ -72,7 +72,8 @@ class EbookServiceTest {
     void 구매_확정한_회원에게는_구독_조회_없이_열람_URL을_발급한다() {
         OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(10);
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book("ebooks/alice.epub")));
-        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-1", 1L)).thenReturn(true);
+        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-1", 1L))
+                .thenReturn(true);
         when(ebookStoragePort.createReadUrl("ebooks/alice.epub", Duration.ofMinutes(10)))
                 .thenReturn(new EbookStoragePort.ReadUrl("https://signed.example/alice", expiresAt));
 
@@ -89,7 +90,8 @@ class EbookServiceTest {
     void 구독_중이면_구매하지_않아도_열람_URL을_발급한다() {
         OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(10);
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book("ebooks/alice.epub")));
-        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-3", 1L)).thenReturn(false);
+        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-3", 1L))
+                .thenReturn(false);
         when(memberSubscriptionPort.isSubscribed("member-3")).thenReturn(true);
         when(ebookStoragePort.createReadUrl("ebooks/alice.epub", Duration.ofMinutes(10)))
                 .thenReturn(new EbookStoragePort.ReadUrl("https://signed.example/alice", expiresAt));
@@ -103,7 +105,8 @@ class EbookServiceTest {
     @Test
     void 구매하지_않고_구독도_아닌_회원은_403에_해당하는_예외를_받는다() {
         when(bookRepository.findByBookIdAndIsDeletedFalse(1L)).thenReturn(Optional.of(book("ebooks/alice.epub")));
-        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-2", 1L)).thenReturn(false);
+        when(reviewPermissionRepository.existsByIdMemberIdAndBookId("member-2", 1L))
+                .thenReturn(false);
         when(memberSubscriptionPort.isSubscribed("member-2")).thenReturn(false);
 
         assertThatThrownBy(() -> ebookService.getAccess(1L, "member-2"))
