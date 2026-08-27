@@ -114,6 +114,20 @@ public class AdminBookService {
         return books.size();
     }
 
+    /** 기존 EPUB 도서를 SQS 인제스트 파이프라인에 다시 넣어 wiki-v1을 최초 적재하거나 복구한다. */
+    @Transactional
+    public int reindexEbooks() {
+        List<Book> books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalse();
+        int queued = 0;
+        for (Book book : books) {
+            if (bookIngestPublisher.publish(
+                    book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key())) {
+                queued++;
+            }
+        }
+        return queued;
+    }
+
     /**
      * 신간 등록 SQS 이벤트는 afterCommit 훅으로 미룬다 — 커밋 전에 나가면, 등록 자체가 롤백돼도
      * ai-service 는 이미 인제스트를 시작해버려 되돌릴 수 없다(order-api의 SqsBookPurchasePublisher

@@ -235,6 +235,17 @@ paths:
         "200":
           description: 발행 대상 도서 수 반환
 
+  /api/catalog/admin/books/ingest-index/rebuild:
+    post:
+      summary: 기존 EPUB 도서 전체 재인제스트 요청
+      description: 삭제되지 않고 EPUB S3 Key가 있는 도서를 SQS 인제스트 파이프라인에 다시 발행한다.
+      operationId: rebuildEbookIndex
+      tags: [admin-books]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: 발행 대상 EPUB 도서 수 반환
+
   /api/catalog/admin/categories:
     get:
       summary: 관리자용 전체 카테고리 목록

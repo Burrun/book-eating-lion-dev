@@ -24,6 +24,7 @@ prod_recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:0610398046
 prod_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-prod-vectors/index/wiki-v1"
 
 admin_principal_arns = []
-# split dev가 같은 dev.ajttk.com 레코드를 소유할 수 있으므로 기본은 꺼 둔다.
-# 명시적인 컷오버 절차에서만 true로 바꾼다.
+# 현재 dev.ajttk.com은 integrated CloudFront가 담당한다. 운영 상태와 코드 기본값을
+# 일치시켜 옵션 없는 apply가 dev edge 리소스를 제거하지 않게 한다. split dev로
+# 되돌릴 때만 별도 PR에서 false로 바꾸고 의도적인 컷백 절차를 수행한다.
 enable_dev_cutover = false
