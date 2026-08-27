@@ -5,6 +5,7 @@ import {
   mockGetBestsellers,
   mockGetBook,
   mockGetEbookAccess,
+  mockGetMyEbooks,
   mockGetBooks,
   mockGetNewReleases,
   mockGetSynopsisDetail,
@@ -98,6 +99,14 @@ export async function getEbookAccess(bookId: number | string): Promise<EbookAcce
     : await unwrap(
         apiClient.get<ApiResponse<EbookAccessResponse>>(`/catalog/books/${bookId}/ebook`),
       );
+}
+
+// GET /api/catalog/ebooks/me — 내 이북 보관함(구매 확정 + eBook 보유 도서만, JWT 인증 필요)
+export async function getMyEbooks(): Promise<BookSummary[]> {
+  const list = USE_MOCK
+    ? await mockDelay(mockGetMyEbooks())
+    : await unwrap(apiClient.get<ApiResponse<BookSummaryResponse[]>>("/catalog/ebooks/me"));
+  return list.map(toBookSummary);
 }
 
 // GET /api/catalog/books/{bookId}/synopsis/detail — 현재 구현 범위는 상세 줄거리 텍스트 조회다.
