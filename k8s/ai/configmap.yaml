@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ai-config
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
 data:
   SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
   SERVER_PORT: "8080"
@@ -51,7 +51,10 @@ data:
   AI_LLM_MODEL_BOT: "apac.amazon.nova-micro-v1:0"
   # 🔴 잠정값. 계획서 8~9단계(golden set → 거리 분포)에서 확정할 것.
   AI_MAX_DISTANCE: "0.75"
-  AI_DAILY_QUOTA: "50"
+  # RAG 일일 질의 상한. 구독 여부로 갈린다(POST /api/ai/lion/ask 만 해당 —
+  # 상담 봇 /ws/ai/chat 에는 총량 제한이 없고 Bulkhead 동시성 제한만 있다).
+  AI_DAILY_QUOTA_FREE: "5"
+  AI_DAILY_QUOTA_SUBSCRIBED: "50"
 
   AWS_COGNITO_REGION: "${AWS_REGION}"
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"

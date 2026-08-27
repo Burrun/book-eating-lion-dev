@@ -9,7 +9,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-bot-deployment
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
   labels:
     app: ai-bot
     tier: backend

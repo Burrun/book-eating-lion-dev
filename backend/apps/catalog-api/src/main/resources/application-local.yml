@@ -9,7 +9,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -17,11 +17,9 @@ spring:
         default_batch_fetch_size: 100
         default_schema: catalog_db
 
-  flyway:
-    # 엔티티와 db/schema 의 목표 스키마가 아직 완전히 일치하지 않아 꺼둔다.
-    # (전환 전 저장소에서도 같은 이유로 꺼져 있었다)
-    # 정렬이 끝나면 true 로 올리고 ddl-auto 를 validate 로 내릴 것.
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   data:
     redis:

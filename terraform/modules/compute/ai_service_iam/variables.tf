@@ -2,6 +2,18 @@ variable "environment" {
   type = string
 }
 
+variable "namespace" {
+  description = <<-EOT
+    이 Role을 trust할 k8s ServiceAccount의 네임스페이스.
+    integrated 클러스터에서 dev/prod가 namespace로만 나뉘므로, 이 값을
+    env별로 다르게 넘겨야 dev 파드가 prod Role을 assume하는 걸 막을 수 있다.
+    (기존 dev/prod 분리-클러스터 환경은 namespace가 lion-app 하나뿐이라
+    기본값을 유지하면 코드 변경 없이 그대로 동작한다.)
+  EOT
+  type        = string
+  default     = "lion-app"
+}
+
 variable "oidc_provider_arn" {
   type = string
 }

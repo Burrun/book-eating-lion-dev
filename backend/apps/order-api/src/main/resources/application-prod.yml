@@ -15,7 +15,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -31,8 +31,9 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
 
-  flyway:
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   # RedissonConfig(재고 차감 분산 락)가 spring.data.redis.host/port 를 기본값 없이
   # 요구한다 — 없으면 기동 자체가 실패한다. 값 자체는 위 application-redis-prod.yml

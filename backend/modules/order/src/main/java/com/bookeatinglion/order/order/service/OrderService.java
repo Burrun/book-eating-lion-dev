@@ -4,6 +4,7 @@ import com.bookeatinglion.common.event.ReviewPermissionGranted;
 import com.bookeatinglion.order.cart.repository.CartItemRepository;
 import com.bookeatinglion.order.client.CatalogClient;
 import com.bookeatinglion.order.client.CatalogClient.BookDetailEnvelope;
+import com.bookeatinglion.order.client.MemberSubscriptionClient;
 import com.bookeatinglion.order.coupon.domain.MemberCoupon;
 import com.bookeatinglion.order.coupon.repository.MemberCouponRepository;
 import com.bookeatinglion.order.delivery.domain.Delivery;
@@ -23,13 +24,16 @@ import com.bookeatinglion.order.order.dto.OrderItemRequest;
 import com.bookeatinglion.order.order.dto.OrderResponse;
 import com.bookeatinglion.order.order.dto.OrderSummaryResponse;
 import com.bookeatinglion.order.order.dto.Recipient;
+import com.bookeatinglion.order.order.exception.AlreadySubscribedException;
 import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
 import com.bookeatinglion.order.order.exception.InvalidOrderRequestException;
+import com.bookeatinglion.order.order.exception.InventoryNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderCouponNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderNotFoundException;
 import com.bookeatinglion.order.order.exception.OutOfStockException;
 import com.bookeatinglion.order.order.exception.PaymentAlreadyProcessedException;
+import com.bookeatinglion.order.order.exception.SubscriptionCheckFailedException;
 import com.bookeatinglion.order.order.exception.UnauthorizedCouponAccessException;
 import com.bookeatinglion.order.order.exception.UnauthorizedOrderAccessException;
 import com.bookeatinglion.order.order.repository.OrderItemRepository;
@@ -48,6 +52,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -66,9 +72,27 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * 호출 *전에* 재검증해서, 부족하면 카카오에 승인 요청 자체를 보내지 않는다(환불 로직 불필요).
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class OrderService {
+
+    /**
+     * 구독권 상품의 bookId. 이 책이 든 주문이 결제 확정되면 member-service 에 구독을 만든다.
+     *
+     * <p>구독을 별도 상품 타입으로 두지 않고 카탈로그의 도서 하나로 표현한다 — 가격·재고·주문
+     * 항목 스냅샷이 전부 기존 경로를 그대로 타고, order 도메인에 새 타입을 만들 필요가 없다.
+     *
+     * <p>기본값 9001 은 db/postgres/90-demo-data.sql 이 명시적으로 넣는 값이다 — 자동 채번
+     * 대역 밖이라 dev/prod 어느 환경이든 같다. 시드가 안 돈 환경이면 그 도서가 없어 주문
+     * 자체가 성립하지 않으므로, 값이 맞아도 기능만 안 탈 뿐 오작동하지 않는다.
+     */
+    @Value("${app.subscription.book-id:9001}")
+    private long subscriptionBookId;
+
+    /** 구독권 결제 시 만들 플랜. member 의 PlanType enum 이름이어야 한다. */
+    @Value("${app.subscription.plan-type:MONTHLY}")
+    private String subscriptionPlanType;
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -82,6 +106,7 @@ public class OrderService {
     private final DeliveryRepository deliveryRepository;
     private final ReviewPermissionPublisher reviewPermissionPublisher;
     private final BookPurchasePublisher bookPurchasePublisher;
+    private final MemberSubscriptionClient memberSubscriptionClient;
 
     @Transactional
     public OrderResponse createOrder(String memberId, String nickname, CreateOrderRequest request) {
@@ -94,6 +119,10 @@ public class OrderService {
             quantityByBookId.merge(item.bookId(), item.quantity(), Integer::sum);
         }
         List<Long> bookIds = List.copyOf(quantityByBookId.keySet());
+
+        if (containsSubscription(quantityByBookId)) {
+            rejectIfAlreadySubscribed(memberId);
+        }
 
         return inventoryLockExecutor.executeWithLock(bookIds, () -> {
             Map<Long, Inventory> inventories = loadInventories(bookIds);
@@ -139,6 +168,7 @@ public class OrderService {
                 Payment payment = paymentService.approveCard(order, request.cardId(), totalAmount);
                 order.markPaid();
                 publishPurchaseConfirmed(memberId, nickname, items);
+                activateSubscriptionIfOrdered(memberId, items, order.getId());
                 if (memberCoupon != null) {
                     memberCoupon.use(LocalDateTime.now(), order.getId());
                 }
@@ -184,6 +214,12 @@ public class OrderService {
         }
         List<Long> bookIds = List.copyOf(quantityByBookId.keySet());
 
+        // 카카오 ready 와 approve 사이에는 시간이 있다. 그 사이에 다른 경로로 구독이 생겼을 수
+        // 있으므로 재고와 마찬가지로 여기서 다시 본다 — 승인 API 를 부르기 전이라 환불이 없다.
+        if (containsSubscription(items)) {
+            rejectIfAlreadySubscribed(memberId);
+        }
+
         return inventoryLockExecutor.executeWithLock(bookIds, () -> {
             Map<Long, Inventory> inventories = loadInventories(bookIds);
             checkStock(inventories, quantityByBookId);
@@ -201,6 +237,7 @@ public class OrderService {
             paymentService.approveKakao(payment, orderId, memberId, pgToken);
             order.markPaid();
             publishPurchaseConfirmed(memberId, nickname, items);
+            activateSubscriptionIfOrdered(memberId, items, orderId);
 
             if (memberCoupon != null) {
                 memberCoupon.use(LocalDateTime.now(), orderId);
@@ -213,6 +250,87 @@ public class OrderService {
 
             return OrderResponse.of(order, items, payment);
         });
+    }
+
+    /**
+     * 구독권이 포함된 주문이면 결제 확정 후 member-service 에 구독 생성을 요청한다.
+     *
+     * <p>🔴 <b>커밋 이후에 부른다.</b> 트랜잭션 안에서 부르면 member-service 가 흔들릴 때 주문까지
+     * 롤백되는데, 그 시점엔 카카오/카드 승인이 이미 끝나 있다 — 돈은 나갔는데 주문은 미결제로
+     * 남는 최악의 상태가 DB 에 굳는다. 주문을 먼저 확정하고 구독 생성을 뒤로 미루면, 실패해도
+     * PAID 주문과 아래 ERROR 로그가 남아 사람이 복구할 수 있다.
+     * ({@link #publishPurchaseConfirmed} 의 SQS 발행이 afterCommit 인 것과 같은 이유다)
+     *
+     * <p>🔴 <b>예외를 밖으로 내보내지 않는다.</b> 같은 이유다 — afterCommit 훅에서 던져봐야
+     * 커밋은 이미 끝났고 사용자에게는 500 만 보인다. 결제는 성공했으므로 주문 응답은 성공이어야
+     * 하고, 어긋난 구독은 로그로 드러내는 게 맞다.
+     *
+     * <p>member 쪽 엔드포인트가 멱등이라 이 호출은 몇 번을 다시 해도 안전하다.
+     */
+    /** 구독권이 담긴 주문인지. bookId 미설정(-1)이면 어떤 주문과도 안 맞아 기능이 꺼진다. */
+    private boolean containsSubscription(List<OrderItem> items) {
+        return items.stream().anyMatch(item -> item.getBookId() == subscriptionBookId);
+    }
+
+    private boolean containsSubscription(Map<Long, Integer> quantityByBookId) {
+        return quantityByBookId.containsKey(subscriptionBookId);
+    }
+
+    /**
+     * 이미 구독 중이면 구독권 결제를 <b>돈이 나가기 전에</b> 막는다.
+     *
+     * <p>재고 재검증과 같은 자리, 같은 이유다(클래스 주석 참고) — 카카오 승인 API 호출 전에
+     * 걸러야 환불 로직이 필요 없다. 받고 나서 되돌리려면 환불 경로가 있어야 하는데 없다.
+     *
+     * <p>프론트가 이미 구독 중이면 CTA 를 막지만(MyPage/ProductList/ProductDetail) 그것만으로는
+     * 부족하다 — 탭 두 개, 뒤로가기, 오래된 캐시, /checkout 직접 진입이 전부 그 아래로 들어온다.
+     *
+     * <p>🔴 조회 실패는 "구독 없음"으로 넘기지 않는다. 틀렸을 때의 결과가 비대칭이다 — 잘못
+     * 막으면 사용자가 다시 시도하면 되지만, 잘못 통과시키면 돈이 나간 뒤에야 드러난다.
+     */
+    private void rejectIfAlreadySubscribed(String memberId) {
+        boolean subscribed;
+        try {
+            subscribed =
+                    memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed();
+        } catch (RuntimeException e) {
+            throw new SubscriptionCheckFailedException(memberId, e);
+        }
+        if (subscribed) {
+            throw new AlreadySubscribedException(memberId);
+        }
+    }
+
+    private void activateSubscriptionIfOrdered(String memberId, List<OrderItem> items, Long orderId) {
+        if (!containsSubscription(items)) {
+            return;
+        }
+
+        Runnable activate = () -> {
+            try {
+                memberSubscriptionClient.activate(
+                        memberId, new MemberSubscriptionClient.ActivateRequest(subscriptionPlanType));
+                log.info("구독 활성화 완료. orderId={}, memberId={}", orderId, memberId);
+            } catch (RuntimeException e) {
+                log.error(
+                        "구독 활성화 실패 - 결제는 이미 확정됐다. 수동 복구 필요." + " orderId={}, memberId={}, planType={}",
+                        orderId,
+                        memberId,
+                        subscriptionPlanType,
+                        e);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    activate.run();
+                }
+            });
+        } else {
+            activate.run();
+        }
     }
 
     /**
@@ -370,7 +488,12 @@ public class OrderService {
     private void checkStock(Map<Long, Inventory> inventories, Map<Long, Integer> quantityByBookId) {
         for (Map.Entry<Long, Integer> entry : quantityByBookId.entrySet()) {
             Inventory inventory = inventories.get(entry.getKey());
-            if (inventory == null || inventory.getStock() < entry.getValue()) {
+            // 행이 없는 것과 재고가 모자란 것을 구분한다. 전자는 데이터 누락(카탈로그엔
+            // 있는데 inventory 행이 안 만들어짐)이라 운영이 손댈 곳이 다르다.
+            if (inventory == null) {
+                throw new InventoryNotFoundException(entry.getKey());
+            }
+            if (inventory.getStock() < entry.getValue()) {
                 throw new OutOfStockException(entry.getKey());
             }
         }

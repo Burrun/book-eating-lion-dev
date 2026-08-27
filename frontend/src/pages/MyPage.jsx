@@ -24,7 +24,8 @@ import EbookViewer from "../components/EbookViewer.jsx";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
-import { cancelSubscription, getMySubscription, subscribe } from "../api/member.ts";
+import { cancelSubscription, getMySubscription } from "../api/member.ts";
+import { subscriptionCheckoutItem } from "../constants/subscription.ts";
 import {
   cancelOrder,
   getMyOrders,
@@ -1455,6 +1456,7 @@ const SUBSCRIPTION_STATUS_LABELS = { ACTIVE: "구독 중", CANCELLED: "해지됨
 // 이동하면 어차피 새로 mount되어 새로 조회하므로 캐시를 공유하지 않아도 불일치가 남지 않는다.
 function SubscriptionTab() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [subscription, setSubscription] = useState(null);
   const [isError, setIsError] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
@@ -1472,20 +1474,10 @@ function SubscriptionTab() {
     loadSubscription();
   }, [loadSubscription]);
 
-  // 성공/실패 둘 다 toast로 알리고, 성공 시엔 응답으로 받은 최신 상태를 바로 반영한다
-  // (재조회 왕복 없이도 화면이 즉시 바뀐다 — "구독하기 눌러도 반응 없음" 버그의 재발 방지).
-  const handleSubscribe = async () => {
-    setIsMutating(true);
-    try {
-      const data = await subscribe("MONTHLY");
-      setSubscription(data);
-      toast.success("구독이 시작되었습니다");
-    } catch {
-      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setIsMutating(false);
-    }
-  };
+  // 구독은 결제를 거친다 — 여기서 만들지 않고 /checkout 으로 보낸다. 결제가 확정되면
+  // order-service 가 구독을 활성화한다(constants/subscription.ts 참고).
+  const handleSubscribe = () =>
+    navigate("/checkout", { state: { items: [subscriptionCheckoutItem()] } });
 
   const handleCancel = async () => {
     setIsMutating(true);

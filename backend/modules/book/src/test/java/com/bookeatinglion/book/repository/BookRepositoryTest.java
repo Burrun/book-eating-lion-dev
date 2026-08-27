@@ -65,11 +65,40 @@ class BookRepositoryTest {
 
     @Test
     void 제목이나_저자로_검색한다() {
-        Page<Book> byTitle = bookRepository.search("스프링", PageRequest.of(0, 10));
+        Page<Book> byTitle = bookRepository.search("스프링", SaleStatus.STOPPED, PageRequest.of(0, 10));
         assertThat(byTitle.getContent()).extracting(Book::getTitle).containsExactly("스프링 입문");
 
-        Page<Book> byAuthor = bookRepository.search("생텍쥐페리", PageRequest.of(0, 10));
+        Page<Book> byAuthor = bookRepository.search("생텍쥐페리", SaleStatus.STOPPED, PageRequest.of(0, 10));
         assertThat(byAuthor.getContent()).extracting(Book::getTitle).containsExactly("어린 왕자");
+    }
+
+    @Test
+    void 판매중지_도서는_목록과_검색에서_빠진다() {
+        // 정기구독권(book_id 9001)이 books 한 행으로 들어가 있고 sale_status 가 STOPPED 다.
+        // 도서 목록에 "책"인 척 섞여 나오던 것을 판매 상태로 거른다.
+        bookRepository.save(book(
+                "책 먹는 사자 정기구독 (월간)",
+                "책 먹는 사자",
+                "구독",
+                LocalDate.of(2026, 1, 1),
+                0,
+                SaleStatus.STOPPED,
+                "9791100009001"));
+
+        Page<Book> all = bookRepository.findBySaleStatusNotAndIsDeletedFalse(SaleStatus.STOPPED, PageRequest.of(0, 50));
+        assertThat(all.getContent()).extracting(Book::getTitle).doesNotContain("책 먹는 사자 정기구독 (월간)");
+
+        Page<Book> byCategory = bookRepository.findByCategoryAndSaleStatusNotAndIsDeletedFalse(
+                "구독", SaleStatus.STOPPED, PageRequest.of(0, 10));
+        assertThat(byCategory.getContent()).isEmpty();
+
+        Page<Book> bySearch = bookRepository.search("정기구독", SaleStatus.STOPPED, PageRequest.of(0, 10));
+        assertThat(bySearch.getContent()).isEmpty();
+
+        // 관리자 목록과 상세 조회는 그대로 보여야 한다 - 구독권 주문이 이 경로를 탄다.
+        assertThat(bookRepository.findByIsDeletedFalse(PageRequest.of(0, 50)).getContent())
+                .extracting(Book::getTitle)
+                .contains("책 먹는 사자 정기구독 (월간)");
     }
 
     @Test

@@ -59,17 +59,20 @@ class AiPropertiesBindingTest {
         runner.run(context -> {
             RagProperties rag = context.getBean(RagProperties.class);
             assertThat(rag.maxDistance()).isEqualTo(0.75);
-            assertThat(rag.dailyQuota()).isEqualTo(50);
+            assertThat(rag.freeDailyQuota()).isEqualTo(5);
+            assertThat(rag.subscribedDailyQuota()).isEqualTo(50);
         });
     }
 
     @Test
-    void 환경변수로_거리_임계값을_흔들_수_있다() {
-        runner.withPropertyValues("AI_MAX_DISTANCE=0.42", "AI_DAILY_QUOTA=5").run(context -> {
-            RagProperties rag = context.getBean(RagProperties.class);
-            assertThat(rag.maxDistance()).isEqualTo(0.42);
-            assertThat(rag.dailyQuota()).isEqualTo(5);
-        });
+    void 환경변수로_거리_임계값과_쿼터를_흔들_수_있다() {
+        runner.withPropertyValues("AI_MAX_DISTANCE=0.42", "AI_DAILY_QUOTA_FREE=1", "AI_DAILY_QUOTA_SUBSCRIBED=999")
+                .run(context -> {
+                    RagProperties rag = context.getBean(RagProperties.class);
+                    assertThat(rag.maxDistance()).isEqualTo(0.42);
+                    assertThat(rag.freeDailyQuota()).isEqualTo(1);
+                    assertThat(rag.subscribedDailyQuota()).isEqualTo(999);
+                });
     }
 
     /** 인덱스와 짝인 값은 환경변수가 아니다. 실수로 빼면 이 테스트가 막는다. */

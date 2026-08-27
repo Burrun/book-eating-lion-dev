@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBook, getEbookAccess, getSynopsisDetail, getWebtoonCuts } from "../../api/books.ts";
 import { createReview, deleteReview, getReviews, updateReview } from "../../api/reviews.ts";
 import { addToWishlist, getWishlist, removeFromWishlist } from "../../api/wishlist.ts";
-import { getMyProfile, getMySubscription, subscribe } from "../../api/member.ts";
+import { getMyProfile, getMySubscription } from "../../api/member.ts";
+import { subscriptionCheckoutItem } from "../../constants/subscription.ts";
 import { addToCart } from "../../api/cart.js";
 import { feedLion } from "../../api/mypage.js";
 import { getBookMemo, markMemoFed, saveBookMemo } from "../../api/bookMemo.ts";
@@ -26,6 +27,7 @@ const COMPLETION_PERCENTAGE_THRESHOLD = 95;
 
 export default function ProductDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { initialPercentage: storedReadingPercentage } = useReadingProgress(id) as {
     initialPercentage: number | null;
@@ -208,17 +210,10 @@ export default function ProductDetailPage() {
     },
   });
 
-  // 결제 미연동 스코프: 본인 호출로 즉시 활성화한다(MONTHLY 고정). 결제 연동 시 플랜 선택 UI로 교체.
-  const subscribeMutation = useMutation({
-    mutationFn: () => subscribe("MONTHLY"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mySubscription"] });
-      toast.success("구독이 시작되었습니다");
-    },
-    onError: () => {
-      toast.error("구독에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    },
-  });
+  // 구독은 결제를 거친다(MONTHLY 고정). 여기서 만들지 않고 /checkout 으로 보내며,
+  // 결제가 확정되면 order-service 가 구독을 활성화한다(constants/subscription.ts 참고).
+  const goToSubscriptionCheckout = () =>
+    navigate("/checkout", { state: { items: [subscriptionCheckoutItem()] } });
 
   function invalidateReviews() {
     queryClient.invalidateQueries({ queryKey: ["reviews", id] });
@@ -334,11 +329,7 @@ export default function ProductDetailPage() {
       <section className="flex flex-col gap-6 rounded-2xl border border-forest/10 bg-white p-6 sm:flex-row">
         <div className="flex h-72 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-forest/10 bg-paper text-6xl sm:w-56">
           {book.coverImageUrl ? (
-            <img
-              src={book.coverImageUrl}
-              alt={book.title}
-              className="h-full w-full object-cover"
-            />
+            <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
           ) : (
             "📖"
           )}
@@ -453,11 +444,10 @@ export default function ProductDetailPage() {
                 🎨 구독 회원이 되면 이 책의 웹툰 요약 컷을 볼 수 있어요
               </p>
               <button
-                onClick={() => subscribeMutation.mutate()}
-                disabled={subscribeMutation.isPending}
-                className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light disabled:opacity-60"
+                onClick={goToSubscriptionCheckout}
+                className="shrink-0 rounded-full bg-forest px-5 py-2 text-sm font-semibold text-paper transition hover:bg-forest-light"
               >
-                {subscribeMutation.isPending ? "구독 처리 중..." : "구독하기 >"}
+                구독하기 &gt;
               </button>
             </div>
           </>

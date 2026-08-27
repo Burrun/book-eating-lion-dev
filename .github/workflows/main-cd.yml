@@ -22,6 +22,17 @@ on:
         options: [ dev, prod ]
         default: dev
         required: true
+      deployment_mode:
+        description: "인프라 운영 모드 (split=환경별 클러스터, integrated=공용 클러스터+namespace)"
+        type: choice
+        options: [ split, integrated ]
+        default: split
+        required: true
+      services:
+        description: "배포할 서비스 (콤마 구분: catalog,order,member,ai,frontend). 기본 all=전체"
+        type: string
+        default: "all"
+        required: false
 
 permissions:
   id-token: write   # AWS OIDC AssumeRole 용
@@ -39,7 +50,7 @@ permissions:
 # environment: 3곳에 이 조건식을 그대로 반복한다 - DRY보다 "실제로 파싱되는
 # 워크플로"가 우선이다.
 concurrency:
-  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
   cancel-in-progress: true
 
 jobs:
@@ -58,10 +69,14 @@ jobs:
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     outputs:
-      catalog: ${{ steps.filter.outputs.catalog }}
-      order: ${{ steps.filter.outputs.order }}
-      member: ${{ steps.filter.outputs.member }}
-      ai: ${{ steps.filter.outputs.ai }}
+      # workflow_dispatch는 커밋 범위가 불명확해(마지막 배포 이후 여러 PR이
+      # 쌓였을 수 있음) paths-filter의 diff 결과를 못 믿는다 - 수동 실행 시엔
+      # 대신 services 입력값(콤마구분/all)을 직접 본다. 자동 트리거(Backend CI
+      # 완료)는 push 1건에 대응하는 diff라 paths-filter 결과를 그대로 쓴다.
+      catalog: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',catalog,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.catalog == 'true') }}
+      order: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',order,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.order == 'true') }}
+      member: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',member,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.member == 'true') }}
+      ai: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',ai,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.ai == 'true') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,7 +85,6 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # workflow_dispatch 로 수동 실행하면 전부 배포한다.
           predicate-quantifier: 'some'
           filters: |
             shared: &shared
@@ -112,7 +126,7 @@ jobs:
     name: 공통 매니페스트
     needs: changes
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -121,26 +135,48 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-prod-base-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load deployment configuration from SSM
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
       - name: Validate deployment environment isolation
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          ACTUAL_CLUSTER: ${{ vars.EKS_CLUSTER }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
           ACTUAL_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
-          ACTUAL_DB_NAME: ${{ vars.DB_NAME }}
-          ACTUAL_AI_DB_NAME: ${{ vars.AI_DB_NAME }}
         run: |
           set -euo pipefail
+          ACTUAL_CLUSTER="$EKS_CLUSTER"
+          ACTUAL_DB_NAME="$DB_NAME"
+          ACTUAL_AI_DB_NAME="$AI_DB_NAME"
+          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
+            EXPECTED_CLUSTER="lion-team3-integrated"
+            EXPECTED_NAMESPACE="$DEPLOY_ENV"
+          elif [[ "$DEPLOYMENT_MODE" == "split" ]]; then
+            EXPECTED_CLUSTER="lion-team3-${DEPLOY_ENV}"
+            EXPECTED_NAMESPACE="lion-app"
+          else
+            echo "Unsupported deployment mode: $DEPLOYMENT_MODE" >&2
+            exit 1
+          fi
+
           if [[ "$DEPLOY_ENV" == "dev" ]]; then
-            EXPECTED_CLUSTER="lion-team3-dev"
             EXPECTED_DB_NAME="bookdb_dev"
           elif [[ "$DEPLOY_ENV" == "prod" ]]; then
-            EXPECTED_CLUSTER="lion-team3-prod"
             EXPECTED_DB_NAME="bookdb_prod"
           else
             echo "Unsupported deployment environment: $DEPLOY_ENV" >&2
             exit 1
           fi
-          EXPECTED_NAMESPACE="lion-app"
 
           validate() {
             local name="$1" actual="$2" expected="$3"
@@ -155,39 +191,12 @@ jobs:
           validate DB_NAME "$ACTUAL_DB_NAME" "$EXPECTED_DB_NAME"
           validate AI_DB_NAME "$ACTUAL_AI_DB_NAME" "$EXPECTED_DB_NAME"
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          role-session-name: gha-prod-base-${{ github.run_id }}
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Update EKS kubeconfig
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
-
-      - name: Load database endpoints
-        env:
-          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-        run: |
-          set -euo pipefail
-          DB_WRITER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_endpoint" --query 'Parameter.Value' --output text)"
-          DB_READER_ENDPOINT="$(aws ssm get-parameter --name "/${DEPLOY_ENV}/data/db_reader_endpoint" --query 'Parameter.Value' --output text)"
-
-          if [[ -z "$DB_WRITER_ENDPOINT" || -z "$DB_READER_ENDPOINT" ]]; then
-            echo "Database endpoint parameter is empty for environment '$DEPLOY_ENV'." >&2
-            exit 1
-          fi
-
-          echo "DB_WRITER_ENDPOINT=$DB_WRITER_ENDPOINT" >> "$GITHUB_ENV"
-          echo "DB_READER_ENDPOINT=$DB_READER_ENDPOINT" >> "$GITHUB_ENV"
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Render & apply base manifests
         env:
-          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          API_HOST: ${{ vars.API_HOST }}
-          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
-          VPC_CIDR: ${{ vars.VPC_CIDR }}
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
           AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
           AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
           CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
@@ -201,7 +210,7 @@ jobs:
           AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          for v in DEPLOY_ENV API_HOST FRONTEND_ORIGIN VPC_CIDR \
+          for v in DEPLOY_ENV K8S_NAMESPACE API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    DB_WRITER_ENDPOINT DB_READER_ENDPOINT \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    KAKAOPAY_SECRET_KEY \
@@ -212,7 +221,7 @@ jobs:
             fi
           done
 
-          VARS='$DEPLOY_ENV $SPRING_PROFILE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $K8S_NAMESPACE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -226,7 +235,7 @@ jobs:
     name: ${{ matrix.service }} → ECR & EKS
     needs: [changes, base]
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     strategy:
       fail-fast: false
       matrix:
@@ -246,45 +255,58 @@ jobs:
             deployments: ai-rag-deployment ai-bot-deployment
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE || 'lion-app' }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: 변경 없음 — 건너뜀
-        if: matrix.changed != 'true' && github.event_name != 'workflow_dispatch'
+        if: matrix.changed != 'true'
         run: echo "${{ matrix.service }} 관련 변경이 없어 배포를 건너뜁니다."
 
       - uses: actions/checkout@v4
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
       - name: Configure AWS credentials (OIDC)
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: gha-prod-${{ matrix.service }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Load deployment configuration from SSM
+        if: matrix.changed == 'true'
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
       - name: Login to Amazon ECR
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # GHA 캐시 백엔드(type=gha)로 레이어 캐싱하려면 docker-container 드라이버가
+      # 필요하다 - 기본 docker 드라이버는 --cache-to/--cache-from type=gha를 못 씀.
+      - name: Set up Docker Buildx
+        if: matrix.changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
       - name: Build & push image
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           set -euo pipefail
           # ECR 리포지터리 4개 (Phase 3-1)
           REPO_VAR="ECR_$(echo ${{ matrix.service }} | tr a-z A-Z)_REPO"
-          REPOSITORY="${{ vars.ECR_CATALOG_REPO }}"
+          REPOSITORY="$ECR_CATALOG_REPO"
           case "${{ matrix.service }}" in
-            catalog) REPOSITORY="${{ vars.ECR_CATALOG_REPO }}" ;;
-            order)   REPOSITORY="${{ vars.ECR_ORDER_REPO }}" ;;
-            member)  REPOSITORY="${{ vars.ECR_MEMBER_REPO }}" ;;
-            ai)      REPOSITORY="${{ vars.ECR_AI_REPO }}" ;;
+            catalog) REPOSITORY="$ECR_CATALOG_REPO" ;;
+            order)   REPOSITORY="$ECR_ORDER_REPO" ;;
+            member)  REPOSITORY="$ECR_MEMBER_REPO" ;;
+            ai)      REPOSITORY="$ECR_AI_REPO" ;;
           esac
           if [ -z "$REPOSITORY" ]; then
             echo "::error::$REPO_VAR 가 비어 있습니다."
@@ -292,7 +314,14 @@ jobs:
           fi
 
           IMAGE="$REGISTRY/$REPOSITORY"
-          docker build \
+          # GH-hosted 러너는 매번 새 상태라 로컬 도커 캐시가 없다 - GHA 캐시에
+          # 레이어를 저장/재사용해서 매번 처음부터 빌드하는 걸 피한다. 서비스별로
+          # scope를 나눠서 4개 서비스 캐시가 서로 안 섞이게 한다. --load로 로컬
+          # 도커 데몬에 올려야 아래 기존 docker push 로직(태그 불변 회피)을 그대로 쓴다.
+          docker buildx build \
+            --cache-from "type=gha,scope=${{ matrix.service }}" \
+            --cache-to "type=gha,mode=max,scope=${{ matrix.service }}" \
+            --load \
             -t "$IMAGE:${{ env.DEPLOY_SHA }}" \
             -t "$IMAGE:main-${{ github.run_number }}" \
             -f backend/apps/${{ matrix.service }}-api/Dockerfile backend
@@ -312,53 +341,34 @@ jobs:
           docker push "$IMAGE:main-${{ github.run_number }}"
 
       - name: Update EKS kubeconfig
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
-        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER }}" --region "$AWS_REGION"
+        if: matrix.changed == 'true'
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Render & apply service manifests
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_CATALOG_REPO: ${{ vars.ECR_CATALOG_REPO }}
-          ECR_ORDER_REPO: ${{ vars.ECR_ORDER_REPO }}
-          ECR_MEMBER_REPO: ${{ vars.ECR_MEMBER_REPO }}
-          ECR_AI_REPO: ${{ vars.ECR_AI_REPO }}
           IMAGE_TAG: ${{ env.DEPLOY_SHA }}
-          SPRING_PROFILE: ${{ vars.SPRING_PROFILE || 'prod' }}
-          DB_SSL_MODE: ${{ vars.DB_SSL_MODE || 'require' }}
-          DB_NAME: ${{ vars.DB_NAME }}
-          AI_DB_NAME: ${{ vars.AI_DB_NAME }}
-          AI_VECTOR_BUCKET: ${{ vars.AI_VECTOR_BUCKET }}
-          REDIS_HOST: ${{ vars.REDIS_HOST }}
-          AWS_COGNITO_USER_POOL_ID: ${{ vars.AWS_COGNITO_USER_POOL_ID }}
-          SQS_PURCHASE_QUEUE_URL: ${{ vars.SQS_PURCHASE_QUEUE_URL }}
-          SQS_INGEST_QUEUE_URL: ${{ vars.SQS_INGEST_QUEUE_URL }}
-          # ebook 전용 버킷은 따로 없다 — 설계상 S3는 frontend/media 2개뿐이라
-          # (TERRAFORM_STRUCTURE.md, 인프라구성명세.md §naming) media 버킷을 재사용한다.
-          EBOOK_S3_BUCKET: ${{ vars.EBOOK_S3_BUCKET }}
-          # ai-rag/ai-bot ServiceAccount의 IRSA role-arn (terraform ai_service_iam 모듈).
-          # 비어 있으면 k8s/ai/serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이
-          # 그대로 박혀 두 파드 다 default SA로 떠서 AWS SDK 자격증명 체인이 빈다.
-          AI_SERVICE_IRSA_ARN: ${{ vars.AI_SERVICE_IRSA_ARN }}
-          # member-service ServiceAccount의 IRSA role-arn (terraform member_service_iam
-          # 모듈). 비어 있으면 k8s/member/serviceaccount.yaml에 리터럴
-          # "${MEMBER_SERVICE_IRSA_ARN}"이 그대로 박혀 default SA로 떠서 Cognito
-          # AdminCreateUser/AdminInitiateAuth 호출용 AWS SDK 자격증명 체인이 빈다
-          # (2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입 500).
-          MEMBER_SERVICE_IRSA_ARN: ${{ vars.MEMBER_SERVICE_IRSA_ARN }}
           # /ws/ai/chat 의 유일한 Origin 방어선(k8s/ai/configmap.yaml 참고). 이 VARS 목록에
           # 빠져 있으면 envsubst 가 손대지 않아 ConfigMap 에 "${CHAT_ALLOWED_ORIGINS}" 리터럴이
           # 그대로 박히고, 그 값이 그대로 allowed-origin-pattern 이 돼서 실제 브라우저 Origin과
           # 절대 매치되지 않아 핸드셰이크가 전부 거절된다 — FRONTEND_ORIGIN 과 같은 값이어야
           # 하므로 별도 GH Variable 없이 재사용한다.
-          CHAT_ALLOWED_ORIGINS: ${{ vars.FRONTEND_ORIGIN }}
           # 카카오페이 결제 완료 후 되돌아올 프론트엔드 콜백 페이지. 이 VARS 목록에
           # 빠져 있으면(과거 실제로 그랬음) order-api 코드 기본값(localhost:5173)이
           # 그대로 쓰여 실결제 후 사용자가 localhost로 리다이렉트된다 — FRONTEND_ORIGIN에
           # 경로만 붙인 값이라 별도 GH Variable 없이 재사용한다(인프라-트러블슈팅.md ⑲).
-          KAKAOPAY_FRONTEND_CALLBACK_URL: ${{ vars.FRONTEND_ORIGIN }}/payments/kakao/callback
         run: |
           set -euo pipefail
+          export CHAT_ALLOWED_ORIGINS="$FRONTEND_ORIGIN"
+          export KAKAOPAY_FRONTEND_CALLBACK_URL="$FRONTEND_ORIGIN/payments/kakao/callback"
+          # 비어 있으면 모든 매니페스트에 리터럴 "${K8S_NAMESPACE}"가 그대로 박혀
+          # kubectl apply가 그 이름 그대로의(존재하지 않는) 네임스페이스를 만들려다
+          # base 매니페스트가 만든 실제 네임스페이스와 어긋난다.
+          if [ -z "$K8S_NAMESPACE" ]; then
+            echo "::error::필수 값 K8S_NAMESPACE 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
           # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
           if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_VECTOR_BUCKET" ]; then
             echo "::error::필수 값 AI_VECTOR_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
@@ -382,7 +392,7 @@ jobs:
             exit 1
           fi
 
-          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $K8S_NAMESPACE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
           mkdir -p rendered
           for f in k8s/${{ matrix.service }}/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -390,14 +400,14 @@ jobs:
           kubectl apply -f rendered/
 
       - name: Wait for rollout
-        if: matrix.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: matrix.changed == 'true'
         run: |
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=600s
           done
 
       - name: Rollback on failure
-        if: failure() && (matrix.changed == 'true' || github.event_name == 'workflow_dispatch')
+        if: failure() && matrix.changed == 'true'
         run: |
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
@@ -407,12 +417,13 @@ jobs:
   deploy-frontend:
     name: Frontend → S3 & CloudFront
     if: >
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'frontend'))) ||
       (github.event.workflow_run.name == 'Frontend CI' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -441,12 +452,20 @@ jobs:
           role-session-name: gha-prod-frontend-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Load frontend deployment targets from SSM
+        env:
+          DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
       - name: Sync to Amazon S3
-        run: aws s3 sync ./frontend/dist "s3://${{ vars.FRONTEND_S3_BUCKET }}" --delete
+        run: |
+          test -n "$FRONTEND_S3_BUCKET"
+          aws s3 sync ./frontend/dist "s3://${FRONTEND_S3_BUCKET}" --delete
 
       - name: Invalidate CloudFront cache
-        if: vars.CLOUDFRONT_DIST_ID != ''
         run: |
+          test -n "$CLOUDFRONT_DIST_ID"
           aws cloudfront create-invalidation \
-            --distribution-id "${{ vars.CLOUDFRONT_DIST_ID }}" \
+            --distribution-id "$CLOUDFRONT_DIST_ID" \
             --paths "/*"

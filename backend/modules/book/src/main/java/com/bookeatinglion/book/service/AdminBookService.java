@@ -15,8 +15,10 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -112,6 +114,32 @@ public class AdminBookService {
         List<Book> books = bookRepository.findBySaleStatusAndIsDeletedFalse(SaleStatus.ON_SALE);
         books.forEach(book -> eventPublisher.publishEvent(BookRecommendationIndexEvent.upsert(book)));
         return books.size();
+    }
+
+    /** 기존 EPUB 도서를 SQS 인제스트 파이프라인에 다시 넣어 wiki-v1을 최초 적재하거나 복구한다. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public int reindexEbooks() {
+        int queued = 0;
+        long lastBookId = 0L;
+        List<Book> books;
+        do {
+            books = bookRepository.findByEpubS3KeyIsNotNullAndIsDeletedFalseAndBookIdGreaterThanOrderByBookIdAsc(
+                    lastBookId, PageRequest.of(0, 100));
+            for (Book book : books) {
+                if (bookIngestPublisher.publish(
+                        book.getBookId(), book.getTitle(), book.getCategory(), book.getEpubS3Key())) {
+                    queued++;
+                }
+            }
+            if (!books.isEmpty()) {
+                Long currentLastBookId = books.get(books.size() - 1).getBookId();
+                if (currentLastBookId == null) {
+                    break;
+                }
+                lastBookId = currentLastBookId;
+            }
+        } while (books.size() == 100);
+        return queued;
     }
 
     /**

@@ -7,7 +7,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -15,8 +15,9 @@ spring:
         default_batch_fetch_size: 100
         default_schema: order_db
 
-  flyway:
-    enabled: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
   data:
     redis:

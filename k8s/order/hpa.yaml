@@ -10,7 +10,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: order-hpa
-  namespace: lion-app
+  namespace: ${K8S_NAMESPACE}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

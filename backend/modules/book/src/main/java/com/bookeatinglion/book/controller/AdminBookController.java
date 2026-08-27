@@ -72,4 +72,9 @@ public class AdminBookController {
     public ApiResponse<Integer> rebuildRecommendationIndex() {
         return ApiResponse.success(adminBookService.reindexRecommendations());
     }
+
+    @PostMapping("/ingest-index/rebuild")
+    public ApiResponse<Integer> rebuildEbookIndex() {
+        return ApiResponse.success(adminBookService.reindexEbooks());
+    }
 }

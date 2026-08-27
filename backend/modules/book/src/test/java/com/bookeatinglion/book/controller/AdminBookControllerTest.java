@@ -64,5 +64,14 @@ class AdminBookControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    @Test
+    void 기존_EPUB_전체_재인제스트를_요청한다() throws Exception {
+        when(adminBookService.reindexEbooks()).thenReturn(2);
+
+        mockMvc.perform(post("/api/catalog/admin/books/ingest-index/rebuild"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(2));
+    }
+
     private record FileNameRequest(String fileName) {}
 }
