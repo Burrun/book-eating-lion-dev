@@ -28,6 +28,7 @@ import com.bookeatinglion.order.order.exception.AlreadySubscribedException;
 import com.bookeatinglion.order.order.exception.BookPriceUnavailableException;
 import com.bookeatinglion.order.order.exception.InvalidCouponException;
 import com.bookeatinglion.order.order.exception.InvalidOrderRequestException;
+import com.bookeatinglion.order.order.exception.InventoryNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderCouponNotFoundException;
 import com.bookeatinglion.order.order.exception.OrderNotFoundException;
 import com.bookeatinglion.order.order.exception.OutOfStockException;
@@ -487,7 +488,12 @@ public class OrderService {
     private void checkStock(Map<Long, Inventory> inventories, Map<Long, Integer> quantityByBookId) {
         for (Map.Entry<Long, Integer> entry : quantityByBookId.entrySet()) {
             Inventory inventory = inventories.get(entry.getKey());
-            if (inventory == null || inventory.getStock() < entry.getValue()) {
+            // 행이 없는 것과 재고가 모자란 것을 구분한다. 전자는 데이터 누락(카탈로그엔
+            // 있는데 inventory 행이 안 만들어짐)이라 운영이 손댈 곳이 다르다.
+            if (inventory == null) {
+                throw new InventoryNotFoundException(entry.getKey());
+            }
+            if (inventory.getStock() < entry.getValue()) {
                 throw new OutOfStockException(entry.getKey());
             }
         }

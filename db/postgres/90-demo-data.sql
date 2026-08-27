@@ -431,7 +431,22 @@ CREATE TABLE IF NOT EXISTS order_db.inventory (
 -- 9001 은 구독권이다. 재고 개념이 없지만 createOrder 가 checkStock 을 타므로 행이 있어야
 -- 주문이 통과한다. 소진될 일이 없게 크게 잡는다 - 재고 관리 대상이 아니라는 뜻이다.
 INSERT INTO order_db.inventory (book_id, stock)
-VALUES (1, 100), (101, 100), (102, 100), (9001, 999999)
+VALUES (101, 100), (102, 100), (9001, 999999)
+ON CONFLICT (book_id) DO NOTHING;
+
+-- 나머지 데모 도서 전체. book_id 를 나열하지 않는 이유는 위 21권(190 줄)이 자동 채번이라
+-- 환경마다 값이 다르기 때문이다 - 하드코딩하면 dev 에선 맞고 prod 에선 엉뚱한 책에 붙는다.
+-- 카탈로그에서 직접 읽어 맞춘다. 시드는 master 계정으로 돌아 두 스키마가 다 보인다.
+--
+-- 이 행이 없으면 카탈로그엔 보이는데 주문만 막힌다 - checkStock 이 행 부재를 재고 부족과
+-- 같이 취급했었다(지금은 InventoryNotFoundException 으로 갈라진다).
+--
+-- DO NOTHING 이라 이미 있는 행의 수량은 안 건드린다. 테스트로 소진했으면 다시 돌려도
+-- 안 채워지므로 애초에 마르지 않을 만큼 잡는다.
+INSERT INTO order_db.inventory (book_id, stock)
+SELECT book_id, 999
+  FROM catalog_db.books
+ WHERE is_deleted = FALSE
 ON CONFLICT (book_id) DO NOTHING;
 
 -- CREATE TABLE IF NOT EXISTS order_db.orders (
