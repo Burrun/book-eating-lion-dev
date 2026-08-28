@@ -27,6 +27,12 @@ variable "waf_rate_limit" {
   default = 2000
 }
 
+variable "waf_ip_allowlist" {
+  description = "WAF를 우회할 고정 IPv4 CIDR 목록"
+  type        = list(string)
+  default     = []
+}
+
 # ── S3 (prod 프론트엔드/미디어 - dev 것과 분리, 새로 필요) ─────────
 variable "frontend_bucket_name" {
   type = string

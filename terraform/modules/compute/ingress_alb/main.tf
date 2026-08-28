@@ -8,6 +8,45 @@
 # service_routes 같은 라우팅 입력은 여기서 받지 않는다 - 라우팅 규칙은 k8s/base/*.yaml에
 # git으로 관리되고 CI가 배포한다. Terraform은 그 라우팅을 실행할 컨트롤러만 세운다.
 
+# NLB가 public인 현재 구조에서 CloudFront를 거치지 않은 직접 호출을 차단한다.
+# CloudFront origin-facing managed prefix list만 NLB 보안그룹 인바운드로 허용한다.
+data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
+resource "aws_security_group" "ingress_nlb" {
+  name_prefix = "lion-team3-${var.environment}-ingress-nlb-"
+  description = "Allow ingress NLB traffic only from CloudFront origin-facing network"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "CloudFront origin-facing traffic only"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
+  }
+
+  ingress {
+    description     = "CloudFront origin-facing traffic only"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "lion-team3-${var.environment}-ingress-nlb-sg"
+  }
+}
+
 data "aws_iam_policy_document" "alb_controller_trust" {
   statement {
     effect  = "Allow"
@@ -196,6 +235,18 @@ resource "helm_release" "ingress_nginx" {
     value = "internet-facing"
   }
 
+  # NLB에 전용 SG를 부착해 CloudFront origin-facing prefix list 외의
+  # 직접 접근(NLB DNS 포함)을 차단한다.
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-security-groups"
+    value = aws_security_group.ingress_nlb.id
+  }
+
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-manage-backend-security-group-rules"
+    value = "true"
+  }
+
   set {
     name = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
     # Helm의 set 문법은 콤마를 "여러 key=value 쌍의 구분자"로 해석해서, 값
@@ -210,7 +261,7 @@ resource "helm_release" "ingress_nginx" {
     value = "nginx"
   }
 
-  depends_on = [helm_release.alb_controller]
+  depends_on = [helm_release.alb_controller, aws_security_group.ingress_nlb]
 }
 
 # NLB DNS는 헬름 릴리스 직후엔 아직 프로비저닝 중일 수 있어서, Service 상태를 읽기 전에

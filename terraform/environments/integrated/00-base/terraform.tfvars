@@ -7,7 +7,8 @@ aws_region  = "ap-northeast-2"
 domain_name        = "book.ajttk.com"
 parent_zone_domain = "ajttk.com"
 
-waf_rate_limit = 2000
+waf_rate_limit   = 2000
+waf_ip_allowlist = ["118.217.76.39/32"]
 
 frontend_bucket_name = "book-eating-lion-prod-frontend"
 media_bucket_name    = "book-eating-lion-prod-media"
