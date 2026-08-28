@@ -15,6 +15,12 @@ on:
         options: [all, 00-base, 01-data, 02-runtime, 03-deploy]
         default: all
         required: true
+      deployment_mode:
+        description: "엣지 소유권 모드 (전환 시 기존 소유자부터 반납 apply)"
+        type: choice
+        options: [split, integrated]
+        default: split
+        required: true
       deploy_modules:
         description: "Terraform 적용 후 Catalog/Order/Member/AI를 배포"
         type: boolean
@@ -73,6 +79,7 @@ jobs:
         env:
           TARGET_ENV: ${{ inputs.environment }}
           TARGET_LAYER: ${{ inputs.layer }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
         run: |
           set -euo pipefail
 
@@ -80,6 +87,26 @@ jobs:
             local layer="$1"
             local directory="terraform/environments/${TARGET_ENV}/${layer}"
             local plan_file="${RUNNER_TEMP}/${TARGET_ENV}-${layer}.tfplan"
+            local mode_args=()
+
+            # 모드 전환은 tfvars를 수정하지 않고 실행 시점 변수로 제어한다.
+            # dev 환경은 split 소유권을 켜거나(integrated 전환 시 끄거나),
+            # integrated 환경은 dev cutover를 켜거나(split 복귀 시 끈다).
+            if [ "$layer" = "02-runtime" ]; then
+              if [ "$TARGET_ENV" = "dev" ]; then
+                if [ "$DEPLOYMENT_MODE" = "split" ]; then
+                  mode_args+=("-var=enable_edge_routing=true")
+                else
+                  mode_args+=("-var=enable_edge_routing=false")
+                fi
+              elif [ "$TARGET_ENV" = "integrated" ]; then
+                if [ "$DEPLOYMENT_MODE" = "integrated" ]; then
+                  mode_args+=("-var=enable_dev_cutover=true")
+                else
+                  mode_args+=("-var=enable_dev_cutover=false")
+                fi
+              fi
+            fi
 
             echo "::group::Terraform ${TARGET_ENV}/${layer}"
             terraform -chdir="$directory" init -input=false
@@ -92,6 +119,7 @@ jobs:
               local bootstrap_plan="${RUNNER_TEMP}/${TARGET_ENV}-eks-bootstrap.tfplan"
               terraform -chdir="$directory" plan \
                 -input=false \
+                "${mode_args[@]}" \
                 -target=module.eks_cluster \
                 -out="$bootstrap_plan"
               terraform -chdir="$directory" apply -input=false -auto-approve "$bootstrap_plan"
@@ -101,7 +129,7 @@ jobs:
               aws eks update-kubeconfig --name "$cluster_name" --region "$AWS_REGION"
             fi
 
-            terraform -chdir="$directory" plan -input=false -out="$plan_file"
+            terraform -chdir="$directory" plan -input=false "${mode_args[@]}" -out="$plan_file"
             terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
             echo "::endgroup::"
           }
