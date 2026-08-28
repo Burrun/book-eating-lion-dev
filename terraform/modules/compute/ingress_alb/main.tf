@@ -22,7 +22,7 @@ resource "aws_security_group" "ingress_nlb" {
   ingress {
     description     = "CloudFront origin-facing traffic only"
     from_port       = 80
-    to_port         = 443
+    to_port         = 80
     protocol        = "tcp"
     prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
   }
@@ -36,6 +36,33 @@ resource "aws_security_group" "ingress_nlb" {
 
   tags = {
     Name = "lion-team3-${var.environment}-ingress-nlb-sg"
+  }
+}
+
+# CloudFront prefix-list rules have a high AWS security-group rule weight. Keep
+# HTTPS in a second group so each group remains under the default rule quota.
+resource "aws_security_group" "ingress_nlb_https" {
+  name_prefix = "lion-team3-${var.environment}-ingress-nlb-https-"
+  description = "Allow HTTPS ingress NLB traffic only from CloudFront origin-facing network"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "CloudFront origin-facing HTTPS only"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "lion-team3-${var.environment}-ingress-nlb-https-sg"
   }
 }
 
@@ -231,7 +258,7 @@ resource "helm_release" "ingress_nginx" {
   # 직접 접근(NLB DNS 포함)을 차단한다.
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-security-groups"
-    value = aws_security_group.ingress_nlb.id
+    value = "${aws_security_group.ingress_nlb.id},${aws_security_group.ingress_nlb_https.id}"
   }
 
   set {

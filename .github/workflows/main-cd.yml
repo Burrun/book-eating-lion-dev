@@ -344,7 +344,19 @@ jobs:
                --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "ECR에 ${{ env.DEPLOY_SHA }} 태그가 이미 있어 push를 건너뜁니다 (재실행 등으로 중복)."
           else
-            docker push "$IMAGE:${{ env.DEPLOY_SHA }}"
+          # 사전 조회 직후 다른 실행이 먼저 push할 수 있으므로, immutable 태그
+          # 충돌은 이미 같은 이미지가 게시된 정상 경쟁 상황으로 처리한다.
+          if ! docker push "$IMAGE:${{ env.DEPLOY_SHA }}"; then
+            if aws ecr describe-images \
+                 --repository-name "$REPOSITORY" \
+                 --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
+                 --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "동시 실행이 ${{ env.DEPLOY_SHA }} 태그를 먼저 게시했습니다. 기존 이미지를 사용합니다."
+            else
+              echo "::error::ECR 이미지 push 실패: ${{ env.DEPLOY_SHA }}"
+              exit 1
+            fi
+          fi
           fi
           docker push "$IMAGE:main-${{ github.run_number }}"
 
