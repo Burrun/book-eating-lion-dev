@@ -21,6 +21,11 @@ on:
         options: [split, integrated]
         default: split
         required: true
+      confirm_edge_handoff:
+        description: "위험한 엣지 소유권 반납/컷백을 명시적으로 승인"
+        type: boolean
+        default: false
+        required: true
       deploy_modules:
         description: "Terraform 적용 후 Catalog/Order/Member/AI를 배포"
         type: boolean
@@ -80,8 +85,20 @@ jobs:
           TARGET_ENV: ${{ inputs.environment }}
           TARGET_LAYER: ${{ inputs.layer }}
           DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
+          CONFIRM_EDGE_HANDOFF: ${{ inputs.confirm_edge_handoff }}
         run: |
           set -euo pipefail
+
+          # 기본 모드 실수로 dev 도메인을 제거하지 않도록, 환경의 기본 소유자와
+          # 다른 모드는 명시적인 확인 없이는 실행하지 않는다.
+          if [ "$TARGET_ENV" = "integrated" ] && [ "$DEPLOYMENT_MODE" = "split" ] && [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+            echo "::error::integrated 환경의 split 컷백은 confirm_edge_handoff=true가 필요합니다. 일반 integrated 적용은 deployment_mode=integrated를 선택하세요."
+            exit 1
+          fi
+          if [ "$TARGET_ENV" = "dev" ] && [ "$DEPLOYMENT_MODE" = "integrated" ] && [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+            echo "::error::dev 환경의 integrated 핸드오프는 confirm_edge_handoff=true가 필요합니다. 일반 split 적용은 deployment_mode=split을 선택하세요."
+            exit 1
+          fi
 
           apply_layer() {
             local layer="$1"
