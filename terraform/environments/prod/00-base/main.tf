@@ -50,9 +50,12 @@ module "waf" {
 module "storage" {
   source = "../../../modules/base/storage"
 
-  frontend_bucket_name       = var.frontend_bucket_name
-  media_bucket_name          = var.media_bucket_name
-  media_cors_allowed_origins = ["https://book.ajttk.com"]
+  frontend_bucket_name = var.frontend_bucket_name
+  media_bucket_name    = var.media_bucket_name
+  media_cors_allowed_origins = [
+    "https://book.ajttk.com",
+    "https://www.book.ajttk.com",
+  ]
 }
 
 module "container_reg" {
