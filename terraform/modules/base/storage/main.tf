@@ -62,3 +62,21 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "media" {
     }
   }
 }
+
+# EbookAccess가 발급하는 presigned GET URL을 브라우저가 fetch()로 직접 읽으려면
+# 필요하다. GET은 "simple request"라 프리플라이트(OPTIONS) 없이 바로 나가지만,
+# 응답에 Access-Control-Allow-Origin이 없으면 200을 받고도 브라우저가 스크립트에
+# 본문을 못 넘긴다 - 지금까지 이 리소스 자체가 없어 겪은 문제다.
+resource "aws_s3_bucket_cors_configuration" "media" {
+  bucket = aws_s3_bucket.media.id
+
+  cors_rule {
+    allowed_methods = ["GET"]
+    allowed_origins = var.media_cors_allowed_origins
+    # epub.js(react-reader)가 Range 요청으로 청크 단위 로드를 시도할 수 있다 - Range는
+    # CORS-safelisted 헤더가 아니라 허용 안 하면 프리플라이트에서 막힌다.
+    allowed_headers = ["Range"]
+    expose_headers  = ["Content-Length", "Content-Range", "Accept-Ranges", "ETag"]
+    max_age_seconds = 3000
+  }
+}
