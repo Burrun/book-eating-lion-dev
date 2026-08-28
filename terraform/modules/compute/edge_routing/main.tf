@@ -12,6 +12,14 @@ data "aws_cloudfront_origin_request_policy" "all_viewer" {
   name = "Managed-AllViewer"
 }
 
+# AWS 관리형 정책 ID는 리전에 종속되지 않는 고정 식별자다. 데이터 소스를
+# 배포 생성 시점에 해석하면 AWS provider가 ordered_cache_behavior를 확장하는
+# 단계에서 null -> 값으로 바꾸며 inconsistent final plan을 반환할 수 있다.
+locals {
+  caching_disabled_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+  all_viewer_policy_id       = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "lion-team3-${var.environment}-frontend-oac"
   origin_access_control_origin_type = "s3"
@@ -102,8 +110,8 @@ resource "aws_cloudfront_distribution" "this" {
     # 떨어진다(2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입/로그인 전부 404).
     # AWS 관리형 Origin Request Policy "AllViewer"는 Host를 포함한 모든 뷰어 헤더/
     # 쿠키/쿼리스트링을 오리진에 그대로 전달한다 - 캐싱은 API라 여전히 끈다("CachingDisabled").
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    cache_policy_id          = local.caching_disabled_policy_id
+    origin_request_policy_id = local.all_viewer_policy_id
   }
 
   # /api/*에는 안 걸리는 별도 경로 - 없으면 default_cache_behavior(S3 오리진)로 떨어져서
@@ -119,8 +127,8 @@ resource "aws_cloudfront_distribution" "this" {
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    cache_policy_id          = local.caching_disabled_policy_id
+    origin_request_policy_id = local.all_viewer_policy_id
   }
 
   restrictions {
