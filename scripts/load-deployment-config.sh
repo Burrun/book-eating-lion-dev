@@ -88,7 +88,11 @@ put CLOUDFRONT_DIST_ID "$(ssm_optional "${EDGE_PREFIX}/edge/cloudfront_distribut
 if [[ "$MODE" == "integrated" && "$DEPLOY_ENV" == "dev" ]]; then
   put AI_SERVICE_IRSA_ARN "$(ssm integrated dev/ai/service_irsa_arn)"
   put MEMBER_SERVICE_IRSA_ARN "$(ssm integrated dev/member/service_irsa_arn)"
+  put CATALOG_SERVICE_IRSA_ARN "$(ssm integrated dev/catalog/service_irsa_arn)"
+  put ORDER_SERVICE_IRSA_ARN "$(ssm integrated dev/order/service_irsa_arn)"
 else
   put AI_SERVICE_IRSA_ARN "$(ssm "$DATA_ENV" ai/service_irsa_arn)"
   put MEMBER_SERVICE_IRSA_ARN "$(ssm "$DATA_ENV" member/service_irsa_arn)"
+  put CATALOG_SERVICE_IRSA_ARN "$(ssm "$DATA_ENV" catalog/service_irsa_arn)"
+  put ORDER_SERVICE_IRSA_ARN "$(ssm "$DATA_ENV" order/service_irsa_arn)"
 fi

@@ -35,6 +35,7 @@ spec:
                       values:
                         - catalog-service
                 topologyKey: "kubernetes.io/hostname"
+      serviceAccountName: catalog-service
       containers:
         - name: catalog-service
           # CD 워크플로가 커밋 SHA 로 치환한다. ECR 리포지터리도 서비스별로 나뉜다.
