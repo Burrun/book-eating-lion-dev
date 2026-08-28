@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.ReadingProgress;
 import com.bookeatinglion.book.domain.SaleStatus;
+import com.bookeatinglion.book.dto.FeedableBookResponse;
 import com.bookeatinglion.book.dto.ReadingProgressRequest;
 import com.bookeatinglion.book.dto.ReadingProgressResponse;
 import com.bookeatinglion.book.exception.BookNotFoundException;
@@ -18,10 +19,12 @@ import com.bookeatinglion.book.repository.BookRepository;
 import com.bookeatinglion.book.repository.ReadingProgressRepository;
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -30,14 +33,22 @@ class ReadingProgressServiceTest {
 
     private static final String MEMBER_SUB = "member-sub-1";
 
+    /** 완독 임계값은 설정값이라 생성자로 들어온다 — 테스트는 운영 기본값과 같은 95를 쓴다. */
+    private static final int COMPLETION_PERCENTAGE = 95;
+
     @Mock
     private ReadingProgressRepository readingProgressRepository;
 
     @Mock
     private BookRepository bookRepository;
 
-    @InjectMocks
     private ReadingProgressService readingProgressService;
+
+    @BeforeEach
+    void setUp() {
+        readingProgressService =
+                new ReadingProgressService(readingProgressRepository, bookRepository, COMPLETION_PERCENTAGE);
+    }
 
     private Book book(Long id) throws Exception {
         Book book = Book.builder()
@@ -138,5 +149,44 @@ class ReadingProgressServiceTest {
 
         assertThatThrownBy(() -> readingProgressService.getProgress(999L, MEMBER_SUB))
                 .isInstanceOf(BookNotFoundException.class);
+    }
+
+    /** 먹이기 카드는 완독 임계값을 그대로 쿼리에 넘겨야 한다 — 서비스가 다시 거르지 않는다. */
+    @Test
+    void 먹일_수_있는_책은_설정된_완독_임계값으로_조회한다() throws Exception {
+        ReadingProgress progress = ReadingProgress.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book(1L))
+                .cfi("epubcfi(/6/2!/4/2)")
+                .percentage(97)
+                .build();
+        when(readingProgressRepository.findFeedable(MEMBER_SUB, COMPLETION_PERCENTAGE))
+                .thenReturn(List.of(progress));
+
+        List<FeedableBookResponse> feedable = readingProgressService.listFeedableBooks(MEMBER_SUB);
+
+        assertThat(feedable).hasSize(1);
+        assertThat(feedable.getFirst().bookId()).isEqualTo(1L);
+        assertThat(feedable.getFirst().percentage()).isEqualTo(97);
+    }
+
+    /** 먹인 표시는 멱등하다 — 재시도로 두 번 불려도 예외가 아니라 시각만 덮어쓴다. */
+    @Test
+    void 먹인_표시는_두_번_불려도_예외가_아니다() throws Exception {
+        ReadingProgress progress = ReadingProgress.builder()
+                .memberSub(MEMBER_SUB)
+                .book(book(1L))
+                .cfi("epubcfi(/6/2!/4/2)")
+                .percentage(100)
+                .build();
+        when(readingProgressRepository.findByMemberSubAndBook_BookId(MEMBER_SUB, 1L))
+                .thenReturn(Optional.of(progress));
+
+        readingProgressService.markFed(1L, MEMBER_SUB);
+        LocalDateTime first = progress.getFedAt();
+        readingProgressService.markFed(1L, MEMBER_SUB);
+
+        assertThat(first).isNotNull();
+        assertThat(progress.getFedAt()).isNotNull();
     }
 }

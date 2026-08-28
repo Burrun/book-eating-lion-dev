@@ -1128,3 +1128,122 @@ databaseChangeLog:
         referencedTableName: books
         validate: true
 
+# --- 하이라이트 메모 도입 / 완독 요약 메모 폐기 ---------------------------------
+# 먹이기 대상이 "완독 요약 메모"에서 "완독한 책"으로 바뀌었다. 메모는 EPUB 뷰어에서
+# 문장 단위로 여러 개 남기는 개인 기록이 되고(book_highlights), 사자에게 먹였다는 표시는
+# book_memos.fed_at 에서 reading_progress.fed_at 으로 옮겨간다.
+- changeSet:
+    id: highlight-memo-1
+    author: burrun
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - tableExists:
+          tableName: book_highlights
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: book_highlights_pkey
+            name: book_highlight_id
+            type: BIGINT
+        - column:
+            name: created_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: updated_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: member_sub
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: book_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: cfi_range
+            type: VARCHAR(500)
+        - column:
+            constraints:
+              nullable: false
+            name: selected_text
+            type: VARCHAR(2000)
+        - column:
+            name: memo_text
+            type: VARCHAR(4000)
+        tableName: book_highlights
+- changeSet:
+    id: highlight-memo-2
+    author: burrun
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - foreignKeyConstraintExists:
+          foreignKeyTableName: book_highlights
+          foreignKeyName: fk_book_highlights_book
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: book_id
+        baseTableName: book_highlights
+        constraintName: fk_book_highlights_book
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: NO ACTION
+        onUpdate: NO ACTION
+        referencedColumnNames: book_id
+        referencedTableName: books
+        validate: true
+# 마이페이지 "내 메모"가 회원별 최신순 전체 조회를 하므로 member_sub 단독 인덱스가 필요하다.
+- changeSet:
+    id: highlight-memo-3
+    author: burrun
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - indexExists:
+          indexName: idx_book_highlights_member_sub
+    changes:
+    - createIndex:
+        columns:
+        - column:
+            name: member_sub
+        indexName: idx_book_highlights_member_sub
+        tableName: book_highlights
+- changeSet:
+    id: highlight-memo-4
+    author: burrun
+    preConditions:
+    - onFail: MARK_RAN
+    - not:
+      - columnExists:
+          tableName: reading_progress
+          columnName: fed_at
+    changes:
+    - addColumn:
+        columns:
+        - column:
+            name: fed_at
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: reading_progress
+# 🔴 되돌릴 수 없다. book_memos 의 완독 요약 텍스트는 이 시점에 사라진다 — 이미 사자에게
+# 먹인 메모의 벡터(memo#{bookId}#{memberId})는 인덱스에 그대로 남지만, RAG 검색에서는
+# WikiRagService 가 user_summary 를 배제하므로 인용으로 나오지 않는다.
+- changeSet:
+    id: highlight-memo-5
+    author: burrun
+    preConditions:
+    - onFail: MARK_RAN
+    - tableExists:
+        tableName: book_memos
+    changes:
+    - dropTable:
+        tableName: book_memos

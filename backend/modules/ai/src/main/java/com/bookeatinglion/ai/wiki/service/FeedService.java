@@ -1,16 +1,12 @@
 package com.bookeatinglion.ai.wiki.service;
 
-import com.bookeatinglion.ai.client.EmbeddingClient;
 import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
 import com.bookeatinglion.ai.wiki.domain.FedBook;
-import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
-import com.bookeatinglion.ai.wiki.port.VectorIndexPort.VectorRecord;
 import com.bookeatinglion.ai.wiki.repository.FedBookRepository;
 import java.time.LocalDateTime;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,17 +14,16 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 라이언에게 메모 먹이기. 완독 후 사용자가 쓴 요약 메모 텍스트를 받아 임베딩 → 벡터 적재까지
- * 동기로 끝내고, fed_books 행 추가 + exp 갱신 + Redis Set 갱신을 더한다.
+ * 라이언에게 완독한 책 먹이기. fed_books 행 추가 + exp 갱신 + Redis Set 갱신이 전부다.
  *
- * <p>🔴 <b>책 본문 인제스트(BookIngestService)와는 다른 결정이다.</b> 그쪽은 책 1권이
- * 12~46청크라 동기로 하면 타임아웃이 나서 관리자 배치(비동기)가 필수였지만, 메모는 텍스트
- * 하나 = 벡터 하나라 임베딩 1회로 끝나 동기로도 충분히 빠르다(수 초 이내) — 팀에서 이렇게
- * 가기로 확정했다(느리면 프론트가 로딩 표시로 흡수한다).
+ * <p>🔴 <b>여기서 임베딩도 벡터 적재도 하지 않는다.</b> 예전에는 사용자가 쓴 완독 요약 메모를
+ * 먹였고 그 텍스트를 벡터로 넣었지만, 이제 먹이는 대상은 책 자체다 — 책 본문 벡터는 관리자
+ * 배치(BookIngestService)가 이미 넣어두므로 먹이기는 순수 게이미피케이션(EXP/레벨)이고 외부
+ * API 호출이 0회다.
  *
- * <p>"먹일 수 있는 메모"의 정의(완독 + 메모 작성)는 이제 catalog-service(book_memos)가
- * 안다. 여기는 더 이상 그걸 판단하지 않는다 — bookId/memoText가 JWT로 인증된 호출자 본인
- * 것이라는 사실만 믿고 임베딩·적재·EXP 처리만 한다.
+ * <p>"먹일 수 있는 책"의 정의(완독 여부)는 catalog-service(reading_progress)가 안다. 여기는
+ * 그걸 판단하지 않는다 — bookId 가 JWT 로 인증된 호출자 본인 것이라는 사실만 믿고 EXP 처리만
+ * 한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,8 +33,6 @@ public class FeedService {
     private final FedBookRepository fedBookRepository;
     private final LionRepository lionRepository;
     private final FedBookCache fedBookCache;
-    private final EmbeddingClient embedding;
-    private final VectorIndexPort vectorIndex;
     private final MemberSubscriptionClient memberSubscriptionClient;
 
     /** 구독 회원 EXP 배율. "사자 먹이 2배 적립" 배너 문구와 같은 값이어야 한다. */
@@ -74,27 +67,10 @@ public class FeedService {
 
     /**
      * EXP는 멱등하다 — 같은 책을 다시 먹여도 fed_books 의 PK 가 막아 중복으로 오르지 않는다
-     * (재시도·더블클릭·재작성 재-feed로 레벨이 또 오르면 그건 버그다).
-     *
-     * <p>벡터 적재는 멱등이 아니라 <b>항상 최신으로 덮어쓴다</b> — 메모를 완독 후 다시 고쳐
-     * 쓴 사용자가 재작성 뒤 다시 먹이면(EXP는 이미 받았으니 안 오르지만) RAG가 아는 내용은
-     * 최신 텍스트여야 하기 때문이다. 벡터 키가 회원×도서로 결정적이라(멱등 키) 재적재가
-     * 곧 갱신이다.
+     * (재시도·더블클릭으로 레벨이 또 오르면 그건 버그다).
      */
     @Transactional
-    public LionStatus feed(String memberId, Long bookId, String bookTitle, String memoText) {
-        float[] vector = embedding.embed(memoText);
-        vectorIndex.put(List.of(new VectorRecord(
-                VectorIndexPort.memoKey(bookId, memberId),
-                vector,
-                bookId,
-                bookTitle,
-                "",
-                1,
-                memoText,
-                VectorIndexPort.SOURCE_USER_SUMMARY,
-                memberId)));
-
+    public LionStatus feed(String memberId, Long bookId) {
         Lion lion = lionRepository.findByMemberId(memberId).orElseGet(() -> lionRepository.save(new Lion(memberId)));
 
         boolean alreadyFed = fedBookRepository.existsById(new FedBook.Key(memberId, bookId));
@@ -120,10 +96,9 @@ public class FeedService {
 
     /**
      * 🔴 커밋 후에만 캐시에 넣는다. 트랜잭션 안에서 넣으면 롤백 시 fed_books 에는 행이
-     * 없는데 Redis Set 에는 남고, 그 목록이 그대로 검색 필터라서 안 먹은 책의 본문이
-     * 인용까지 나간다 — 예외도 로그도 남지 않는 접근 제어 사고다.
+     * 없는데 Redis Set 에는 남아, 사자가 먹지도 않은 책을 먹은 것으로 세게 된다.
      *
-     * <p>캐시 쓰기 자체가 실패하는 방향은 안전하다. 원본은 DB 에 있으므로 다음 질의에서
+     * <p>캐시 쓰기 자체가 실패하는 방향은 안전하다. 원본은 DB 에 있으므로 다음 조회에서
      * {@link FedBookCache} 가 다시 채운다.
      */
     private void cacheAfterCommit(String memberId, Long bookId) {

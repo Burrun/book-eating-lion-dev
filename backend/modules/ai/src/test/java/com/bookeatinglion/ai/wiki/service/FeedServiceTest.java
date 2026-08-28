@@ -5,36 +5,27 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.bookeatinglion.ai.client.EmbeddingClient;
 import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.lion.domain.GrowthStage;
 import com.bookeatinglion.ai.lion.domain.Lion;
 import com.bookeatinglion.ai.lion.repository.LionRepository;
 import com.bookeatinglion.ai.wiki.domain.FedBook;
-import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
-import com.bookeatinglion.ai.wiki.port.VectorIndexPort.VectorRecord;
 import com.bookeatinglion.ai.wiki.repository.FedBookRepository;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 class FeedServiceTest {
 
     private static final String MEMBER_ID = "test-cognito-sub-1";
     private static final Long BOOK_ID = 10L;
-    private static final String BOOK_TITLE = "책 제목";
 
     private FedBookRepository fedBookRepository;
     private LionRepository lionRepository;
     private FedBookCache fedBookCache;
-    private EmbeddingClient embedding;
-    private VectorIndexPort vectorIndex;
     private MemberSubscriptionClient memberSubscriptionClient;
     private FeedService service;
     private Lion lion;
@@ -44,18 +35,14 @@ class FeedServiceTest {
         fedBookRepository = mock(FedBookRepository.class);
         lionRepository = mock(LionRepository.class);
         fedBookCache = mock(FedBookCache.class);
-        embedding = mock(EmbeddingClient.class);
-        vectorIndex = mock(VectorIndexPort.class);
         memberSubscriptionClient = mock(MemberSubscriptionClient.class);
         lion = new Lion(MEMBER_ID);
 
         when(lionRepository.findByMemberId(MEMBER_ID)).thenReturn(Optional.of(lion));
-        when(embedding.embed(anyString())).thenReturn(new float[EmbeddingClient.DIMENSION]);
         when(memberSubscriptionClient.getSubscriptionStatus(anyString()))
                 .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, false));
 
-        service = new FeedService(
-                fedBookRepository, lionRepository, fedBookCache, embedding, vectorIndex, memberSubscriptionClient);
+        service = new FeedService(fedBookRepository, lionRepository, fedBookCache, memberSubscriptionClient);
     }
 
     @Test
@@ -63,7 +50,7 @@ class FeedServiceTest {
         when(fedBookRepository.existsById(any())).thenReturn(false);
         when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
 
-        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
         assertThat(result.fedBookCount()).isEqualTo(1L);
@@ -79,7 +66,7 @@ class FeedServiceTest {
         when(memberSubscriptionClient.getSubscriptionStatus(MEMBER_ID))
                 .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, true));
 
-        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED * 2);
     }
@@ -92,26 +79,9 @@ class FeedServiceTest {
         when(memberSubscriptionClient.getSubscriptionStatus(MEMBER_ID))
                 .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, false));
 
-        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
-    }
-
-    /** 메모는 임베딩 1회 + 결정적 키(회원×도서)로 바로 적재된다 — 책 본문과 달리 배치가 없다. */
-    @Test
-    void 먹이면_메모_텍스트가_회원별_결정적_키로_적재된다() {
-        when(fedBookRepository.existsById(any())).thenReturn(false);
-
-        service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
-
-        ArgumentCaptor<List<VectorRecord>> captor = ArgumentCaptor.forClass(List.class);
-        verify(vectorIndex).put(captor.capture());
-        VectorRecord record = captor.getValue().getFirst();
-        assertThat(record.key()).isEqualTo(VectorIndexPort.memoKey(BOOK_ID, MEMBER_ID));
-        assertThat(record.sourceType()).isEqualTo(VectorIndexPort.SOURCE_USER_SUMMARY);
-        assertThat(record.memberId()).isEqualTo(MEMBER_ID);
-        assertThat(record.text()).isEqualTo("이 책의 요약");
-        assertThat(record.bookTitle()).isEqualTo(BOOK_TITLE);
     }
 
     /** 재시도나 더블클릭으로 레벨이 오르면 버그가 아니라 사고다. */
@@ -121,24 +91,11 @@ class FeedServiceTest {
         when(fedBookRepository.existsById(any())).thenReturn(true);
         when(fedBookRepository.countByMemberId(MEMBER_ID)).thenReturn(1L);
 
-        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "이 책의 요약");
+        FeedService.LionStatus result = service.feed(MEMBER_ID, BOOK_ID);
 
         assertThat(result.exp()).isEqualTo(Lion.EXP_PER_FEED);
         verify(fedBookRepository, never()).save(any());
         verify(fedBookCache, never()).add(any(), any());
-    }
-
-    /**
-     * 메모를 고쳐 쓴 뒤 다시 먹이면(이미 먹인 상태) EXP는 안 오르지만, RAG가 아는 내용은
-     * 최신이어야 하므로 벡터는 매번 다시 적재된다 — 결정적 키라 재적재가 곧 갱신이다.
-     */
-    @Test
-    void 이미_먹인_메모를_재작성해도_벡터는_매번_갱신된다() {
-        when(fedBookRepository.existsById(any())).thenReturn(true);
-
-        service.feed(MEMBER_ID, BOOK_ID, BOOK_TITLE, "고친 요약");
-
-        verify(vectorIndex, times(1)).put(any());
     }
 
     /** 계약 예시(3권 → exp 120, level 2)와 어긋나면 프론트의 레벨 표시가 틀어진다. */
