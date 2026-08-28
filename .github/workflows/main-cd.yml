@@ -427,6 +427,8 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+      DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -465,7 +467,13 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          test -n "$CLOUDFRONT_DIST_ID"
-          aws cloudfront create-invalidation \
-            --distribution-id "$CLOUDFRONT_DIST_ID" \
-            --paths "/*"
+          if [[ -n "$CLOUDFRONT_DIST_ID" ]]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "$CLOUDFRONT_DIST_ID" \
+              --paths "/*"
+          elif [[ "$DEPLOY_ENV" == "dev" && "$DEPLOYMENT_MODE" == "integrated" ]]; then
+            echo "CloudFront distribution is not configured; skipping cache invalidation."
+          else
+            echo "CLOUDFRONT_DIST_ID is required for this deployment target." >&2
+            exit 1
+          fi
