@@ -13,6 +13,7 @@ import Signup from "./pages/Signup.jsx";
 import Cart from "./pages/Cart.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import MyPage from "./pages/MyPage.jsx";
+import EbookLibraryPage from "./pages/EbookLibraryPage.jsx";
 import ProductListPage from "./pages/ProductListPage/ProductListPage.tsx";
 import ProductDetailPage from "./pages/ProductDetailPage/ProductDetailPage.tsx";
 import NewReleasesPage from "./pages/NewReleasesPage/NewReleasesPage.tsx";
@@ -95,6 +96,14 @@ export default function App() {
                   element={
                     <ProtectedRoute>
                       <MyPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/mypage/library"
+                  element={
+                    <ProtectedRoute>
+                      <EbookLibraryPage />
                     </ProtectedRoute>
                   }
                 />

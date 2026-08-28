@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { Award, BookOpen, Flame, Quote, Send, Star, X } from "lucide-react";
+import { Award, BookOpen, Flame, Send, Star, X } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
@@ -18,9 +18,7 @@ import {
   fetchReviews,
   fetchLionStatus,
 } from "../api/mypage.js";
-import { getFeedableMemos, getFedMemos, markMemoFed } from "../api/bookMemo.ts";
-import { getEbookAccess, getMyEbooks } from "../api/books.ts";
-import EbookViewer from "../components/EbookViewer.jsx";
+import { getFeedableBooks, markBookFed } from "../api/readingProgress.ts";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
@@ -46,10 +44,13 @@ const BADGE_ICONS = { achievement: Award, reading: BookOpen, streak: Flame };
 // 조회만 여전히 백엔드 미구현(조회 엔드포인트 없음)이라 존재하지 않는 엔드포인트를 실서버
 // 모드에서 호출하지 않도록 mock 모드에서만 노출한다.
 //
-// LionRagCard 안의 "내가 먹인 요약 메모" 목록은 GET /api/catalog/members/me/memos/fed
-// (book_memos, ProductDetailPage에서 쓰는 완독 요약 메모와 같은 테이블 — fedAt이 있는
-// 것만)를 쓴다. 예전엔 여기 자리가 "독서 메모 & 인용구 저장소"(백엔드 미구현인
-// GET /api/mypage/reading-notes)였는데, 실제로 구현된 완독 요약 메모 기능으로 대체했다.
+// 사자에게 먹이는 대상은 "완독한 책"이다(GET /api/catalog/members/me/books/feedable).
+// 예전에는 "완독 요약 메모"를 먹였고 그 텍스트가 RAG 근거로도 쓰였지만, 지금 메모는 EPUB
+// 뷰어에서 문장 단위로 남기는 개인 기록이고 검색 근거로는 쓰이지 않는다 — 사자는 책 본문만
+// 인용한다.
+//
+// 이북 보관함과 내 메모는 이 페이지가 아니라 EbookLibraryPage(/mypage/library) 에 있다.
+// 마이페이지는 "계정/주문", 보관함은 "읽기"라 한 화면에 두면 스크롤만 길어졌다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // 재입고 알림 신청 목록은 여기 탭으로 따로 두지 않는다 — "내 도서 활동"
@@ -175,8 +176,6 @@ export default function MyPage() {
         <OrdersSection />
       </div>
 
-      <MyEbookShelfSection />
-
       <BookActivitySection />
 
       <ReviewsSection />
@@ -196,109 +195,6 @@ const RESTOCK_STATUS_LABELS = {
   FAILED: "발송 재시도",
   CANCELLED: "신청 취소",
 };
-
-/**
- * 구매 확정 + eBook 보유 도서만 GET /api/catalog/ebooks/me 로 받아 목록을 보여준다.
- * 클릭하면 Catalog 상세 페이지를 거치지 않고 바로 EbookViewer를 연다 — 소유권 검증은
- * getEbookAccess가 호출하는 서버 쪽(EbookService.getAccess)에서 한다. EbookViewer 내부의
- * 이어읽기 위치 복원/저장(useReadingProgress)과 완독 판정 로직은 그대로 재사용한다 —
- * bookId/url만 넘기면 된다.
- */
-function MyEbookShelfSection() {
-  const toast = useToast();
-  const [ebooks, setEbooks] = useState(null);
-  const [loadError, setLoadError] = useState(false);
-  const [openingBookId, setOpeningBookId] = useState(null);
-  const [activeBook, setActiveBook] = useState(null); // { id, title } | null
-  const [ebookUrl, setEbookUrl] = useState(null);
-
-  useEffect(() => {
-    let ignore = false;
-    getMyEbooks()
-      .then((data) => {
-        if (!ignore) setEbooks(data);
-      })
-      .catch(() => {
-        if (!ignore) {
-          setEbooks([]);
-          setLoadError(true);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const handleOpen = async (book) => {
-    setOpeningBookId(book.id);
-    try {
-      const access = await getEbookAccess(book.id);
-      if (!access.ebookAvailable || !access.presignedUrl) {
-        toast.error("아직 eBook이 준비되지 않은 도서입니다.");
-        return;
-      }
-      setEbookUrl(access.presignedUrl);
-      setActiveBook(book);
-    } catch (err) {
-      const code = err?.code;
-      toast.error(
-        code === "EBOOK_OWNERSHIP_REQUIRED"
-          ? "구매 확정된 도서만 열람할 수 있어요."
-          : "eBook을 열지 못했습니다. 잠시 후 다시 시도해주세요.",
-      );
-    } finally {
-      setOpeningBookId(null);
-    }
-  };
-
-  const handleClose = () => {
-    setActiveBook(null);
-    setEbookUrl(null);
-  };
-
-  return (
-    <section className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
-      <h2 className="font-display mb-1 text-lg text-[var(--color-forest)]">내 이북 보관함</h2>
-
-      <div className="pt-5">
-        {ebooks === null ? (
-          <TabSkeleton />
-        ) : loadError ? (
-          <EmptyState message="이북 보관함을 불러오지 못했습니다. 잠시 후 다시 시도해주세요." />
-        ) : ebooks.length === 0 ? (
-          <EmptyState message="구매한 eBook이 없어요. eBook이 있는 도서를 구매하면 여기서 바로 읽을 수 있어요." />
-        ) : (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {ebooks.map((book) => (
-              <li key={book.id}>
-                <button
-                  type="button"
-                  onClick={() => handleOpen(book)}
-                  disabled={openingBookId === book.id}
-                  className="flex w-full items-center gap-3 rounded-xl border border-[var(--color-forest)]/10 p-4 text-left transition-colors hover:bg-[var(--color-forest)]/5 disabled:opacity-60"
-                >
-                  <BookActivityTitle
-                    title={book.title}
-                    detail={openingBookId === book.id ? "여는 중..." : "📱 eBook 보기"}
-                    coverImageUrl={book.coverImageUrl}
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <EbookViewer
-        isOpen={Boolean(activeBook)}
-        onClose={handleClose}
-        url={ebookUrl}
-        title={activeBook?.title}
-        bookId={activeBook?.id}
-      />
-    </section>
-  );
-}
 
 function BookActivitySection() {
   const toast = useToast();
@@ -533,8 +429,8 @@ function StreakBadge({ label, streakCount }) {
   );
 }
 
-// 메모 1개를 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며
-// 메모 길이/책과 무관하게 고정이다.
+// 책 1권을 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며 책과 무관하게
+// 고정이다(구독 회원은 서버에서 2배로 들어오고, 화면은 서버 응답 exp 를 그대로 쓴다).
 const EXP_PER_FEED = 40;
 
 // 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다. 진행바 표시(exp % 100)에만 쓴다
@@ -542,7 +438,7 @@ const EXP_PER_FEED = 40;
 const EXP_PER_LEVEL = 100;
 
 function LionFeedingCard({ exp, setExp, level, setLevel }) {
-  const [memos, setMemos] = useState(null);
+  const [books, setBooks] = useState(null);
   const [isFeeding, setIsFeeding] = useState(false);
   const [levelUpInfo, setLevelUpInfo] = useState(null);
   const [feedAmount, setFeedAmount] = useState(0);
@@ -550,8 +446,8 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
 
   useEffect(() => {
     let ignore = false;
-    getFeedableMemos().then((data) => {
-      if (!ignore) setMemos(data);
+    getFeedableBooks().then((data) => {
+      if (!ignore) setBooks(data);
     });
     return () => {
       ignore = true;
@@ -561,21 +457,21 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
   // 실제 exp/level/growthStage는 항상 서버(POST /api/ai/lion/feed) 응답값을 그대로 쓴다 —
   // 프론트에서 따로 계산하면 서버 값과 어긋날 수 있다. +EXP 애니메이션 숫자만 낙관적으로 먼저 보여준다.
   //
-  // feedLion(ai-service) 성공 후 markMemoFed(catalog-service)를 이어서 부른다 — 두 서비스가
-  // 동기 호출로 얽히지 않도록 프론트가 오케스트레이션한다. markMemoFed가 실패해도(네트워크
-  // 등) EXP/인덱싱은 이미 반영된 뒤라 되돌리지 않는다 — 다음 방문 시 목록에 다시 보여도
-  // 재-feed는 멱등(EXP 안 오름)이라 무해하다.
+  // feedLion(ai-service) 성공 후 markBookFed(catalog-service)를 이어서 부른다 — 두 서비스가
+  // 동기 호출로 얽히지 않도록 프론트가 오케스트레이션한다. markBookFed가 실패해도(네트워크
+  // 등) EXP는 이미 올라간 뒤라 되돌리지 않는다 — 다음 방문 시 목록에 다시 보여도 재-feed는
+  // 멱등(EXP 안 오름)이라 무해하다.
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over?.id !== "lion-mouth") return;
-    const memo = memos?.find((m) => m.bookId === active.id);
-    if (!memo) return;
+    const book = books?.find((b) => b.bookId === active.id);
+    if (!book) return;
 
-    setMemos((prev) => prev.filter((m) => m.bookId !== active.id));
+    setBooks((prev) => prev.filter((b) => b.bookId !== active.id));
     setIsFeeding(true);
     setFeedAmount(EXP_PER_FEED);
 
-    feedLion(memo.bookId, memo.bookTitle, memo.memoText)
+    feedLion(book.bookId)
       .then((status) => {
         setExp(status.exp);
         if (status.level > level) {
@@ -588,12 +484,12 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           });
         }
         setLevel(status.level);
-        markMemoFed(memo.bookId).catch(() => {
-          // catalog 쪽 표시만 실패한 것 — EXP/인덱싱은 이미 반영됐으니 조용히 넘어간다.
+        markBookFed(book.bookId).catch(() => {
+          // catalog 쪽 표시만 실패한 것 — EXP는 이미 올랐으니 조용히 넘어간다.
         });
       })
       .catch(() => {
-        setMemos((prev) => [...prev, memo]);
+        setBooks((prev) => [...prev, book]);
         toast.error("먹이기에 실패했어요. 잠시 후 다시 시도해주세요.");
       });
 
@@ -603,7 +499,7 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
   return (
     <section className="relative rounded-2xl border-2 border-[var(--color-honey)]/40 bg-[var(--color-honey)]/5 p-8 shadow-[0_1px_3px_rgba(27,59,54,0.08)] sm:p-10">
       <h2 className="font-display mb-6 text-center text-2xl text-[var(--color-forest)]">
-        사자 성장 & 완독 요약 메모 먹이기
+        사자 성장 & 완독한 책 먹이기
       </h2>
 
       <DndContext onDragEnd={handleDragEnd}>
@@ -611,28 +507,28 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           <LionDropZone exp={exp} isFeeding={isFeeding} level={level} feedAmount={feedAmount} />
 
           <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {memos === null ? (
+            {books === null ? (
               <>
                 <Skeleton variant="rectangular" className="h-24 w-full" />
                 <Skeleton variant="rectangular" className="h-24 w-full" />
               </>
-            ) : memos.length === 0 ? (
+            ) : books.length === 0 ? (
               <p className="col-span-2 py-4 text-center text-sm text-[var(--color-ink)] opacity-50 sm:col-span-3 md:col-span-4">
-                완독하고 요약 메모를 쓰면 여기서 사자에게 먹일 수 있어요! 🦁
+                eBook을 끝까지 읽으면 여기서 사자에게 먹일 수 있어요! 🦁
               </p>
             ) : (
               <AnimatePresence>
-                {memos.map((memo) => (
+                {books.map((book) => (
                   <motion.div
-                    key={memo.bookId}
+                    key={book.bookId}
                     layout
                     exit={{ opacity: 0, scale: 0.7 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <DraggableMemo
-                      id={memo.bookId}
-                      bookTitle={memo.bookTitle}
-                      memoText={memo.memoText}
+                    <DraggableBook
+                      id={book.bookId}
+                      bookTitle={book.bookTitle}
+                      percentage={book.percentage}
                     />
                   </motion.div>
                 ))}
@@ -643,7 +539,7 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
       </DndContext>
 
       <p className="mt-6 flex items-center justify-center gap-1.5 text-sm text-[var(--color-ink)] opacity-50">
-        🐾 사자 입으로 드래그하여 먹이기
+        🐾 완독한 책을 사자 입으로 드래그하여 먹이기
       </p>
 
       <AnimatePresence>
@@ -803,7 +699,7 @@ function LionDropZone({ exp, isFeeding, level, feedAmount }) {
   );
 }
 
-function DraggableMemo({ id, bookTitle, memoText }) {
+function DraggableBook({ id, bookTitle, percentage }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
@@ -821,10 +717,8 @@ function DraggableMemo({ id, bookTitle, memoText }) {
       }`}
     >
       <BookOpen size={20} className="text-[var(--color-forest)]/50" />
-      <span className="text-sm font-medium text-[var(--color-ink)]">{bookTitle}</span>
-      <span className="line-clamp-1 text-[11px] text-[var(--color-ink)] opacity-50">
-        {memoText}
-      </span>
+      <span className="line-clamp-2 text-sm font-medium text-[var(--color-ink)]">{bookTitle}</span>
+      <span className="text-[11px] text-[var(--color-ink)] opacity-50">완독 {percentage}%</span>
       <span className="text-[11px] text-[var(--color-ink)] opacity-40">Drag me</span>
     </button>
   );
@@ -838,21 +732,10 @@ function toSimilarityPercent(citations) {
 }
 
 function LionRagCard() {
-  const [fedMemos, setFedMemos] = useState(null);
   const [question, setQuestion] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | streaming | done
   const [displayedAnswer, setDisplayedAnswer] = useState("");
   const [similarity, setSimilarity] = useState(null);
-
-  useEffect(() => {
-    let ignore = false;
-    getFedMemos().then((data) => {
-      if (!ignore) setFedMemos(data);
-    });
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   const handleAsk = async () => {
     if (!question.trim() || status === "loading" || status === "streaming") return;
@@ -886,34 +769,11 @@ function LionRagCard() {
         </span>
       </h2>
 
-      <div className="mb-4">
-        <p className="mb-2 text-sm font-medium text-[var(--color-ink)] opacity-70">
-          내가 먹인 요약 메모
-        </p>
-        {fedMemos === null ? (
-          <div className="flex flex-col gap-1.5">
-            <Skeleton variant="text" className="w-full" />
-            <Skeleton variant="text" className="w-2/3" />
-          </div>
-        ) : fedMemos.length === 0 ? (
-          <EmptyState message="아직 사자에게 먹인 메모가 없어요. 책을 완독하고 요약을 써서 먹여보세요!" />
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {fedMemos.map((memo) => (
-              <li
-                key={memo.bookId}
-                className="flex items-start gap-2 rounded-xl bg-[var(--color-forest)]/5 px-3 py-2 text-sm"
-              >
-                <Quote size={13} className="mt-0.5 shrink-0 text-[var(--color-forest)]/40" />
-                <span className="text-[var(--color-ink)]">
-                  <span className="font-medium text-[var(--color-forest)]">[{memo.bookTitle}]</span>{" "}
-                  <span className="line-clamp-1">{memo.memoText}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* 사자는 구매한 책의 본문만 근거로 답한다 — 내가 쓴 메모는 검색 대상이 아니다
+          (WikiRagService가 user_summary 벡터를 배제한다). 메모는 아래 "내 메모" 섹션에서 본다. */}
+      <p className="mb-4 text-sm text-[var(--color-ink)] opacity-60">
+        구매한 책의 본문에서 찾아 답해요. 어느 책의 어느 대목인지도 함께 알려줘요.
+      </p>
 
       <form
         onSubmit={(e) => {
@@ -926,7 +786,7 @@ function LionRagCard() {
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="내가 작성한 메모 중 객체지향 관련 있어?"
+          placeholder="객체지향 캡슐화 설명한 부분이 어느 책이야?"
           className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
         />
         <Button

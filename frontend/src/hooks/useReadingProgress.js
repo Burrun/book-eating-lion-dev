@@ -36,7 +36,13 @@ function pickNewerProgress(localProgress, serverProgress) {
   return serverIsNewer ? normalizedServer : localProgress;
 }
 
-function readProgress(bookId) {
+/**
+ * 저장된 이어읽기 위치/진행률을 동기적으로 읽는다. 기록이 없으면 null.
+ *
+ * 훅 밖에서도 쓴다 — 이북 보관함이 책 목록의 진도를 한 번에 그릴 때 책마다 훅을 부를 수는
+ * 없기 때문이다(훅은 조건부/반복 호출이 안 된다).
+ */
+export function readProgress(bookId) {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${bookId}`);
     if (!raw) return null;
