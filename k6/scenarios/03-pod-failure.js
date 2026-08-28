@@ -48,7 +48,9 @@ import { buildReport } from '../lib/report.js';
 
 const aiQuotaExceeded = new Counter('ai_quota_exceeded');
 const aiChaosFailure = new Counter('ai_chaos_failure'); // 5xx/timeout — 이게 진짜 관찰 대상
-const orderChaosFailure = new Counter('order_chaos_failure'); // 5xx/timeout만 — 4xx(재고부족 등)는 정상
+const orderChaosFailure = new Counter('order_chaos_failure'); // 5xx/timeout — 장애 격리 KPI
+const orderPaid = new Counter('order_paid'); // 200 — "성공률 100% 유지" KPI는 이 값 기준으로만 판단할 것
+const orderStockRejected = new Counter('order_stock_rejected'); // 400(재고부족 등) — 5xx는 아니지만 KPI상 "성공"도 아니다
 
 export const options = {
   scenarios: {
@@ -125,11 +127,21 @@ export function orderTraffic(data) {
     ...authHeaders(data.token),
     tags: { name: 'order-during-chaos' },
   });
+  // 5xx/timeout만 장애 격리 KPI에 집계한다 — 그런데 "성공률 100%"는 5xx가 0건이라고
+  // 저절로 참이 되는 게 아니다. book_id=SECONDARY_BOOK_ID 재고가 도중에 바닥나면(반복
+  // 실행 시 실제로 벌어짐 — 위 주석 참고) 400(재고부족)이 나오는데, 이건 5xx가 아니라서
+  // orderChaosFailure엔 안 잡히지만 그렇다고 "주문 성공"도 아니다. 200/400을 따로 세어
+  // order_paid가 전체 시도 수와 같은지로 KPI를 판단할 것 — order_stock_rejected가
+  // 0보다 크면 재고가 소진된 것이니 그 이후 구간은 이 KPI 판단에서 제외해야 한다.
   if (res.status >= 500 || res.status === 0) {
-    orderChaosFailure.add(1); // 5xx/timeout만 장애로 집계 — 400(재고부족 등)은 정상 응답
+    orderChaosFailure.add(1);
+  } else if (res.status === 200) {
+    orderPaid.add(1);
+  } else if (res.status === 400) {
+    orderStockRejected.add(1);
   }
   check(res, { 'not 5xx/timeout': (r) => r.status !== 0 && r.status < 500 });
-  sleep(8); // 6분 동안 재고 100개를 넘지 않도록 페이스 조절(위 주석 참고)
+  sleep(8); // 6분 동안 재고 100개를 넘지 않도록 페이스 조절(위 주석 참고) — 그래도 여유가 크지 않으니 order_stock_rejected를 반드시 확인할 것
 }
 
 export function aiTraffic(data) {
@@ -149,6 +161,10 @@ export function aiTraffic(data) {
 
 export function handleSummary(data) {
   return buildReport('03-pod-failure', data, {
-    note: 'ai_quota_exceeded가 0이 아니면 AI_DAILY_QUOTA를 안 올리고 돌린 것 — ai_chaos_failure(5xx/timeout)만 pod-kill 결과로 신뢰할 것. order_chaos_failure는 "주문/결제 API 성공률 100% 유지" KPI에 대응한다(0이어야 정상).',
+    note:
+      'ai_quota_exceeded가 0이 아니면 AI_DAILY_QUOTA를 안 올리고 돌린 것 — ai_chaos_failure(5xx/timeout)만 pod-kill 결과로 신뢰할 것. ' +
+      '"주문/결제 API 성공률 100% 유지" KPI는 order_chaos_failure(5xx/timeout)가 0인 것만으로는 확정 안 된다 — ' +
+      'order_paid가 전체 주문 시도 수와 같아야 진짜 100%다. order_stock_rejected가 0보다 크면 SECONDARY_BOOK_ID 재고가 ' +
+      '테스트 도중 소진된 것이니, 그 시점 이후 결과는 이 KPI 판단에서 제외하고 DB를 재시드한 뒤 다시 돌릴 것.',
   });
 }
