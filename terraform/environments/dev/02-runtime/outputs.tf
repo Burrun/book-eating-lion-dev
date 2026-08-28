@@ -11,11 +11,11 @@ output "alb_dns_name" {
 }
 
 output "cloudfront_distribution_id" {
-  value = module.edge_routing.cloudfront_distribution_id
+  value = var.enable_edge_routing ? module.edge_routing[0].cloudfront_distribution_id : null
 }
 
 output "public_domain_url" {
-  value = module.edge_routing.public_domain_url
+  value = var.enable_edge_routing ? module.edge_routing[0].public_domain_url : null
 }
 
 output "ai_service_irsa_arn" {

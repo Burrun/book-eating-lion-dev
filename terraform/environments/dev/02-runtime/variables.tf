@@ -17,6 +17,12 @@ variable "domain_name" {
   type = string
 }
 
+variable "enable_edge_routing" {
+  description = "이 분리 dev 클러스터가 dev 도메인의 CloudFront/Route53를 소유할지 여부. 통합 모드에서 integrated가 소유할 때는 false로 설정한다."
+  type        = bool
+  default     = true
+}
+
 variable "bedrock_model_arns" {
   type = list(string)
 }
