@@ -18,7 +18,7 @@ variable "app_security_group_id" {
 variable "engine_version" {
   description = "Aurora PostgreSQL 엔진 버전 - 업그레이드/롤백 시 코드 수정 없이 이 값만 바꾸도록 변수로 분리"
   type        = string
-  default     = "16.4"
+  default     = "16.14"
 }
 
 variable "database_name" {
