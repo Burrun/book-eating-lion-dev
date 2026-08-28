@@ -90,6 +90,13 @@ module "storage" {
 
   frontend_bucket_name = var.frontend_bucket_name
   media_bucket_name    = var.media_bucket_name
+  # 이 00-base가 만드는 미디어 버킷은 이 모드의 prod 서비스용이다(book.ajttk.com) -
+  # dev.ajttk.com은 dev/00-base 소유의 별도 버킷을 그대로 쓴다(module.storage 호출부
+  # 상단 주석 참고).
+  media_cors_allowed_origins = [
+    "https://book.ajttk.com",
+    "https://www.book.ajttk.com",
+  ]
 }
 
 module "container_reg" {

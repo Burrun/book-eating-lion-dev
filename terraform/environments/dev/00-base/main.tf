@@ -58,6 +58,10 @@ module "storage" {
 
   frontend_bucket_name = var.frontend_bucket_name
   media_bucket_name    = var.media_bucket_name
+  media_cors_allowed_origins = [
+    "https://dev.ajttk.com",
+    "https://www.dev.ajttk.com",
+  ]
 }
 
 module "container_reg" {
