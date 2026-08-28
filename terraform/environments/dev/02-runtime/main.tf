@@ -200,6 +200,7 @@ module "ai_service_iam" {
   recommendation_index_arn     = var.recommendation_index_arn
   purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
+  media_bucket_arn             = data.aws_ssm_parameter.media_bucket_arn.value
 }
 
 # CI(scripts/sync-github-config.sh → main-cd.yml)가 k8s/ai/serviceaccount.yaml의

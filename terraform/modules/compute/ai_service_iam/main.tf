@@ -62,6 +62,18 @@ data "aws_iam_policy_document" "permissions" {
     resources = [var.purchase_channel_arn]
   }
 
+  # BookIngestService.ingest()가 ObjectStoragePort.download()로 EPUB 원본을 읽는다.
+  # 이게 없으면 SqsIngestListener가 메시지는 정상 수신하고도 다운로드 단계에서
+  # AccessDeniedException으로 죽는다 - 메시지는 재배달 대상으로 남아 큐만 쌓인다
+  # (2026-08-28 dev 실배포에서 실제로 겪음. catalog_service_iam에는 이미 있었는데
+  # ai_service_iam에는 처음부터 빠져 있었다 - 인제스트는 양쪽 다 이 버킷을 만진다).
+  statement {
+    sid       = "EbookObjectRead"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${var.media_bucket_arn}/*"]
+  }
+
   dynamic "statement" {
     for_each = length(local.vector_index_arns) > 0 ? [1] : []
     content {

@@ -286,6 +286,7 @@ module "ai_service_iam_prod" {
   recommendation_index_arn     = var.prod_recommendation_index_arn
   purchased_book_rag_index_arn = var.prod_purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
+  media_bucket_arn             = data.aws_ssm_parameter.media_bucket_arn.value
 }
 
 resource "aws_ssm_parameter" "ai_service_irsa_arn_prod" {
@@ -308,6 +309,7 @@ module "ai_service_iam_dev" {
   recommendation_index_arn     = var.dev_recommendation_index_arn
   purchased_book_rag_index_arn = var.dev_purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
+  media_bucket_arn             = data.aws_ssm_parameter.dev_media_bucket_arn.value
 }
 
 removed {
@@ -449,7 +451,7 @@ resource "aws_ssm_parameter" "order_service_irsa_arn_integrated_dev" {
 resource "null_resource" "trigger_github_actions" {
   count = var.trigger_github_actions ? 1 : 0
 
-  triggers   = {
+  triggers = {
     always_run = timestamp()
   }
 
