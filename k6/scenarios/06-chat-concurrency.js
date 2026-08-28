@@ -27,6 +27,11 @@
 // 어느 Pod에 소켓을 붙일지 결정한다) — ai-bot이 실제로 다중 Pod(replica 2개 이상)로
 // 떠 있는 환경(EKS)에서 돌려야 의미가 있다.
 //
+// ⚠️ 이 파일엔 `sleep()`을 안 쓴다 — k6/websockets(stable)는 sleep()이 실행되는 동안
+// WS 이벤트 콜백(open/message 등)을 아예 안 돌린다(2026-08-28 실측 확인 — public echo
+// 서버로 격리 재현함). 연결을 유지하고 싶으면 함수를 바로 리턴하고 `setTimeout`으로
+// 종료를 예약할 것 — 소켓이 열려있는 동안은 k6가 알아서 그 iteration을 안 끝낸다.
+//
 // 실행:
 //   k6 run -e TARGET_ENV=eks-msa -e RUN_LABEL=baseline \
 //          -e AI_URL=http://<HOST>:8084 -e WS_URL=ws://<HOST>:8084 \
@@ -36,7 +41,7 @@
 //          k6/scenarios/06-chat-concurrency.js
 import http from 'k6/http';
 import { WebSocket } from 'k6/websockets'; // k6/experimental/websockets는 deprecated — 최신 k6에서 stable 모듈로 교체
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
 import {
   AI_URL,
@@ -148,8 +153,11 @@ export function agentSession(data) {
     }
   });
 
-  sleep(160); // agents 시나리오 전체 구간(2m40s) 동안 연결 유지
-  socket.close();
+  // k6/websockets(stable)는 sleep()이 도는 동안 WS 이벤트 콜백을 아예 안 돌린다(실측
+  // 확인함 — open/message 핸들러가 sleep 중엔 한 번도 안 불림). 그래서 여기서 sleep으로
+  // "기다리는" 대신 함수를 바로 리턴하고, k6가 이 소켓이 열려있는 동안 이 iteration을
+  // 붙들고 있는 것에 기댄다. 종료는 setTimeout으로 예약.
+  setTimeout(() => socket.close(), 160000); // agents 시나리오 전체 구간(2m40s) 동안 연결 유지
 }
 
 export function customerSession(data) {
@@ -200,6 +208,9 @@ export function customerSession(data) {
 
   // k6/websockets는 소켓 메서드가 아니라 전역 setTimeout/clearTimeout을 쓴다
   // (k6/experimental/websockets의 socket.setTimeout()과 다르다 — deprecated API).
+  // sleep()으로 "기다리지" 않는다 — sleep 중엔 이 아래 message 핸들러가 아예 안 불린다
+  // (실측 확인함). 함수는 여기서 바로 리턴하고, 종료는 이 setTimeout과 각 분기의
+  // socket.close()가 맡는다 — 소켓이 열려있는 동안은 k6가 이 iteration을 붙들고 있다.
   const timeoutId = setTimeout(() => {
     if (!done) {
       chatAckTimeout.add(1); // 유실 — 상담사가 못 붙었거나 ack가 안 왔다
@@ -207,8 +218,6 @@ export function customerSession(data) {
       socket.close();
     }
   }, 20000);
-
-  sleep(21);
 }
 
 export function handleSummary(data) {
