@@ -48,8 +48,9 @@ module "waf" {
     aws = aws.us_east_1
   }
 
-  name       = "lion-team3-${var.environment}"
-  rate_limit = var.waf_rate_limit
+  name         = "lion-team3-${var.environment}"
+  rate_limit   = var.waf_rate_limit
+  ip_allowlist = var.waf_ip_allowlist
 }
 
 module "storage" {
