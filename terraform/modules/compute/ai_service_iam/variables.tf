@@ -47,3 +47,8 @@ variable "bedrock_model_arns" {
   description = "실제 사용하는 임베딩/LLM 모델 ARN (Titan Embeddings V2, Claude 등)"
   type        = list(string)
 }
+
+variable "media_bucket_arn" {
+  description = "EPUB 원본이 있는 버킷 ARN (00-base storage 모듈 출력) - BookIngestService가 이 버킷에서 GetObject로 읽는다"
+  type        = string
+}
