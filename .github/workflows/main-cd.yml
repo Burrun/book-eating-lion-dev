@@ -314,6 +314,14 @@ jobs:
           fi
 
           IMAGE="$REGISTRY/$REPOSITORY"
+          # Immutable SHA 태그가 이미 있으면 재빌드/재푸시하지 않는다.
+          if aws ecr describe-images \
+               --repository-name "$REPOSITORY" \
+               --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
+               --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "ECR에 ${{ env.DEPLOY_SHA }} 태그가 이미 있어 빌드와 push를 건너뜁니다."
+            exit 0
+          fi
           # GH-hosted 러너는 매번 새 상태라 로컬 도커 캐시가 없다 - GHA 캐시에
           # 레이어를 저장/재사용해서 매번 처음부터 빌드하는 걸 피한다. 서비스별로
           # scope를 나눠서 4개 서비스 캐시가 서로 안 섞이게 한다. --load로 로컬
@@ -422,6 +430,7 @@ jobs:
       - name: Rollback on failure
         if: failure() && matrix.changed == 'true'
         run: |
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
             kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=300s || true
