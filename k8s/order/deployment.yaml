@@ -33,6 +33,7 @@ spec:
                       values:
                         - order-service
                 topologyKey: "kubernetes.io/hostname"
+      serviceAccountName: order-service
       containers:
         - name: order-service
           image: "${ECR_REGISTRY}/${ECR_ORDER_REPO}:${IMAGE_TAG}"

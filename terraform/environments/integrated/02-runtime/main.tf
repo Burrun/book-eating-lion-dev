@@ -81,6 +81,10 @@ data "aws_ssm_parameter" "cognito_user_pool_arn" {
   name = "${local.ssm_prefix}/auth/user_pool_arn"
 }
 
+data "aws_ssm_parameter" "media_bucket_arn" {
+  name = "${local.ssm_prefix}/storage/media_bucket_arn"
+}
+
 # ── dev 네임스페이스용 IRSA가 참조할, dev의 기존(별도) SQS/Cognito ──────
 # dev/01-data가 만든 자원을 그대로 재사용한다 (edge_routing_dev와 같은 패턴).
 # prod용 위 4개 data source(/integrated/...)와는 완전히 다른 실제 자원을 가리킨다 -
@@ -95,6 +99,10 @@ data "aws_ssm_parameter" "dev_ai_purchase_channel_arn" {
 
 data "aws_ssm_parameter" "dev_cognito_user_pool_arn" {
   name = "/dev/auth/user_pool_arn"
+}
+
+data "aws_ssm_parameter" "dev_media_bucket_arn" {
+  name = "/dev/storage/media_bucket_arn"
 }
 
 # ── 1. EKS 클러스터 (최초 apply 시 -target으로 먼저 만들 것) ────────
@@ -361,12 +369,87 @@ resource "aws_ssm_parameter" "member_service_irsa_arn_integrated_dev" {
   value = module.member_service_iam_dev.member_service_irsa_arn
 }
 
+# ── 6-1. catalog-service IRSA (EPUB Presigned URL 발급용) ──────────
+# dev/prod 같은 클러스터를 namespace로만 나누므로 ai/member와 동일하게 Role을 둘로
+# 나눈다(catalog_service_iam 모듈 주석 참고).
+module "catalog_service_iam_prod" {
+  source = "../../../modules/compute/catalog_service_iam"
+
+  environment        = "${var.environment}-prod"
+  namespace          = var.prod_namespace
+  oidc_provider_arn  = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url  = module.eks_cluster.oidc_provider_url
+  media_bucket_arn   = data.aws_ssm_parameter.media_bucket_arn.value
+  ingest_channel_arn = data.aws_ssm_parameter.ai_ingest_channel_arn.value
+}
+
+resource "aws_ssm_parameter" "catalog_service_irsa_arn_prod" {
+  name  = "${local.ssm_prefix}/catalog/service_irsa_arn"
+  type  = "String"
+  value = module.catalog_service_iam_prod.catalog_service_irsa_arn
+}
+
+# dev 워크로드용. dev/00-base의 기존 media 버킷을 그대로 참조한다 - prod
+# 버킷과 완전히 별개라, dev Role은 prod EPUB 객체에 손을 못 댄다.
+module "catalog_service_iam_dev" {
+  source = "../../../modules/compute/catalog_service_iam"
+
+  environment        = "${var.environment}-dev"
+  namespace          = var.dev_namespace
+  oidc_provider_arn  = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url  = module.eks_cluster.oidc_provider_url
+  media_bucket_arn   = data.aws_ssm_parameter.dev_media_bucket_arn.value
+  ingest_channel_arn = data.aws_ssm_parameter.dev_ai_ingest_channel_arn.value
+}
+
+resource "aws_ssm_parameter" "catalog_service_irsa_arn_integrated_dev" {
+  name  = "${local.ssm_prefix}/dev/catalog/service_irsa_arn"
+  type  = "String"
+  value = module.catalog_service_iam_dev.catalog_service_irsa_arn
+}
+
+# ── 6-2. order-service IRSA (구매 확정 SQS 발행용) ─────────────────
+# catalog_service_iam과 같은 이유로 namespace별 Role 2개(모듈 주석 참고).
+module "order_service_iam_prod" {
+  source = "../../../modules/compute/order_service_iam"
+
+  environment          = "${var.environment}-prod"
+  namespace            = var.prod_namespace
+  oidc_provider_arn    = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url    = module.eks_cluster.oidc_provider_url
+  purchase_channel_arn = data.aws_ssm_parameter.ai_purchase_channel_arn.value
+}
+
+resource "aws_ssm_parameter" "order_service_irsa_arn_prod" {
+  name  = "${local.ssm_prefix}/order/service_irsa_arn"
+  type  = "String"
+  value = module.order_service_iam_prod.order_service_irsa_arn
+}
+
+# dev 워크로드용. dev/01-data의 기존 구매 큐를 그대로 참조한다 - prod 큐와 완전히
+# 별개라, dev Role은 prod 구매 이벤트에 손을 못 댄다.
+module "order_service_iam_dev" {
+  source = "../../../modules/compute/order_service_iam"
+
+  environment          = "${var.environment}-dev"
+  namespace            = var.dev_namespace
+  oidc_provider_arn    = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url    = module.eks_cluster.oidc_provider_url
+  purchase_channel_arn = data.aws_ssm_parameter.dev_ai_purchase_channel_arn.value
+}
+
+resource "aws_ssm_parameter" "order_service_irsa_arn_integrated_dev" {
+  name  = "${local.ssm_prefix}/dev/order/service_irsa_arn"
+  type  = "String"
+  value = module.order_service_iam_dev.order_service_irsa_arn
+}
+
 # ── 7. apply 후 GitHub Actions 자동 실행 (trigger_github_actions=true일 때만) ──
 # apply 실행한 로컬 PC에서 `gh workflow run`을 쏜다. gh CLI 설치 + 로그인 필요.
 resource "null_resource" "trigger_github_actions" {
   count = var.trigger_github_actions ? 1 : 0
 
-  triggers = {
+  triggers   = {
     always_run = timestamp()
   }
 

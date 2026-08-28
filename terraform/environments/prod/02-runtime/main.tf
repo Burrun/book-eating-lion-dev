@@ -46,6 +46,10 @@ data "aws_ssm_parameter" "cognito_user_pool_arn" {
   name = "${local.ssm_prefix}/auth/user_pool_arn"
 }
 
+data "aws_ssm_parameter" "media_bucket_arn" {
+  name = "${local.ssm_prefix}/storage/media_bucket_arn"
+}
+
 # ── 1. EKS 클러스터 (최초 apply 시 -target으로 먼저 만들 것) ────────
 module "eks_cluster" {
   source = "../../../modules/compute/eks_cluster"
@@ -155,4 +159,46 @@ resource "aws_ssm_parameter" "member_service_irsa_arn" {
   name  = "${local.ssm_prefix}/member/service_irsa_arn"
   type  = "String"
   value = module.member_service_iam.member_service_irsa_arn
+}
+
+# ── 6. catalog-service IRSA (EPUB Presigned URL 발급용) ───────────
+# dev/02-runtime과 동일한 이유(catalog_service_iam 모듈 주석 참고).
+module "catalog_service_iam" {
+  source = "../../../modules/compute/catalog_service_iam"
+
+  environment        = var.environment
+  oidc_provider_arn  = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url  = module.eks_cluster.oidc_provider_url
+  media_bucket_arn   = data.aws_ssm_parameter.media_bucket_arn.value
+  ingest_channel_arn = data.aws_ssm_parameter.ai_ingest_channel_arn.value
+}
+
+# CI가 k8s/catalog/serviceaccount.yaml의 eks.amazonaws.com/role-arn 애노테이션을
+# 채우려면 이 값을 SSM으로 받아야 한다. ai_service_irsa_arn과 동일한 이유.
+resource "aws_ssm_parameter" "catalog_service_irsa_arn" {
+  name  = "${local.ssm_prefix}/catalog/service_irsa_arn"
+  type  = "String"
+  value = module.catalog_service_iam.catalog_service_irsa_arn
+}
+
+# ── 7. order-service IRSA (구매 확정 SQS 발행용) ────────────────
+# order-service도 IRSA가 없어 default ServiceAccount로 떴고, SqsBookPurchasePublisher의
+# sendMessage가 자격증명 없이 실패했다. 이 발행자는 예외를 삼키고 로그만 남기므로
+# 결제 자체는 성공한 것처럼 보이고, ai_db.purchased_books가 비어 RAG가 "구매한 책에서
+# 근거를 찾지 못했습니다"만 반환하는 형태로만 증상이 드러났다.
+module "order_service_iam" {
+  source = "../../../modules/compute/order_service_iam"
+
+  environment          = var.environment
+  oidc_provider_arn    = module.eks_cluster.oidc_provider_arn
+  oidc_provider_url    = module.eks_cluster.oidc_provider_url
+  purchase_channel_arn = data.aws_ssm_parameter.ai_purchase_channel_arn.value
+}
+
+# CI가 k8s/order/serviceaccount.yaml의 eks.amazonaws.com/role-arn 애노테이션을
+# 채우려면 이 값을 SSM으로 받아야 한다. ai_service_irsa_arn과 동일한 이유.
+resource "aws_ssm_parameter" "order_service_irsa_arn" {
+  name  = "${local.ssm_prefix}/order/service_irsa_arn"
+  type  = "String"
+  value = module.order_service_iam.order_service_irsa_arn
 }
