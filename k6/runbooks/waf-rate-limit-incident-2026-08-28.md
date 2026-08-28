@@ -87,15 +87,23 @@ HPA/pod 상태를 관찰하려면(예: `09-hpa-metric-comparison.js`) 실제 VPC
 
 ---
 
-## 남은 일 (미해결, 우선순위순)
+## 후속 조치 결과 (2026-08-28 업데이트)
 
-1. **NLB 공개 노출 보안 이슈 수정** — 부하테스트보다 우선순위 높음. 팀에 공유 필요.
-2. **부하테스트가 rate-limit에 안 걸리게 할 방법 결정** — 후보:
-   - k6를 여러 소스 IP에서 분산 실행(운영 트래픽과 가장 비슷한 방식, 보안 변경 불필요)
-   - `rate-limit` 규칙에 알려진 테스트 IP 하나만 `scope_down_statement`로 예외 처리(범위 좁고 되돌리기 쉬움) — 초안 작성했다가 보류함(2번 결정 전까지 대기)
-   - (기각됨) NLB를 그냥 열어두고 직접 때리기 — 보안 이슈와 같은 구멍이라 안 됨
-3. **위 결정 이후에만** `01`/`02`/`03`/`05`/`07`/`08`/`09`를 실제로 재시도 — 그 전까지는
-   dev.ajttk.com이든 NLB든 추가 부하 X.
+1. **NLB 공개 노출 보안 이슈** — ✅ 해결됨. NLB 보안그룹을 CloudFront 관리형 prefix
+   list(`pl-22a6434b`)로 제한 — 재확인 결과 NLB 직접 접근 `code=000`으로 막힘.
+2. **rate-limit 예외** — `ip-allowlist` 규칙(IPSetReferenceStatement, Allow)으로 처리됨.
+   **단, 처음엔 `lion-team3-dev`가 아니라 `lion-team3-integrated` WebACL에 잘못
+   들어가서 한동안 계속 막혔다** — `aws wafv2 get-web-acl`로 어느 WebACL에 뭐가
+   있는지 직접 대조해서 찾아냄. `lion-team3-integrated`(book.ajttk.com) 기준으론
+   정상 동작 확인(2026-08-28, `capacity-and-cost-guide.md` §6).
+3. **`dev.ajttk.com`(WebACL `lion-team3-dev`)은 여전히 이 예외가 없다** — 미해결로
+   남겨둠. dev 대상 테스트가 다시 필요해지면 같은 예외를 `lion-team3-dev`에도
+   추가해야 함.
+4. `scope_down_statement`로 rate-limit 규칙 자체를 수정하는 초안(README §0-12 참고)은
+   실제로 쓰이지 않음 — 팀은 대신 별도 `ip-allowlist` 규칙(Priority 0, Allow)을
+   추가하는 방식을 택함. 이 방식은 매칭되는 IP에 대해 **rate-limit뿐 아니라
+   `aws-managed-common`(OWASP)까지 전부 우회**한다는 점을 감안할 것 — 테스트 IP가
+   신뢰할 수 있는 소스일 때만 써야 한다.
 
 ## 관련 문서
 
