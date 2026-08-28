@@ -1672,13 +1672,6 @@ components:
         data:
           $ref: "#/components/schemas/BookDetail"
 
-    BookSynopsisDetail:
-      type: object
-      properties:
-        bookId: { type: integer, format: int64 }
-        title: { type: string }
-        detailedSynopsis: { type: string }
-
     BookSynopsisDetailEnvelope:
       type: object
       properties:
@@ -1713,13 +1706,6 @@ components:
         success: { type: boolean }
         data:
           $ref: "#/components/schemas/EbookAccess"
-
-    BookSynopsisDetailEnvelope:
-      type: object
-      properties:
-        success: { type: boolean }
-        data:
-          $ref: "#/components/schemas/BookSynopsisDetail"
 
     ReviewEnvelope:
       type: object

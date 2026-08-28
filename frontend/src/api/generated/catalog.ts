@@ -28,7 +28,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** 도서 검색 */
+    /**
+     * 도서 검색
+     * @description 검색어로 도서를 조회하고, 로그인 사용자의 검색어를 추천 행동 로그로 기록한다. 자동완성은 제공하지 않는다.
+     */
     get: operations["searchBooks"];
     put?: never;
     post?: never;
@@ -45,7 +48,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** 베스트셀러 목록 */
+    /**
+     * 베스트셀러 목록
+     * @description 판매 중인 도서를 누적 판매량 내림차순으로 조회한다.
+     */
     get: operations["getBestsellers"];
     put?: never;
     post?: never;
@@ -62,7 +68,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** 신간 목록 */
+    /**
+     * 신간 목록
+     * @description 판매 중인 도서를 출간일 내림차순으로 조회한다.
+     */
     get: operations["getNewReleases"];
     put?: never;
     post?: never;
@@ -170,6 +179,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/catalog/admin/books/ingest-index/rebuild": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 기존 EPUB 도서 전체 재인제스트 요청
+     * @description 삭제되지 않고 EPUB S3 Key가 있는 도서를 SQS 인제스트 파이프라인에 다시 발행한다.
+     */
+    post: operations["rebuildEbookIndex"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/catalog/admin/categories": {
     parameters: {
       query?: never;
@@ -239,8 +268,8 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * 상세 줄거리
-     * @description 줄거리는 도서 상세에 기본 제공되고, 이 경로는 구독 회원용 상세 줄거리다.
+     * 도서 상세 줄거리 조회
+     * @description 저장된 상세 줄거리 텍스트를 반환한다. 구매·구독 권한 검증과 웹툰형 요약 이미지는 아직 제공하지 않는다.
      */
     get: operations["getSynopsisDetail"];
     put?: never;
@@ -325,6 +354,119 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/catalog/books/{bookId}/highlights": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * 하이라이트 메모 저장
+     * @description EPUB 뷰어에서 문장을 더블클릭(문장 단위)하거나 드래그(범위 선택)해 긁은 원문과 메모를
+     *     저장한다. 책 하나에 여러 개가 쌓인다 — 예전의 "완독 요약 메모"(책당 1개 upsert)와 달리
+     *     append 다.
+     *
+     *     `selectedText` 의 길이 상한은 서버 설정 `catalog.highlight.max-selected-chars`(기본
+     *     500자)다. 요구사항은 "한 번에 1페이지까지"였지만 epub.js 의 화면 페이지는 창 크기·폰트에
+     *     따라 경계가 달라져 저장 규칙으로 쓸 수 없어 글자 수로 대신 건다. 상한을 넘기면 잘라
+     *     저장하지 않고 400(INVALID_REQUEST)으로 거절한다.
+     *
+     *     🔴 이 텍스트는 벡터로 적재되지 않는다. 사자 RAG 는 책 본문만 근거로 쓴다.
+     */
+    post: operations["createBookHighlight"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/members/me/highlights": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 내 하이라이트 메모 목록
+     * @description 마이페이지 "내 메모" 섹션이 그린다. 책 구분 없이 최신순으로 전부 나온다.
+     */
+    get: operations["listMyHighlights"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/highlights/{highlightId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * 하이라이트 메모 삭제
+     * @description 남의 메모는 404 다 — 403 과 구분해 주면 존재 여부 자체가 새어나간다.
+     */
+    delete: operations["deleteBookHighlight"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/members/me/books/feedable": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 사자에게 먹일 수 있는 완독 책 목록
+     * @description LionFeedingCard 가 그리는 드래그 카드 목록이다. 완독했고(`percentage` >= 서버 설정
+     *     `catalog.reading.completion-percentage`, 기본 95) 아직 안 먹인(`fedAt` null) 책만 나온다.
+     *     완독 임계값은 서버가 정한다 — 클라이언트는 그 값을 몰라도 된다.
+     */
+    get: operations["listFeedableBooks"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/books/{bookId}/reading-progress/fed": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * 이 책을 사자에게 먹였다는 표시
+     * @description `POST /api/ai/lion/feed` 호출이 성공한 직후 프론트가 이어서 부른다. 실제 EXP/사자 상태의
+     *     소유권은 ai-service 에 있고, 여기 fedAt 은 "먹일 수 있는 책" 목록을 거르기 위한 로컬
+     *     표시일 뿐이다. 멱등하다 — 다시 불러도 시각만 갱신된다.
+     */
+    patch: operations["markBookFed"];
+    trace?: never;
+  };
   "/api/catalog/wishlist/me": {
     parameters: {
       query?: never;
@@ -334,6 +476,26 @@ export interface paths {
     };
     /** 내 찜 목록 */
     get: operations["getMyWishlist"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/reviews/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 내가 작성한 리뷰 목록
+     * @description JWT sub와 일치하는 회원의 리뷰를 최신 작성순으로 반환한다.
+     */
+    get: operations["getMyReviews"];
     put?: never;
     post?: never;
     delete?: never;
@@ -410,6 +572,27 @@ export interface paths {
     };
     /** 최근 본 상품 */
     get: operations["getMyRecentBooks"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/catalog/ebooks/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * 내 이북 보관함
+     * @description review_permissions(구매 확정 스냅샷)에 있는 도서 중 eBook(epub_s3_key)이 있는 것만 반환한다.
+     *     마이페이지에서 이 목록을 눌러 바로 리더를 연다.
+     */
+    get: operations["getMyEbooks"];
     put?: never;
     post?: never;
     delete?: never;
@@ -796,10 +979,7 @@ export interface components {
        * @example 12
        */
       reviewCount: number;
-      /**
-       * @description EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라 null 이 될 수 없다.
-       *     목록 화면의 "전자책" 필터(hasEbook)가 이 값을 근거로 삼는다.
-       */
+      /** @description EPUB 객체 키 등록 여부. Book.isEbookAvailable() — epubS3Key != null 이라 null 이 될 수 없다. 목록 화면의 "전자책" 필터(hasEbook)가 이 값을 근거로 삼는다. */
       ebookAvailable: boolean;
     };
     BookDetail: components["schemas"]["BookSummary"] & {
@@ -836,6 +1016,17 @@ export interface components {
        * @example 테스트유저
        */
       nickname?: string;
+      rating: number;
+      content: string;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    MemberReview: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      bookId: number;
+      bookTitle: string;
       rating: number;
       content: string;
       /** Format: date-time */
@@ -967,6 +1158,33 @@ export interface components {
     };
     ReadingProgressRequest: {
       cfi: string;
+      percentage?: number | null;
+    };
+    BookHighlight: {
+      /** Format: int64 */
+      highlightId?: number;
+      /** Format: int64 */
+      bookId?: number;
+      bookTitle?: string;
+      /** @description 선택 구간의 EPUB CFI range. 뷰어가 원문 위치로 돌아가는 데 쓴다. */
+      cfiRange?: string;
+      /** @description 사용자가 긁은 원문. 길이 상한은 서버 설정이 정한다(기본 500자). */
+      selectedText?: string;
+      /** @description 원문에 덧붙인 사용자의 말. 비어 있을 수 있다(형광펜만 그은 경우). */
+      memoText?: string | null;
+      /** Format: date-time */
+      createdAt?: string;
+    };
+    BookHighlightRequest: {
+      cfiRange: string;
+      selectedText: string;
+      memoText?: string | null;
+    };
+    FeedableBook: {
+      /** Format: int64 */
+      bookId?: number;
+      bookTitle?: string;
+      coverImageUrl?: string | null;
       percentage?: number | null;
     };
     ReviewUpdateRequest: {
@@ -1133,10 +1351,20 @@ export interface components {
       success?: boolean;
       data?: components["schemas"]["BookDetail"];
     };
+    BookSynopsisDetailEnvelope: {
+      success?: boolean;
+      data?: components["schemas"]["BookSynopsisDetail"];
+    };
     EbookAccess: {
       /** Format: int64 */
       bookId: number;
       ebookAvailable: boolean;
+      /**
+       * @description 구매 확정(review_permissions) 여부. 열람 가능 여부와 다르다 — 열람은 구매 OR 구독이지만
+       *     사자 RAG 검색 권한은 구매 이벤트(ai_db.purchased_books)만 근거로 삼는다. 뷰어가 이 값으로
+       *     사자 진입점 노출 여부를 정한다.
+       */
+      purchased: boolean;
       /** @description eBook 미지원이면 null. 운영에서는 만료되는 S3 Presigned URL. */
       presignedUrl?: string | null;
       /** Format: date-time */
@@ -1146,13 +1374,13 @@ export interface components {
       success?: boolean;
       data?: components["schemas"]["EbookAccess"];
     };
-    BookSynopsisDetailEnvelope: {
-      success?: boolean;
-      data?: components["schemas"]["BookSynopsisDetail"];
-    };
     ReviewEnvelope: {
       success?: boolean;
       data?: components["schemas"]["Review"];
+    };
+    MemberReviewListEnvelope: {
+      success?: boolean;
+      data?: components["schemas"]["MemberReview"][];
     };
     ReviewPageEnvelope: {
       success?: boolean;
@@ -1165,6 +1393,18 @@ export interface components {
       success?: boolean;
       /** @description 한 번도 읽지 않은 책이면 null. */
       data?: components["schemas"]["ReadingProgress"] | null;
+    };
+    BookHighlightEnvelope: {
+      success?: boolean;
+      data?: components["schemas"]["BookHighlight"];
+    };
+    BookHighlightListEnvelope: {
+      success?: boolean;
+      data?: components["schemas"]["BookHighlight"][];
+    };
+    FeedableBookListEnvelope: {
+      success?: boolean;
+      data?: components["schemas"]["FeedableBook"][];
     };
   };
   responses: never;
@@ -1216,7 +1456,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description 조회 성공 */
+      /** @description 검색 성공 */
       200: {
         headers: {
           [name: string]: unknown;
@@ -1481,6 +1721,24 @@ export interface operations {
     requestBody?: never;
     responses: {
       /** @description 발행 대상 도서 수 반환 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  rebuildEbookIndex: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 발행 대상 EPUB 도서 수 반환 */
       200: {
         headers: {
           [name: string]: unknown;
@@ -1762,6 +2020,13 @@ export interface operations {
           "application/json": components["schemas"]["EbookAccessEnvelope"];
         };
       };
+      /** @description 구매하지 않은 도서 (EBOOK_OWNERSHIP_REQUIRED) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND) */
       404: {
         headers: {
@@ -1840,6 +2105,140 @@ export interface operations {
       };
     };
   };
+  createBookHighlight: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        bookId: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BookHighlightRequest"];
+      };
+    };
+    responses: {
+      /** @description 저장 성공 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BookHighlightEnvelope"];
+        };
+      };
+      /** @description 선택한 원문이 상한을 넘음 (INVALID_REQUEST) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 존재하지 않거나 삭제된 도서 (BOOK_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listMyHighlights: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 목록 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BookHighlightListEnvelope"];
+        };
+      };
+    };
+  };
+  deleteBookHighlight: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        highlightId: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 삭제 완료 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 내 메모 중에 그 id 가 없음 (HIGHLIGHT_NOT_FOUND) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listFeedableBooks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 목록 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FeedableBookListEnvelope"];
+        };
+      };
+    };
+  };
+  markBookFed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        bookId: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 처리 완료 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description 독서 기록이 없음(먼저 읽어야 한다) */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getMyWishlist: {
     parameters: {
       query?: never;
@@ -1856,6 +2255,26 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["BookSummaryListEnvelope"];
+        };
+      };
+    };
+  };
+  getMyReviews: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 조회 성공 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberReviewListEnvelope"];
         };
       };
     };
@@ -2015,6 +2434,26 @@ export interface operations {
       query?: {
         limit?: number;
       };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description 조회 성공 */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BookSummaryListEnvelope"];
+        };
+      };
+    };
+  };
+  getMyEbooks: {
+    parameters: {
+      query?: never;
       header?: never;
       path?: never;
       cookie?: never;
