@@ -3,9 +3,47 @@ import { createPortal } from "react-dom";
 import { ReactReader } from "react-reader";
 import { X } from "lucide-react";
 import { useReadingProgress } from "../hooks/useReadingProgress.js";
+import { createHighlight } from "../api/bookHighlight.ts";
+import { MAX_SELECTED_CHARS } from "../constants/highlight.ts";
 import ErrorBoundary from "./ErrorBoundary.jsx";
+import HighlightComposer from "./HighlightComposer.jsx";
+import { useToast } from "./Toast.jsx";
 
 const LOCATIONS_KEY_PREFIX = "locations:";
+
+// 드래그 선택은 mouseup으로 잡는데, 더블클릭도 mouseup을 두 번 거친다. 이 시간만큼 미뤘다가
+// dblclick이 안 오면 그때 드래그로 확정한다 — 브라우저의 더블클릭 판정 간격과 같은 수준이다.
+const SELECTION_SETTLE_MS = 200;
+
+// 문장 끝으로 볼 문자. 한국어 본문에도 영문 마침표가 그대로 쓰여 라틴/전각을 함께 본다.
+const SENTENCE_END = /[.!?。！？]/;
+
+/**
+ * 더블클릭이 만든 "단어" 선택을 그 단어가 속한 문장으로 넓힌다.
+ *
+ * 브라우저의 더블클릭은 단어까지만 선택한다. 요구사항은 문장 단위라 앞뒤로 문장 부호를
+ * 만날 때까지 훑어 범위를 다시 만든다. 선택이 텍스트 노드 하나 안에 있을 때만 한다 —
+ * 노드를 넘나드는 경우(문장 중간에 <em>이 낀 경우 등)는 원래 선택을 그대로 둔다. 드물고,
+ * 잘못 넓히면 엉뚱한 곳까지 긁히기 때문이다.
+ */
+function expandToSentence(range) {
+  const node = range.startContainer;
+  if (node !== range.endContainer || node.nodeType !== 3) return range;
+
+  const text = node.textContent ?? "";
+  let start = range.startOffset;
+  let end = range.endOffset;
+
+  while (start > 0 && !SENTENCE_END.test(text[start - 1])) start -= 1;
+  while (start < end && /\s/.test(text[start])) start += 1;
+  while (end < text.length && !SENTENCE_END.test(text[end])) end += 1;
+  if (end < text.length) end += 1;
+
+  const expanded = node.ownerDocument.createRange();
+  expanded.setStart(node, start);
+  expanded.setEnd(node, end);
+  return expanded;
+}
 
 function safeGetItem(key) {
   try {
@@ -32,6 +70,9 @@ function safeSetItem(key, value) {
  */
 export default function EbookViewer({ isOpen, onClose, url, title, bookId, onProgressChange }) {
   const { initialCfi, saveLocation } = useReadingProgress(bookId);
+  const toast = useToast();
+  // 긁은 문장 + 그 위치. null 이면 작성 패널을 안 띄운다.
+  const [draft, setDraft] = useState(null);
   // 저장된 이어읽기 위치(없으면 처음부터)로 시작한다. 이후로는 locationChanged가 갱신한다.
   const [location, setLocation] = useState(initialCfi);
   const [isIndexing, setIsIndexing] = useState(false);
@@ -47,6 +88,7 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
   if (renderedBookId !== bookId) {
     setRenderedBookId(bookId);
     setLocation(null);
+    setDraft(null);
   }
 
   // ref 리셋은 렌더 중이 아니라 이펙트에서 한다 — refs-in-render 규칙은 렌더 함수 본문에서의
@@ -97,6 +139,47 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
       if (cacheKey) safeSetItem(cacheKey, book.locations.save());
     });
 
+    // 본문은 iframe 안이라 바깥 문서의 이벤트로는 선택을 잡을 수 없다. 렌더된 문서마다
+    // 직접 리스너를 단다(react-reader가 챕터를 새로 그릴 때마다 이 훅이 다시 불린다).
+    rendition.hooks.content.register((contents) => {
+      let settleTimer = null;
+
+      const capture = () => {
+        const selection = contents.window.getSelection();
+        if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        const text = selection.toString().trim();
+        if (!text) return;
+
+        // 🔴 넘치면 잘라서 저장하지 않는다. 조용히 자르면 사용자는 자기가 긁은 문장이
+        // 어디서 끊겼는지 모른 채 반쪽짜리 인용을 갖게 된다.
+        if (text.length > MAX_SELECTED_CHARS) {
+          toast.error(
+            `한 번에 ${MAX_SELECTED_CHARS}자까지 저장할 수 있어요 (선택 ${text.length}자).`,
+          );
+          return;
+        }
+
+        setDraft({ cfiRange: contents.cfiFromRange(range), selectedText: text });
+      };
+
+      contents.document.addEventListener("mouseup", () => {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(capture, SELECTION_SETTLE_MS);
+      });
+
+      contents.document.addEventListener("dblclick", () => {
+        clearTimeout(settleTimer);
+        const selection = contents.window.getSelection();
+        if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+        const expanded = expandToSentence(selection.getRangeAt(0));
+        selection.removeAllRanges();
+        selection.addRange(expanded);
+        capture();
+      });
+    });
+
     // react-reader의 locationChanged prop은 epub.js "locationChanged" 이벤트를 거치며 현재
     // 페이지의 "시작 지점" CFI/퍼센트만 넘겨준다 — 끝까지 다 읽어도 마지막 페이지의 시작
     // 지점은 항상 책의 진짜 끝보다 앞이라 100%가 절대 안 찍히는 구조적 한계가 있다(그래서
@@ -121,6 +204,16 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
       // 완독 요약 메모 UI가 새로고침 없이 바로 뜨게 한다.
       if (typeof percentage === "number") onProgressChange?.(percentage);
     });
+  };
+
+  const handleSaveHighlight = async (memoText) => {
+    try {
+      await createHighlight(bookId, { ...draft, memoText });
+      setDraft(null);
+      toast.success("메모를 저장했어요. 마이페이지 '내 메모'에서 볼 수 있어요.");
+    } catch {
+      toast.error("메모를 저장하지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   useEffect(() => {
@@ -150,8 +243,12 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
           <h2 className="line-clamp-1 font-display text-base text-[var(--color-forest)] sm:text-lg">
             {title ?? "전자책 뷰어"}
           </h2>
-          {isIndexing && (
+          {isIndexing ? (
             <span className="shrink-0 text-xs text-[var(--color-forest)]/50">진행률 계산 중…</span>
+          ) : (
+            <span className="hidden shrink-0 text-xs text-[var(--color-forest)]/50 sm:inline">
+              문장을 더블클릭하거나 드래그하면 메모를 남길 수 있어요
+            </span>
           )}
         </div>
         <button
@@ -191,6 +288,14 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
           />
         </ErrorBoundary>
       </div>
+
+      {draft && (
+        <HighlightComposer
+          selectedText={draft.selectedText}
+          onSave={handleSaveHighlight}
+          onCancel={() => setDraft(null)}
+        />
+      )}
     </div>,
     document.body,
   );

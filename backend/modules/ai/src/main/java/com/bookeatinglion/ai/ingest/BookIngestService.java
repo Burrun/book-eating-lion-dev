@@ -26,8 +26,8 @@ import org.springframework.stereotype.Service;
  * 벡터 적재 → {@code wiki_books} 등록.
  *
  * <p>🔴 <b>순서가 계약이다.</b> {@code wiki_books} 에 행이 있다는 것은 이 책 본문이 검색
- * 가능하다는 뜻이다("먹일 수 있는 메모" 판단과는 별개 — 그건 이제 catalog-service의
- * book_memos가 안다). 그래서 벡터 적재와 건수 검증이 끝난 <b>뒤에만</b> 등록한다.
+ * 가능하다는 뜻이다("먹일 수 있는 책" 판단과는 별개 — 그건 catalog-service의
+ * reading_progress가 안다). 그래서 벡터 적재와 건수 검증이 끝난 <b>뒤에만</b> 등록한다.
  * 반대로 하면 벡터가 반만 들어간 책이 검색 대상으로 노출된다.
  *
  * <p>🔴 <b>멱등하다.</b> 벡터 키가 {@code {bookId}#{page}#{chunkSeq}} 로 결정적이고 적재 전에

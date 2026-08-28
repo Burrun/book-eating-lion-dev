@@ -37,16 +37,18 @@ export async function fetchLionStatus() {
   return unwrap(apiClient.get("/ai/lion/me"));
 }
 
-// POST /api/ai/lion/feed — 완독 요약 메모 먹이기(임베딩+적재+EXP, 동기).
-// 응답은 GET /api/ai/lion/me 와 같은 형태(LionStatus)다.
-// exp는 멱등(같은 책 다시 먹여도 중복 안 오름)이지만 벡터는 항상 최신 memoText로 갱신된다 —
-// 메모를 고쳐 쓴 뒤 다시 먹이면 RAG가 아는 내용도 최신으로 바뀐다.
-export async function feedLion(bookId, bookTitle, memoText) {
+// POST /api/ai/lion/feed — 완독한 책 먹이기(EXP만 오른다).
+// 응답은 GET /api/ai/lion/me 와 같은 형태(LionStatus)다. exp는 멱등이라 같은 책을 다시
+// 먹여도 중복으로 오르지 않는다.
+//
+// 🔴 여기서 검색 인덱스는 건드리지 않는다. 책 본문 벡터는 관리자 배치가 이미 넣어뒀고,
+// 사용자가 쓴 메모는 애초에 RAG 근거로 쓰지 않는다.
+export async function feedLion(bookId) {
   if (USE_MOCK) return mockDelay(mockFeedLion(bookId));
-  return unwrap(apiClient.post("/ai/lion/feed", { bookId, bookTitle, memoText }));
+  return unwrap(apiClient.post("/ai/lion/feed", { bookId }));
 }
 
-// POST /api/ai/lion/ask — 구매한 책 본문/완독 메모에 대한 RAG 질의
+// POST /api/ai/lion/ask — 구매한 책 본문에 대한 RAG 질의(내가 쓴 메모는 근거에서 빠진다)
 // 🔴 요청 필드는 question 이 아니라 query 다(AskRequest).
 // 응답: { mode, grounded, answer, citations[] } — 근거를 못 찾아도 200 이고
 // grounded: false 에 answer 는 고정 문구다.

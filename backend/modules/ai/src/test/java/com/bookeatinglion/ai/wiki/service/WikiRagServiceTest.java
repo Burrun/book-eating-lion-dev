@@ -210,23 +210,39 @@ class WikiRagServiceTest {
 
         ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
         verify(ai).complete(prompt.capture(), anyString());
-        assertThat(prompt.getValue()).contains("[1] (책 본문) 책1 7쪽").contains("본문 1-7");
+        assertThat(prompt.getValue()).contains("[1] 책1 7쪽").contains("본문 1-7");
     }
 
-    /** 다른 회원이 쓴 메모는 같은 책을 봐도 되는 사이라도 새어나가면 안 된다. */
+    /**
+     * 사자는 책 본문만 인용한다. 내가 쓴 메모도 예외가 아니다 — 인덱스에 남아 있는 옛 메모
+     * 벡터가 답변에 섞이면 "어느 책의 어느 대목인가"라는 질문의 출처가 흐려진다.
+     */
     @Test
-    void 다른_회원의_메모는_인용에서_빠진다() {
+    void 메모_벡터는_내_것이든_남의_것이든_인용에서_빠진다() {
         fed(1L);
         Match others = new Match(1L, "책1", 3, "남의 메모", 0.15, "user_summary", "other-member-sub");
-        Match mine = new Match(1L, "책1", 4, "내 메모", 0.2, "user_summary", MEMBER_ID);
-        found(others, mine);
+        Match mine = new Match(1L, "책1", 4, "내 메모", 0.16, "user_summary", MEMBER_ID);
+        Match content = match(1L, 5, 0.2);
+        found(others, mine, content);
 
         List<WikiRagService.Citation> citations =
                 service.ask(MEMBER_ID, "이 책 내용 요약해줘", AskMode.SEARCH, null, 5).citations();
 
         assertThat(citations).hasSize(1);
-        assertThat(citations.getFirst().snippet()).isEqualTo("내 메모");
-        assertThat(citations.getFirst().sourceType()).isEqualTo("user_summary");
+        assertThat(citations.getFirst().snippet()).isEqualTo("본문 1-5");
+        assertThat(citations.getFirst().sourceType()).isEqualTo("book_content");
+    }
+
+    /** 근거가 메모뿐이면 남는 게 없다 — LLM 을 부르지 않고 grounded=false 로 끝나야 한다. */
+    @Test
+    void 메모_벡터만_걸리면_근거_없음으로_끝난다() {
+        fed(1L);
+        found(new Match(1L, "책1", 3, "내 메모", 0.15, "user_summary", MEMBER_ID));
+
+        WikiRagService.AskResult result = service.ask(MEMBER_ID, "왜 그랬는지 설명해줘", null, null, 5);
+
+        assertThat(result.grounded()).isFalse();
+        assertThat(result.citations()).isEmpty();
     }
 
     /** mode 를 생략하면 1층 규칙이 정한다. 설명 요구 신호가 없으면 싼 쪽(SEARCH)이다. */

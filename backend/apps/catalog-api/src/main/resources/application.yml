@@ -63,3 +63,15 @@ resilience4j:
     instances:
       order-inventory:
         timeoutDuration: 2s
+
+catalog:
+  reading:
+    # 완독 판정 임계값(%). 구텐베르크 EPUB처럼 본문 뒤에 라이선스 고지문이 붙은 책은
+    # 100%가 안 나와서 100으로 두면 아무도 완독 처리가 안 된다. 책 꼬리 길이에 따라
+    # 조절하는 값이다 — ReadingProgressService 참고.
+    completion-percentage: ${CATALOG_READING_COMPLETION_PERCENTAGE:95}
+  highlight:
+    # EPUB 뷰어에서 한 번에 긁을 수 있는 원문 길이(자). "1페이지까지"가 요구사항이지만
+    # 화면 페이지 경계는 창 크기/폰트에 따라 달라져 저장 규칙으로 못 쓴다 — 글자 수로 건다.
+    # 프론트도 같은 값을 VITE_HIGHLIGHT_MAX_SELECTED_CHARS로 알고 있어야 한다.
+    max-selected-chars: ${CATALOG_HIGHLIGHT_MAX_SELECTED_CHARS:500}

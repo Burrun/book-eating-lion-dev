@@ -30,7 +30,12 @@ public class SecurityConfig {
                         // reading-progress는 /api/catalog/books/** 아래라 아래의 GET permitAll보다
                         // 먼저 매칭돼야 한다 — 순서가 바뀌면 GET이 인증 없이 뚫린다.
                         // (SecurityConfigTest.인증_없이_이어읽기_위치_조회는_401을_반환한다 가 이 순서를 지킨다)
-                        .requestMatchers("/api/catalog/books/*/reading-progress")
+                        .requestMatchers(
+                                "/api/catalog/books/*/reading-progress", "/api/catalog/books/*/reading-progress/**")
+                        .authenticated()
+                        // 하이라이트 메모도 같은 이유로 books GET permitAll 보다 먼저 온다 —
+                        // 남의 메모가 인증 없이 조회되면 안 된다.
+                        .requestMatchers("/api/catalog/books/*/highlights")
                         .authenticated()
                         // 아래의 books GET permitAll보다 먼저 선언해야 EPUB URL이 공개되지 않는다.
                         .requestMatchers("/api/catalog/books/*/ebook")
@@ -47,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**")
                         .authenticated()
                         .requestMatchers("/api/catalog/ebooks/me")
+                        .authenticated()
+                        .requestMatchers("/api/catalog/highlights/**", "/api/catalog/members/me/**")
                         .authenticated()
                         .requestMatchers("/api/catalog/recommend/**")
                         .authenticated()

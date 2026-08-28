@@ -7,8 +7,10 @@ import com.bookeatinglion.book.exception.CategoryNotFoundException;
 import com.bookeatinglion.book.exception.EbookAccessUnavailableException;
 import com.bookeatinglion.book.exception.EbookOwnershipRequiredException;
 import com.bookeatinglion.book.exception.FaqNotFoundException;
+import com.bookeatinglion.book.exception.HighlightNotFoundException;
 import com.bookeatinglion.book.exception.InquiryAccessDeniedException;
 import com.bookeatinglion.book.exception.InquiryNotFoundException;
+import com.bookeatinglion.book.exception.InvalidHighlightException;
 import com.bookeatinglion.book.exception.InvalidRecommendationReactionException;
 import com.bookeatinglion.book.exception.RestockAlertConflictException;
 import com.bookeatinglion.book.exception.RestockAlertNotFoundException;
@@ -115,6 +117,18 @@ public class BookExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleEbookOwnershipRequired(EbookOwnershipRequiredException e) {
         return ResponseEntity.status(BookErrorCode.EBOOK_OWNERSHIP_REQUIRED.getStatus())
                 .body(ApiResponse.error(BookErrorCode.EBOOK_OWNERSHIP_REQUIRED.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(HighlightNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHighlightNotFound(HighlightNotFoundException e) {
+        return ResponseEntity.status(BookErrorCode.HIGHLIGHT_NOT_FOUND.getStatus())
+                .body(ApiResponse.error(BookErrorCode.HIGHLIGHT_NOT_FOUND.name(), e.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidHighlightException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidHighlight(InvalidHighlightException e) {
+        return ResponseEntity.status(BookErrorCode.INVALID_REQUEST.getStatus())
+                .body(ApiResponse.error(BookErrorCode.INVALID_REQUEST.name(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

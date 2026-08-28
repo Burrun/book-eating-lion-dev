@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Heart, ShoppingBag, User, BookOpen } from "lucide-react";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -11,10 +11,19 @@ const NAV_LINKS = [
   { label: "분야별", to: "/category" },
 ];
 
+// 마이페이지 안에서는 같은 자리가 서점 카테고리 대신 마이페이지 하위 내비가 된다.
+// 마이페이지에 들어온 사람이 찾는 건 베스트셀러가 아니라 자기 책장이다.
+const MYPAGE_NAV_LINKS = [
+  { label: "마이페이지", to: "/mypage" },
+  { label: "이북 보관함", to: "/mypage/library" },
+];
+
 export default function Header({ cartCount = 0, wishlistCount = 0 }) {
   const [query, setQuery] = useState("");
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isMyPageArea = pathname.startsWith("/mypage");
   const queryClient = useQueryClient();
   const { data: profile } = useQuery({
     queryKey: ["myProfile"],
@@ -136,18 +145,43 @@ export default function Header({ cartCount = 0, wishlistCount = 0 }) {
           </nav>
         </div>
 
-        {/* 카테고리 내비게이션 */}
-        <div className="mx-auto hidden max-w-6xl gap-6 px-6 pb-3 sm:flex">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)]"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
+        {/* 카테고리 내비게이션 — 마이페이지 안에서는 마이페이지 하위 내비로 바뀐다.
+            서점 쪽은 sm 이상에서만 보이지만(모바일은 검색으로 간다), 마이페이지 하위 내비는
+            이북 보관함으로 가는 유일한 경로라 모바일에서도 보여야 한다. */}
+        {isMyPageArea ? (
+          <div className="mx-auto flex max-w-6xl gap-1 px-6 sm:px-6">
+            {MYPAGE_NAV_LINKS.map((link) => {
+              // /mypage 는 하위 경로의 접두사이기도 해서 startsWith 로 보면 항상 켜진다.
+              const isActive = pathname === link.to;
+              return (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "border-[var(--color-honey)] text-[var(--color-forest)]"
+                      : "border-transparent text-[var(--color-ink)] opacity-50 hover:opacity-80"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mx-auto hidden max-w-6xl gap-6 px-6 pb-3 sm:flex">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="text-sm font-medium text-[var(--color-ink)]/70 transition-colors hover:text-[var(--color-coral)]"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </header>
   );

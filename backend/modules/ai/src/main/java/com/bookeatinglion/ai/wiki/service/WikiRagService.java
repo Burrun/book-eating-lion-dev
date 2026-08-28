@@ -75,18 +75,19 @@ public class WikiRagService {
             return notGrounded(mode);
         }
 
-        // 🔴 접근 제어의 두 번째 축. bookId 필터(allowed)는 "이 책을 볼 수 있는가"만 걸러준다 —
-        // 책 본문은 회원 전체가 공유하는 벡터라 그걸로 충분하지만, user_summary(메모)는
-        // 작성자 개인의 글이라 같은 책을 산 다른 회원에게 새어나가면 안 된다. sourceType이
-        // book_content(또는 옛 벡터라 null)면 그대로 두고, user_summary면 memberId가 나와
-        // 같을 때만 남긴다.
-        List<Match> ownershipFiltered = matches.stream()
-                .filter(match -> !VectorIndexPort.SOURCE_USER_SUMMARY.equals(match.sourceType())
-                        || memberId.equals(match.memberId()))
+        // 🔴 사자는 책 본문만 근거로 삼는다. 개인 메모(user_summary)는 인덱스에 남아 있어도
+        // 인용하지 않는다 — "무슨 책이야?", "어느 책에서 ~부분?" 처럼 책을 묻는 질문에 남의
+        // 문장도 내 문장도 아닌 내 감상이 섞여 나오면 출처가 흐려진다. 옛 벡터(필드 추가 전
+        // 적재분)는 sourceType 이 null 이라 책 본문으로 남는다.
+        //
+        // 이 필터가 사라지면 예전에 적재된 메모 벡터가 다시 인용에 올라온다(개인 글이 같은
+        // 책을 산 다른 회원에게 새는 경로이기도 하다) — 지우지 말 것.
+        List<Match> bookContentOnly = matches.stream()
+                .filter(match -> !VectorIndexPort.SOURCE_USER_SUMMARY.equals(match.sourceType()))
                 .toList();
 
         // (7) 거리 가드. 임계값보다 먼 근거는 전부 버린다
-        List<Match> near = ownershipFiltered.stream()
+        List<Match> near = bookContentOnly.stream()
                 .filter(match -> match.distance() <= props.maxDistance())
                 .toList();
         if (near.isEmpty()) {
@@ -209,17 +210,15 @@ public class WikiRagService {
         StringBuilder prompt = new StringBuilder(
                 """
                         아래 근거만 사용해 한국어로 답한다. 근거에 없는 내용은 만들지 않는다.
+                        근거는 전부 책 본문 원문이다.
                         인용한 문장 끝에 [1], [2] 처럼 근거 번호를 붙인다.
+                        어느 책의 몇 쪽인지 묻는 질문에는 근거의 책 제목과 쪽수를 그대로 답한다.
                         질문이 여러 책에 걸치면 되묻지 말고 책별로 나누어 한 번에 답한다.
-                        각 근거 앞의 표시가 "책 본문"이면 원문 그대로이고, "내 메모"면 사용자가
-                        직접 쓴 요약이다 — 둘을 섞어 말하지 말고 출처가 드러나게 답한다.
 
                         """);
         for (int i = 0; i < grounds.size(); i++) {
             Match match = grounds.get(i);
-            String label = VectorIndexPort.SOURCE_USER_SUMMARY.equals(match.sourceType()) ? "내 메모" : "책 본문";
-            prompt.append(
-                    "[%d] (%s) %s %d쪽%n%s%n%n".formatted(i + 1, label, match.bookTitle(), match.page(), match.text()));
+            prompt.append("[%d] %s %d쪽%n%s%n%n".formatted(i + 1, match.bookTitle(), match.page(), match.text()));
         }
         return prompt.toString();
     }
