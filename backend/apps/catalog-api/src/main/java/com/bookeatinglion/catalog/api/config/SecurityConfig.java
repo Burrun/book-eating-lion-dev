@@ -46,6 +46,8 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers("/api/catalog/wishlist/**", "/api/catalog/recent-books/**")
                         .authenticated()
+                        .requestMatchers("/api/catalog/ebooks/me")
+                        .authenticated()
                         .requestMatchers("/api/catalog/recommend/**")
                         .authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/catalog/books/*/reviews")

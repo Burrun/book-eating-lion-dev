@@ -10,6 +10,7 @@ import com.bookeatinglion.book.BookModuleTestApplication;
 import com.bookeatinglion.book.domain.SaleStatus;
 import com.bookeatinglion.book.dto.BookSummaryResponse;
 import com.bookeatinglion.book.security.CatalogMemberIdentity;
+import com.bookeatinglion.book.service.EbookService;
 import com.bookeatinglion.book.service.RecentViewedBookService;
 import com.bookeatinglion.book.service.WishlistService;
 import java.math.BigDecimal;
@@ -37,11 +38,14 @@ class MemberBookQueryControllerTest {
     private RecentViewedBookService recentViewedBookService;
 
     @MockBean
+    private EbookService ebookService;
+
+    @MockBean
     private CatalogMemberIdentity memberIdentity;
 
     private BookSummaryResponse summary(Long id, String title) {
         return new BookSummaryResponse(
-                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0, false);
+                id, title, "저자", 10000, "cover.jpg", "소설", SaleStatus.ON_SALE, BigDecimal.ZERO, 0, true);
     }
 
     @Test
@@ -72,5 +76,16 @@ class MemberBookQueryControllerTest {
         mockMvc.perform(get("/api/catalog/recent-books/me").param("limit", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("최근본책"));
+    }
+
+    @Test
+    void 내_이북_보관함_조회는_200과_데이터를_반환한다() throws Exception {
+        when(memberIdentity.requiredMemberId()).thenReturn("member-1");
+        when(ebookService.getMyEbooks("member-1")).thenReturn(List.of(summary(101L, "프랑켄슈타인")));
+
+        mockMvc.perform(get("/api/catalog/ebooks/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].title").value("프랑켄슈타인"))
+                .andExpect(jsonPath("$.data[0].ebookAvailable").value(true));
     }
 }

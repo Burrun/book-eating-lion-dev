@@ -178,8 +178,13 @@ export default function ProductDetailPage() {
       setEbookUrl(access.presignedUrl);
       setIsEbookOpen(true);
     },
-    onError: () => {
-      toast.error("eBook을 열지 못했습니다. 로그인 상태를 확인한 뒤 다시 시도해주세요.");
+    onError: (err: unknown) => {
+      const code = (err as { code?: string } | null)?.code;
+      toast.error(
+        code === "EBOOK_OWNERSHIP_REQUIRED"
+          ? "구매 확정된 도서만 열람할 수 있어요."
+          : "eBook을 열지 못했습니다. 로그인 상태를 확인한 뒤 다시 시도해주세요.",
+      );
     },
   });
 

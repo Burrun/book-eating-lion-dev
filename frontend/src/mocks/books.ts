@@ -415,6 +415,10 @@ export function mockGetEbookAccess(bookId: number | string) {
   };
 }
 
+export function mockGetMyEbooks(): BookSummaryResponse[] {
+  return SEEDS.filter((seed) => Boolean(seed.ebookUrl)).map(toSummary);
+}
+
 /** Spring Page 직렬화 형태로 감싼다 (매퍼 toPaged 가 그대로 받는다). */
 function toPage<T>(items: T[], page: number, size: number): Page<T> {
   const totalPages = Math.max(1, Math.ceil(items.length / size));
