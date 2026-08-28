@@ -26,8 +26,9 @@ variable "dev_domain_name" {
 
 variable "enable_dev_cutover" {
   description = <<-EOT
-    true로 바꾸면 dev.ajttk.com을 이 integrated 클러스터로 컷오버하는
-    module.edge_routing_dev가 생성된다.
+    true이면 dev.ajttk.com용 CloudFront/Route53를 이 integrated 클러스터가
+    소유한다. integrated 모드에서는 true로 설정해야 dev/prod 도메인이
+    동시에 동작한다.
 
     ⚠️ 켜기 전에 반드시 dev/02-runtime 쪽의 edge_routing 모듈을 먼저
     destroy(또는 주석 처리 후 apply)할 것. 안 그러면 두 tfstate가 같은

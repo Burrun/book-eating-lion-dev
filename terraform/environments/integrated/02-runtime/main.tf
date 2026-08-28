@@ -154,8 +154,8 @@ module "ingress_alb" {
   depends_on = [module.eks_cluster, module.karpenter]
 }
 
-# ── 4. CloudFront + Route53 - prod 도메인만 (book.ajttk.com) ───────
-# dev.ajttk.com은 여기서 안 만든다 - 파일 상단 주석 참고.
+# ── 4. CloudFront + Route53 - prod 도메인 (book.ajttk.com) ───────
+# dev.ajttk.com은 아래의 enable_dev_cutover 조건부 모듈이 담당한다.
 module "edge_routing" {
   source = "../../../modules/compute/edge_routing"
 
@@ -358,5 +358,6 @@ resource "null_resource" "trigger_github_actions" {
     module.karpenter,
     module.ingress_alb,
     module.edge_routing,
+    module.edge_routing_dev,
   ]
 }
