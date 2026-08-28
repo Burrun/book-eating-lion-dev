@@ -410,6 +410,8 @@ export function mockGetEbookAccess(bookId: number | string) {
   return {
     bookId: id,
     ebookAvailable: Boolean(seed.ebookUrl),
+    // mock 은 구매자 시나리오로 둔다 — 뷰어의 사자 진입점을 개발 중에 볼 수 있어야 한다.
+    purchased: true,
     presignedUrl: seed.ebookUrl ?? null,
     expiresAt: null,
   };

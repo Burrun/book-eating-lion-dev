@@ -26,6 +26,8 @@ export default function EbookLibraryPage() {
   const [openingBookId, setOpeningBookId] = useState(null);
   const [activeBook, setActiveBook] = useState(null); // { id, title } | null
   const [ebookUrl, setEbookUrl] = useState(null);
+  // 구매 확정 여부(구독 열람과 구분). 뷰어의 사자 진입점 노출에만 쓴다.
+  const [isPurchased, setIsPurchased] = useState(false);
 
   const [highlights, setHighlights] = useState(null);
   const [highlightsError, setHighlightsError] = useState(false);
@@ -121,6 +123,7 @@ export default function EbookLibraryPage() {
         return;
       }
       setEbookUrl(access.presignedUrl);
+      setIsPurchased(access.purchased);
       setActiveBook(book);
     } catch (err) {
       toast.error(
@@ -137,6 +140,7 @@ export default function EbookLibraryPage() {
   const handleClose = () => {
     setActiveBook(null);
     setEbookUrl(null);
+    setIsPurchased(false);
     loadHighlights();
   };
 
@@ -278,6 +282,7 @@ export default function EbookLibraryPage() {
         url={ebookUrl}
         title={activeBook?.title}
         bookId={activeBook?.id}
+        purchased={isPurchased}
       />
     </div>
   );

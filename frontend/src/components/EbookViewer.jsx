@@ -7,6 +7,7 @@ import { createHighlight } from "../api/bookHighlight.ts";
 import { MAX_SELECTED_CHARS } from "../constants/highlight.ts";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 import HighlightComposer from "./HighlightComposer.jsx";
+import LionAskPanel from "./LionAskPanel.jsx";
 import { useToast } from "./Toast.jsx";
 
 const LOCATIONS_KEY_PREFIX = "locations:";
@@ -68,11 +69,21 @@ function safeSetItem(key, value) {
  * 실 API(GET /api/catalog/books/{bookId}/ebook) 연동 시에도 이 컴포넌트는 그대로 두고
  * 호출부(ProductDetailPage)에서 응답으로 받은 URL을 넘기기만 하면 된다.
  */
-export default function EbookViewer({ isOpen, onClose, url, title, bookId, onProgressChange }) {
+export default function EbookViewer({
+  isOpen,
+  onClose,
+  url,
+  title,
+  bookId,
+  purchased,
+  onProgressChange,
+}) {
   const { initialCfi, saveLocation } = useReadingProgress(bookId);
   const toast = useToast();
   // 긁은 문장 + 그 위치. null 이면 작성 패널을 안 띄운다.
   const [draft, setDraft] = useState(null);
+  // 사자에게 묻기 패널. 열람 중인 이 책 하나로만 검색을 좁힌다.
+  const [isAskOpen, setIsAskOpen] = useState(false);
   // 저장된 이어읽기 위치(없으면 처음부터)로 시작한다. 이후로는 locationChanged가 갱신한다.
   const [location, setLocation] = useState(initialCfi);
   const [isIndexing, setIsIndexing] = useState(false);
@@ -89,6 +100,7 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
     setRenderedBookId(bookId);
     setLocation(null);
     setDraft(null);
+    setIsAskOpen(false);
   }
 
   // ref 리셋은 렌더 중이 아니라 이펙트에서 한다 — refs-in-render 규칙은 렌더 함수 본문에서의
@@ -251,6 +263,26 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
             </span>
           )}
         </div>
+        {/* 🔴 purchased 가 아니면 아예 안 보여준다. 열람은 구독으로도 되지만 사자 RAG의 검색
+            권한은 구매 이벤트(ai_db.purchased_books)만 근거로 삼아, 구독 열람 중에 물으면
+            "구매한 책에서 근거를 찾지 못했습니다"만 돌아온다 — 눌러도 안 되는 버튼을 두느니
+            숨긴다. */}
+        {purchased && (
+          <button
+            type="button"
+            aria-label={isAskOpen ? "사자에게 묻기 닫기" : "사자에게 묻기"}
+            aria-pressed={isAskOpen}
+            onClick={() => setIsAskOpen((open) => !open)}
+            className={`ml-auto mr-1 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm transition-colors ${
+              isAskOpen
+                ? "bg-[var(--color-forest)]/10 text-[var(--color-forest)]"
+                : "text-[var(--color-forest)]/60 hover:bg-[var(--color-forest)]/10 hover:text-[var(--color-forest)]"
+            }`}
+          >
+            <span className="text-base leading-none">🦁</span>
+            <span className="hidden sm:inline">사자에게 묻기</span>
+          </button>
+        )}
         <button
           type="button"
           aria-label="닫기"
@@ -288,6 +320,15 @@ export default function EbookViewer({ isOpen, onClose, url, title, bookId, onPro
           />
         </ErrorBoundary>
       </div>
+
+      {isAskOpen && !draft && (
+        <div className="shrink-0 border-t border-[var(--color-forest)]/15 bg-white px-4 py-3 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            {/* bookIds 를 이 책으로 고정한다 — 읽는 중인 책이 곧 검색 범위라 고를 UI가 없다. */}
+            <LionAskPanel bookIds={[bookId]} placeholder="이 책에서 궁금한 걸 물어보세요" />
+          </div>
+        </div>
+      )}
 
       {draft && (
         <HighlightComposer

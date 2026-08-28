@@ -1688,10 +1688,16 @@ components:
 
     EbookAccess:
       type: object
-      required: [bookId, ebookAvailable]
+      required: [bookId, ebookAvailable, purchased]
       properties:
         bookId: { type: integer, format: int64 }
         ebookAvailable: { type: boolean }
+        purchased:
+          type: boolean
+          description: |
+            구매 확정(review_permissions) 여부. 열람 가능 여부와 다르다 — 열람은 구매 OR 구독이지만
+            사자 RAG 검색 권한은 구매 이벤트(ai_db.purchased_books)만 근거로 삼는다. 뷰어가 이 값으로
+            사자 진입점 노출 여부를 정한다.
         presignedUrl:
           type: string
           nullable: true

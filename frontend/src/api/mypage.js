@@ -57,9 +57,18 @@ export async function feedLion(bookId) {
 // 전부 search로 내려버린다 — 그러면 LLM을 안 부르고 answer가 "구매한 책에서 근거
 // N곳을 찾았습니다"라는 정형 문구로만 온다(citations 유사도%만 의미 있어 보이는 이유).
 // "사자에게 물어보기"는 대화형 UX라 항상 answer 모드로 명시해 실제 문장 답변을 받는다.
-export async function askLion(question) {
+// bookIds 를 주면 그 책들로만 검색을 좁힌다 — 서버가 구매 목록과 교집합을 내므로(WikiRagService
+// .allowedBooks) 안 산 책을 실어보내도 새지 않는다. 비었으면 아예 안 보낸다: null/[] 둘 다
+// "구매한 책 전체"로 해석되지만, 필드 자체를 빼는 쪽이 계약상 기본값과 같아 오해가 없다.
+export async function askLion(question, bookIds) {
   if (USE_MOCK) return mockDelay(MOCK_RAG_ANSWER, 800);
-  return unwrap(apiClient.post("/ai/lion/ask", { query: question, mode: "answer" }));
+  return unwrap(
+    apiClient.post("/ai/lion/ask", {
+      query: question,
+      mode: "answer",
+      ...(bookIds?.length ? { bookIds } : {}),
+    }),
+  );
 }
 
 // 🚧 백엔드 미구현. /api/orders (목록)는 있으나 마이페이지 전용 형태가 필요한지 미확정.

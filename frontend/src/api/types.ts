@@ -60,6 +60,9 @@ export interface ReadingProgressResponse {
 export interface EbookAccessResponse {
   bookId: number;
   ebookAvailable: boolean;
+  // 구매 확정 여부. 열람 가능(구매 OR 구독)과 다르다 — 사자 RAG는 구매 이벤트만 권한 근거로
+  // 삼으므로, 구독으로 읽는 중이면 false 이고 뷰어는 사자 진입점을 숨긴다.
+  purchased: boolean;
   presignedUrl: string | null;
   expiresAt: string | null;
 }

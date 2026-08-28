@@ -61,7 +61,7 @@ public class EbookService {
             throw new EbookOwnershipRequiredException(bookId);
         }
         EbookStoragePort.ReadUrl readUrl = ebookStoragePort.createReadUrl(book.getEpubS3Key(), readUrlValidity);
-        return new EbookAccessResponse(bookId, true, readUrl.url(), readUrl.expiresAt());
+        return new EbookAccessResponse(bookId, true, purchased, readUrl.url(), readUrl.expiresAt());
     }
 
     /** 신간 등록 화면에서 EPUB 파일을 고르면 바로 호출한다 — 도서가 아직 없어도 된다. */
