@@ -26,6 +26,11 @@ on:
         type: boolean
         default: false
         required: true
+      perform_edge_handoff:
+        description: "모드 전환 시 기존 소유자 runtime을 먼저 반납 apply"
+        type: boolean
+        default: false
+        required: true
       deploy_modules:
         description: "Terraform 적용 후 Catalog/Order/Member/AI를 배포"
         type: boolean
@@ -42,7 +47,9 @@ permissions:
   actions: write
 
 concurrency:
-  group: terraform-apply-${{ inputs.environment }}
+  # runtime은 dev/integrated가 같은 dev 도메인 엣지 리소스를 순차적으로 인수한다.
+  # 다른 계층은 환경별로 병렬 실행해도 충돌하지 않는다.
+  group: terraform-apply-${{ (inputs.layer == 'all' || inputs.layer == '02-runtime') && 'edge-runtime' || inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -86,6 +93,7 @@ jobs:
           TARGET_LAYER: ${{ inputs.layer }}
           DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
           CONFIRM_EDGE_HANDOFF: ${{ inputs.confirm_edge_handoff }}
+          PERFORM_EDGE_HANDOFF: ${{ inputs.perform_edge_handoff }}
         run: |
           set -euo pipefail
 
@@ -98,6 +106,43 @@ jobs:
           if [ "$TARGET_ENV" = "dev" ] && [ "$DEPLOYMENT_MODE" = "integrated" ] && [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
             echo "::error::dev 환경의 integrated 핸드오프는 confirm_edge_handoff=true가 필요합니다. 일반 split 적용은 deployment_mode=split을 선택하세요."
             exit 1
+          fi
+
+          # 한 번의 실행에서 기존 소유자의 edge만 안전하게 반납한 뒤 대상 runtime을
+          # 적용한다. false이면 기존처럼 수동 2단계 전환도 가능하다.
+          apply_edge_release() {
+            local source_env="$1"
+            local release_arg="$2"
+            local directory="terraform/environments/${source_env}/02-runtime"
+            local plan_file="${RUNNER_TEMP}/${source_env}-edge-release.tfplan"
+
+            echo "::group::Release ${source_env} edge ownership"
+            terraform -chdir="$directory" init -input=false
+            terraform -chdir="$directory" fmt -check
+            terraform -chdir="$directory" validate
+            terraform -chdir="$directory" plan -input=false "$release_arg" -out="$plan_file"
+            terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
+            echo "::endgroup::"
+          }
+
+          if [ "$PERFORM_EDGE_HANDOFF" = "true" ]; then
+            if [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+              echo "::error::자동 엣지 전환에는 confirm_edge_handoff=true가 필요합니다."
+              exit 1
+            fi
+            if [ "$TARGET_LAYER" != "all" ] && [ "$TARGET_LAYER" != "02-runtime" ]; then
+              echo "::error::자동 엣지 전환은 all 또는 02-runtime 계층에서만 실행할 수 있습니다."
+              exit 1
+            fi
+
+            if [ "$TARGET_ENV" = "integrated" ] && [ "$DEPLOYMENT_MODE" = "integrated" ]; then
+              apply_edge_release "dev" "-var=enable_edge_routing=false"
+            elif [ "$TARGET_ENV" = "dev" ] && [ "$DEPLOYMENT_MODE" = "split" ]; then
+              apply_edge_release "integrated" "-var=enable_dev_cutover=false"
+            else
+              echo "::error::자동 전환은 integrated/integrated 또는 dev/split 조합에서만 지원합니다."
+              exit 1
+            fi
           fi
 
           apply_layer() {

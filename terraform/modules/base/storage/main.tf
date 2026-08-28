@@ -79,4 +79,13 @@ resource "aws_s3_bucket_cors_configuration" "media" {
     expose_headers  = ["Content-Length", "Content-Range", "Accept-Ranges", "ETag"]
     max_age_seconds = 3000
   }
+
+  # 관리자는 브라우저에서 S3 Presigned URL로 EPUB 원본을 직접 업로드한다.
+  # 조회 규칙과 분리해 업로드에 필요한 최소 메서드/헤더만 허용한다.
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = var.media_cors_allowed_origins
+    allowed_headers = ["Content-Type"]
+    max_age_seconds = 3000
+  }
 }
