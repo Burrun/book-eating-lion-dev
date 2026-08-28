@@ -314,12 +314,31 @@ jobs:
           fi
 
           IMAGE="$REGISTRY/$REPOSITORY"
-          # Immutable SHA 태그가 이미 있으면 재빌드/재푸시하지 않는다.
+          # Immutable SHA 태그가 이미 있으면 재빌드/재푸시하지 않는다. 다만
+          # 실행별 감사 태그는 기존 이미지 manifest를 ECR 내부에서 재태깅한다.
           if aws ecr describe-images \
                --repository-name "$REPOSITORY" \
                --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
                --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "ECR에 ${{ env.DEPLOY_SHA }} 태그가 이미 있어 빌드와 push를 건너뜁니다."
+            if aws ecr describe-images \
+                 --repository-name "$REPOSITORY" \
+                 --image-ids imageTag="main-${{ github.run_number }}" \
+                 --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "main-${{ github.run_number }} 태그가 이미 있어 재실행합니다."
+            else
+              manifest=$(aws ecr batch-get-image \
+                --repository-name "$REPOSITORY" \
+                --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
+                --query 'images[0].imageManifest' \
+                --output text \
+                --region "$AWS_REGION")
+              aws ecr put-image \
+                --repository-name "$REPOSITORY" \
+                --image-tag "main-${{ github.run_number }}" \
+                --image-manifest "$manifest" \
+                --region "$AWS_REGION" >/dev/null
+              echo "ECR의 기존 SHA 이미지를 main-${{ github.run_number }} 태그로 재태깅했습니다."
+            fi
             exit 0
           fi
           # GH-hosted 러너는 매번 새 상태라 로컬 도커 캐시가 없다 - GHA 캐시에
