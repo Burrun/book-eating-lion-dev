@@ -1,8 +1,8 @@
-# WAF / CloudFront 검증 절차 (🔜 프로비저닝 후)
+# WAF / CloudFront 검증 절차
 
 WAF와 CloudFront는 오리진(EC2/EKS Ingress) 앞단의 엣지 레이어라서, k6로 오리진을 직접 때리는 방식으로는 "WAF가 막았는지"를 알 수 없다 — 오리진에 도달한 시점엔 이미 WAF를 통과한 트래픽이다. 그래서 이건 k6 스크립트가 아니라 수동 절차로 관리한다.
 
-프로비저닝(`./terraform`이 현재 비어 있음 — README §0-6) 이후 진행:
+`terraform/modules/compute/edge_routing`에 WAF/CloudFront 모듈 코드가 있고 dev 환경 `main.tf`에도 실제로 배선돼 있다(README §0-6) — 다만 `terraform output`으로 apply 상태를 먼저 확인할 것. 확인되면 아래 진행:
 
 ## WAF 봇 차단율
 
