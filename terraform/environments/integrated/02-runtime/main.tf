@@ -4,14 +4,17 @@
 # dev/prod 워크로드를 namespace로만 나눠 그 위에서 돌린다(네임스페이스
 # 자체는 이 Terraform이 아니라 k8s manifest/CD 쪽에서 나눔).
 #
-# edge_routing은 prod 도메인(book.ajttk.com) 하나만 여기서 연결한다.
-# dev.ajttk.com을 이 클러스터로 옮기는 건(=지금 운영 중인 dev EKS/CloudFront를
-# 이 클러스터로 컷오버하는 것) 트래픽이 끊기지 않게 별도로 계획/실행해야 하는
-# 작업이라 의도적으로 여기 포함하지 않았다. 지금 단계에서 이 파일이 하는 일은
-# 100% 추가(additive)이고 dev의 현재 운영 인프라를 전혀 건드리지 않는다.
+# edge_routing은 prod 도메인(book.ajttk.com)을 항상 연결하고,
+# enable_dev_cutover=true일 때 dev.ajttk.com도 이 클러스터가 연결한다.
+# dev 도메인 전환은 dev/02-runtime의 소유권 반납 apply가 먼저 완료되어야 한다.
 
 locals {
   ssm_prefix = "/${var.environment}"
+
+  dev_edge_handoff_value = try(
+    data.aws_ssm_parameters_by_path.dev_edge_ownership.values[index(data.aws_ssm_parameters_by_path.dev_edge_ownership.names, "/dev/edge/ownership_handoff")],
+    ""
+  )
 
   system_pool_taint_key    = "CriticalAddonsOnly"
   system_pool_taint_value  = "true"
@@ -216,19 +219,19 @@ data "aws_ssm_parameter" "dev_frontend_bucket_domain_name" {
   name  = "/dev/storage/frontend_bucket_domain_name"
 }
 
-data "aws_ssm_parameter" "dev_edge_ownership_handoff" {
-  count = var.enable_dev_cutover ? 1 : 0
-  name  = "/dev/edge/ownership_handoff"
+data "aws_ssm_parameters_by_path" "dev_edge_ownership" {
+  path      = "/dev/edge"
+  recursive = false
 }
 
 resource "terraform_data" "dev_edge_handoff_gate" {
   count = var.enable_dev_cutover ? 1 : 0
 
-  input = data.aws_ssm_parameter.dev_edge_ownership_handoff[0].value
+  input = local.dev_edge_handoff_value
 
   lifecycle {
     precondition {
-      condition     = self.input == "integrated-ready"
+      condition     = local.dev_edge_handoff_value == "integrated-ready"
       error_message = "dev edge 소유권이 아직 split 상태입니다. dev/02-runtime에서 enable_edge_routing=false로 먼저 apply하세요."
     }
   }
