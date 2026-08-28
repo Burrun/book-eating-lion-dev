@@ -216,6 +216,24 @@ data "aws_ssm_parameter" "dev_frontend_bucket_domain_name" {
   name  = "/dev/storage/frontend_bucket_domain_name"
 }
 
+data "aws_ssm_parameter" "dev_edge_ownership_handoff" {
+  count = var.enable_dev_cutover ? 1 : 0
+  name  = "/dev/edge/ownership_handoff"
+}
+
+resource "terraform_data" "dev_edge_handoff_gate" {
+  count = var.enable_dev_cutover ? 1 : 0
+
+  input = data.aws_ssm_parameter.dev_edge_ownership_handoff[0].value
+
+  lifecycle {
+    precondition {
+      condition     = self.input == "integrated-ready"
+      error_message = "dev edge 소유권이 아직 split 상태입니다. dev/02-runtime에서 enable_edge_routing=false로 먼저 apply하세요."
+    }
+  }
+}
+
 module "edge_routing_dev" {
   count  = var.enable_dev_cutover ? 1 : 0
   source = "../../../modules/compute/edge_routing"
@@ -230,7 +248,7 @@ module "edge_routing_dev" {
   frontend_bucket_arn         = data.aws_ssm_parameter.dev_frontend_bucket_arn[0].value
   frontend_bucket_domain_name = data.aws_ssm_parameter.dev_frontend_bucket_domain_name[0].value
 
-  depends_on = [module.ingress_alb]
+  depends_on = [module.ingress_alb, terraform_data.dev_edge_handoff_gate]
 }
 
 resource "aws_ssm_parameter" "cloudfront_distribution_id_dev" {

@@ -174,6 +174,15 @@ resource "aws_ssm_parameter" "cloudfront_distribution_id" {
   overwrite = true
 }
 
+# integrated 런타임이 dev 도메인을 인수할 때 순서를 강제하기 위한 핸드오프 표식.
+# dev 엣지를 반납하는 apply가 먼저 완료되어야 integrated apply가 진행된다.
+resource "aws_ssm_parameter" "edge_ownership_handoff" {
+  name      = "/dev/edge/ownership_handoff"
+  type      = "String"
+  value     = var.enable_edge_routing ? "split-owned" : "integrated-ready"
+  overwrite = true
+}
+
 # ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───
 module "ai_service_iam" {
   source = "../../../modules/compute/ai_service_iam"
