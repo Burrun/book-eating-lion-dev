@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import BookCard from "../../components/BookCard/BookCard.tsx";
 import RecommendationPanel from "../../components/SwipeDeck/RecommendationPanel.tsx";
 import { getBooks, searchBooks } from "../../api/books.ts";
@@ -8,8 +10,12 @@ import { getMySubscription } from "../../api/member.ts";
 import { subscriptionCheckoutItem } from "../../constants/subscription.ts";
 
 const PAGE_SIZE = 8;
+const RECOMMENDATION_DRAWER_STORAGE_KEY = "recommendation-drawer-open";
 
 export default function ProductListPage() {
+  const [isRecommendationOpen, setIsRecommendationOpen] = useState(
+    () => window.localStorage.getItem(RECOMMENDATION_DRAWER_STORAGE_KEY) === "true",
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() ?? "";
   const category = searchParams.get("category") ?? "";
@@ -91,11 +97,58 @@ export default function ProductListPage() {
     setSearchParams(next);
   }
 
+  function toggleRecommendationDrawer() {
+    setIsRecommendationOpen((current) => {
+      const next = !current;
+      window.localStorage.setItem(RECOMMENDATION_DRAWER_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
+
   return (
     <>
-      <div className="hidden lg:block fixed right-4 top-24 z-30 w-72">
-        <RecommendationPanel />
-      </div>
+      <aside
+        aria-label="추천 대기열"
+        className={`fixed right-0 top-24 z-30 hidden w-[21.5rem] items-start gap-2 transition-transform duration-300 ease-out lg:flex ${
+          isRecommendationOpen ? "translate-x-0" : "translate-x-[calc(100%-3rem)]"
+        }`}
+      >
+        <button
+          type="button"
+          aria-controls="recommendation-queue-drawer"
+          aria-expanded={isRecommendationOpen}
+          aria-label={isRecommendationOpen ? "추천 대기열 닫기" : "추천 대기열 열기"}
+          title={isRecommendationOpen ? "추천 대기열 닫기" : "추천 대기열 열기"}
+          onClick={toggleRecommendationDrawer}
+          className={`flex w-12 shrink-0 items-center justify-center gap-2 border border-forest/15 bg-white font-semibold text-forest shadow-lg transition-colors hover:bg-honey/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral ${
+            isRecommendationOpen
+              ? "h-14 rounded-l-2xl text-2xl"
+              : "min-h-44 flex-col rounded-l-2xl py-4"
+          }`}
+        >
+          {isRecommendationOpen ? (
+            <PanelRightClose aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />
+          ) : (
+            <PanelRightOpen aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />
+          )}
+          {!isRecommendationOpen ? (
+            <>
+              <span aria-hidden="true">✨</span>
+              <span className="text-sm tracking-wide [writing-mode:vertical-rl]">추천 대기열</span>
+            </>
+          ) : null}
+        </button>
+
+        <div
+          id="recommendation-queue-drawer"
+          aria-hidden={!isRecommendationOpen}
+          className={`w-72 pr-4 transition-opacity duration-200 ${
+            isRecommendationOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+        >
+          {isRecommendationOpen ? <RecommendationPanel /> : null}
+        </div>
+      </aside>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
         <section className="flex flex-col gap-2 rounded-2xl border border-honey/40 bg-honey/15 p-5 sm:flex-row sm:items-center sm:justify-between">
