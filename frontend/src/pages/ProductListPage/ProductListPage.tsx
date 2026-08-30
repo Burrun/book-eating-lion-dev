@@ -11,11 +11,27 @@ import { subscriptionCheckoutItem } from "../../constants/subscription.ts";
 
 const PAGE_SIZE = 8;
 const RECOMMENDATION_DRAWER_STORAGE_KEY = "recommendation-drawer-open";
+const DEFAULT_RECOMMENDATION_DRAWER_OPEN = false;
+
+function readRecommendationDrawerState() {
+  try {
+    const savedState = window.localStorage.getItem(RECOMMENDATION_DRAWER_STORAGE_KEY);
+    return savedState === null ? DEFAULT_RECOMMENDATION_DRAWER_OPEN : savedState === "true";
+  } catch {
+    return DEFAULT_RECOMMENDATION_DRAWER_OPEN;
+  }
+}
+
+function writeRecommendationDrawerState(isOpen: boolean) {
+  try {
+    window.localStorage.setItem(RECOMMENDATION_DRAWER_STORAGE_KEY, String(isOpen));
+  } catch {
+    // 저장소가 차단돼도 현재 세션의 드로어 상태 변경은 유지한다.
+  }
+}
 
 export default function ProductListPage() {
-  const [isRecommendationOpen, setIsRecommendationOpen] = useState(
-    () => window.localStorage.getItem(RECOMMENDATION_DRAWER_STORAGE_KEY) === "true",
-  );
+  const [isRecommendationOpen, setIsRecommendationOpen] = useState(readRecommendationDrawerState);
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() ?? "";
   const category = searchParams.get("category") ?? "";
@@ -100,7 +116,7 @@ export default function ProductListPage() {
   function toggleRecommendationDrawer() {
     setIsRecommendationOpen((current) => {
       const next = !current;
-      window.localStorage.setItem(RECOMMENDATION_DRAWER_STORAGE_KEY, String(next));
+      writeRecommendationDrawerState(next);
       return next;
     });
   }
@@ -110,7 +126,7 @@ export default function ProductListPage() {
       <aside
         aria-label="추천 대기열"
         className={`fixed right-0 top-24 z-30 hidden w-[21.5rem] items-start gap-2 transition-transform duration-300 ease-out lg:flex ${
-          isRecommendationOpen ? "translate-x-0" : "translate-x-[calc(100%-3rem)]"
+          isRecommendationOpen ? "translate-x-0" : "translate-x-[calc(100%_-_3rem)]"
         }`}
       >
         <button
