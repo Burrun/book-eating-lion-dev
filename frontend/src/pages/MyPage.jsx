@@ -738,13 +738,14 @@ function LionRagCard() {
         </span>
       </h2>
 
-      {/* 사자는 구매한 책의 본문만 근거로 답한다 — 내가 쓴 메모는 검색 대상이 아니다
-          (WikiRagService가 user_summary 벡터를 배제한다). 메모는 아래 "내 메모" 섹션에서 본다. */}
+      {/* 사자는 책 본문만 근거로 답한다 — 내가 쓴 메모는 검색 대상이 아니다
+          (WikiRagService가 user_summary 벡터를 배제한다). 메모는 아래 "내 메모" 섹션에서 본다.
+          검색 범위는 구매한 책 ∪ (구독 중이면) 전체다 — WikiRagService#allowedBooks. */}
       <p className="mb-4 text-sm text-[var(--color-ink)] opacity-60">
-        구매한 책의 본문에서 찾아 답해요. 어느 책의 어느 대목인지도 함께 알려줘요.
+        읽을 수 있는 책의 본문에서 찾아 답해요. 어느 책의 어느 대목인지도 함께 알려줘요.
       </p>
 
-      {/* bookIds 없음 = 구매한 책 전체가 검색 대상. */}
+      {/* bookIds 없음 = 읽을 수 있는 책 전체가 검색 대상. */}
       <LionAskPanel placeholder="객체지향 캡슐화 설명한 부분이 어느 책이야?" />
     </section>
   );

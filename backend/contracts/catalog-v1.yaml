@@ -1688,9 +1688,11 @@ components:
         purchased:
           type: boolean
           description: |
-            구매 확정(review_permissions) 여부. 열람 가능 여부와 다르다 — 열람은 구매 OR 구독이지만
-            사자 RAG 검색 권한은 구매 이벤트(ai_db.purchased_books)만 근거로 삼는다. 뷰어가 이 값으로
-            사자 진입점 노출 여부를 정한다.
+            구매 확정(review_permissions) 여부. 열람 가능 여부와 다르다 — 열람은 구매 OR 구독이다.
+
+            예전에는 뷰어가 이 값으로 사자 진입점 노출을 정했다(RAG 검색 권한이 구매 이벤트만
+            근거로 삼던 시절). 지금은 구독 회원에게도 인제스트된 책 전체가 열려 그 용도는 없어졌고,
+            화면에서 "구매함"과 "구독으로 열람 중"을 구분할 때 쓴다.
         presignedUrl:
           type: string
           nullable: true

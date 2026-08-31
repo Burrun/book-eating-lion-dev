@@ -48,18 +48,19 @@ export async function feedLion(bookId) {
   return unwrap(apiClient.post("/ai/lion/feed", { bookId }));
 }
 
-// POST /api/ai/lion/ask — 구매한 책 본문에 대한 RAG 질의(내가 쓴 메모는 근거에서 빠진다)
+// POST /api/ai/lion/ask — 읽을 수 있는 책 본문에 대한 RAG 질의(내가 쓴 메모는 근거에서 빠진다)
 // 🔴 요청 필드는 question 이 아니라 query 다(AskRequest).
 // 응답: { mode, grounded, answer, citations[] } — 근거를 못 찾아도 200 이고
 // grounded: false 에 answer 는 고정 문구다.
 //
 // 🔴 mode를 생략하면 서버 QueryRouter가 "왜/이유/설명/알려줘" 같은 키워드가 없는 질문을
-// 전부 search로 내려버린다 — 그러면 LLM을 안 부르고 answer가 "구매한 책에서 근거
+// 전부 search로 내려버린다 — 그러면 LLM을 안 부르고 answer가 "읽을 수 있는 책에서 근거
 // N곳을 찾았습니다"라는 정형 문구로만 온다(citations 유사도%만 의미 있어 보이는 이유).
 // "사자에게 물어보기"는 대화형 UX라 항상 answer 모드로 명시해 실제 문장 답변을 받는다.
-// bookIds 를 주면 그 책들로만 검색을 좁힌다 — 서버가 구매 목록과 교집합을 내므로(WikiRagService
-// .allowedBooks) 안 산 책을 실어보내도 새지 않는다. 비었으면 아예 안 보낸다: null/[] 둘 다
-// "구매한 책 전체"로 해석되지만, 필드 자체를 빼는 쪽이 계약상 기본값과 같아 오해가 없다.
+// bookIds 를 주면 그 책들로만 검색을 좁힌다 — 서버가 열람 권한 목록과 교집합을 내므로
+// (WikiRagService.allowedBooks) 권한 없는 책을 실어보내도 새지 않는다. 비었으면 아예 안
+// 보낸다: null/[] 둘 다 "읽을 수 있는 책 전체"로 해석되지만, 필드 자체를 빼는 쪽이 계약상
+// 기본값과 같아 오해가 없다.
 export async function askLion(question, bookIds) {
   if (USE_MOCK) return mockDelay(MOCK_RAG_ANSWER, 800);
   return unwrap(

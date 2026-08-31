@@ -71,11 +71,7 @@ function SwipeCard({ book, isTop, forcedSwipe, onSwipe }: SwipeCardProps) {
     >
       <div className="flex h-56 items-center justify-center overflow-hidden rounded-xl border border-forest/10 bg-paper text-5xl">
         {book.coverImageUrl ? (
-          <img
-            src={book.coverImageUrl}
-            alt={book.title}
-            className="h-full w-full object-cover"
-          />
+          <img src={book.coverImageUrl} alt={book.title} className="h-full w-full object-cover" />
         ) : (
           "📖"
         )}

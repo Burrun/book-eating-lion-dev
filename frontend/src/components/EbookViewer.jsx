@@ -69,15 +69,7 @@ function safeSetItem(key, value) {
  * 실 API(GET /api/catalog/books/{bookId}/ebook) 연동 시에도 이 컴포넌트는 그대로 두고
  * 호출부(ProductDetailPage)에서 응답으로 받은 URL을 넘기기만 하면 된다.
  */
-export default function EbookViewer({
-  isOpen,
-  onClose,
-  url,
-  title,
-  bookId,
-  purchased,
-  onProgressChange,
-}) {
+export default function EbookViewer({ isOpen, onClose, url, title, bookId, onProgressChange }) {
   const { initialCfi, saveLocation } = useReadingProgress(bookId);
   const toast = useToast();
   // 긁은 문장 + 그 위치. null 이면 작성 패널을 안 띄운다.
@@ -270,26 +262,24 @@ export default function EbookViewer({
             </span>
           )}
         </div>
-        {/* 🔴 purchased 가 아니면 아예 안 보여준다. 열람은 구독으로도 되지만 사자 RAG의 검색
-            권한은 구매 이벤트(ai_db.purchased_books)만 근거로 삼아, 구독 열람 중에 물으면
-            "구매한 책에서 근거를 찾지 못했습니다"만 돌아온다 — 눌러도 안 되는 버튼을 두느니
-            숨긴다. */}
-        {purchased && (
-          <button
-            type="button"
-            aria-label={isAskOpen ? "사자에게 묻기 닫기" : "사자에게 묻기"}
-            aria-pressed={isAskOpen}
-            onClick={() => setIsAskOpen((open) => !open)}
-            className={`ml-auto mr-1 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm transition-colors ${
-              isAskOpen
-                ? "bg-[var(--color-forest)]/10 text-[var(--color-forest)]"
-                : "text-[var(--color-forest)]/60 hover:bg-[var(--color-forest)]/10 hover:text-[var(--color-forest)]"
-            }`}
-          >
-            <span className="text-base leading-none">🦁</span>
-            <span className="hidden sm:inline">사자에게 묻기</span>
-          </button>
-        )}
+        {/* 예전에는 구매한 책일 때만 노출했다. 검색 권한이 구매 이벤트만 근거로 삼던 시절엔
+            구독 열람 중에 누르면 "근거를 찾지 못했습니다"만 나왔기 때문이다. 지금은 서버가
+            구독 회원에게도 인제스트된 책 전체를 열어주므로(WikiRagService#allowedBooks)
+            열람할 수 있는 책이면 언제나 물어볼 수 있다 — 그래서 조건을 뗐다. */}
+        <button
+          type="button"
+          aria-label={isAskOpen ? "사자에게 묻기 닫기" : "사자에게 묻기"}
+          aria-pressed={isAskOpen}
+          onClick={() => setIsAskOpen((open) => !open)}
+          className={`ml-auto mr-1 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm transition-colors ${
+            isAskOpen
+              ? "bg-[var(--color-forest)]/10 text-[var(--color-forest)]"
+              : "text-[var(--color-forest)]/60 hover:bg-[var(--color-forest)]/10 hover:text-[var(--color-forest)]"
+          }`}
+        >
+          <span className="text-base leading-none">🦁</span>
+          <span className="hidden sm:inline">사자에게 묻기</span>
+        </button>
         <button
           type="button"
           aria-label="닫기"
