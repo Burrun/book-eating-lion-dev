@@ -12,6 +12,12 @@ on:
       # 이 워크플로는 frontend/** 를 안 봐서 둘 다 그냥 두면 한쪽 변경이 검사를 빠져나간다.
       - 'frontend/.env.production'
       - 'frontend/.env.development'
+      # 아래 둘은 백엔드 코드가 아니지만 배포 경로다. main-cd 는 스스로 트리거되지 않고
+      # 이 CI 가 성공해야 workflow_run 으로 깨어나므로, 여기 없으면 배포 배선을 고쳐도
+      # CD 가 아예 안 뜬다 — 실패가 아니라 "아무 일도 안 일어나는" 형태라 알아채기 어렵다.
+      # load-deployment-config.sh 는 클러스터명·SSM 경로·DB 엔드포인트·IRSA ARN 을 정한다.
+      - 'scripts/**'
+      - '.github/workflows/main-cd.yml'
   push:
     branches: [ "main", "dev" ]
     paths:
@@ -20,6 +26,8 @@ on:
       - '.github/workflows/backend-ci.yml'
       - 'frontend/.env.production'
       - 'frontend/.env.development'
+      - 'scripts/**'
+      - '.github/workflows/main-cd.yml'
   workflow_dispatch:
 
 permissions:
