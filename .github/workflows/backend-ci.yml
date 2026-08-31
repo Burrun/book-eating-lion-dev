@@ -7,12 +7,19 @@ on:
       - 'backend/**'
       - 'k8s/**'
       - '.github/workflows/backend-ci.yml'
+      # config-sync 잡이 백엔드 설정과 대조하는 프론트 파일. 프론트만 고친 PR 에서도
+      # 검사가 돌아야 하므로 여기 함께 건다 — frontend-ci 는 backend/** 를 안 보고,
+      # 이 워크플로는 frontend/** 를 안 봐서 둘 다 그냥 두면 한쪽 변경이 검사를 빠져나간다.
+      - 'frontend/.env.production'
+      - 'frontend/.env.development'
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'backend/**'
       - 'k8s/**'
       - '.github/workflows/backend-ci.yml'
+      - 'frontend/.env.production'
+      - 'frontend/.env.development'
   workflow_dispatch:
 
 permissions:
@@ -27,9 +34,253 @@ defaults:
     working-directory: ./backend
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # 모듈 경계 검사 — §7.2 의 "기계적 강제 2단" 중 1단
+  #
+  # 저장소를 4개로 쪼개지 않기로 했으므로(§7.0 모노레포 유지), 경계는 이 검사가
+  # 지킨다. 리뷰어의 눈이 아니라 CI 가 막아야 한다 —
+  # "RAG 코드가 member-service 로 흘러들어감"이 §5 의 치명적 리스크이기 때문이다.
+  # ---------------------------------------------------------------------------
+  boundary:
+    name: 모듈 경계 규칙
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: apps 가 자기 도메인 외의 modules 를 참조하지 않는지 검사
+        run: |
+          set -euo pipefail
+          # 각 앱이 참조해도 되는 modules 화이트리스트
+          declare -A ALLOWED=(
+            [catalog-api]="common book"
+            [order-api]="common order"
+            [member-api]="common member"
+            [ai-api]="common ai"
+          )
+
+          FAILED=0
+          for app in "${!ALLOWED[@]}"; do
+            f="apps/$app/build.gradle"
+            [ -f "$f" ] || { echo "::error::$f 가 없습니다"; FAILED=1; continue; }
+
+            # project(':modules:xxx') 에서 xxx 만 뽑는다
+            refs=$(grep -oP "project\(':modules:\K[a-z]+" "$f" | sort -u || true)
+
+            for ref in $refs; do
+              if ! grep -qw "$ref" <<< "${ALLOWED[$app]}"; then
+                echo "::error file=$f::경계 위반 — $app 이 modules:$ref 를 참조합니다. 허용: ${ALLOWED[$app]}"
+                echo "  타 서비스 도메인에는 contracts/ 의 계약을 통해서만 접근해야 합니다(§7.2)."
+                FAILED=1
+              fi
+            done
+          done
+
+          exit $FAILED
+
+      - name: modules 끼리 상호 의존하지 않는지 검사
+        run: |
+          set -euo pipefail
+          FAILED=0
+          for f in modules/*/build.gradle; do
+            owner=$(basename "$(dirname "$f")")
+            refs=$(grep -oP "project\(':modules:\K[a-z]+" "$f" | sort -u || true)
+            for ref in $refs; do
+              # common 만 예외다. 나머지 도메인 모듈 간 참조는 전부 금지.
+              if [ "$ref" != "common" ]; then
+                echo "::error file=$f::경계 위반 — modules:$owner 가 modules:$ref 를 참조합니다."
+                echo "  modules 끼리는 common 외에 서로 의존할 수 없습니다(§7.2)."
+                FAILED=1
+              fi
+            done
+          done
+          exit $FAILED
+
+  # ---------------------------------------------------------------------------
+  # 프론트·백엔드가 각자 들고 있는 "같은 의미의 값"이 어긋나지 않는지 검사한다.
+  #
+  # 하이라이트 길이 상한은 서버가 실제로 검증한다(클라이언트를 신뢰할 수 없으니 서버
+  # 검증은 뺄 수 없다). 프론트는 긁는 즉시 토스트를 띄우려고 같은 값을 따로 들고 있다 —
+  # 서버에 물어보면 왕복이 생기고, 값을 받기 전까지는 상한을 모르기 때문이다.
+  # 두 값이 어긋나면 조용히 UX 만 깨진다: 프론트가 더 크면 다 긁고 메모까지 쓴 뒤에
+  # 저장이 거절되고, 더 작으면 저장 가능한 만큼도 못 긁는다. 사람 눈 대신 여기서 막는다.
+  # ---------------------------------------------------------------------------
+  config-sync:
+    name: 프론트·백엔드 설정값 동기화
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 하이라이트 길이 상한이 세 곳에서 같은지 검사
+        working-directory: .
+        run: |
+          set -euo pipefail
+          BE=$(grep -oP 'CATALOG_HIGHLIGHT_MAX_SELECTED_CHARS:\K\d+' \
+                 backend/apps/catalog-api/src/main/resources/application.yml)
+          FE_PROD=$(grep -oP '^VITE_HIGHLIGHT_MAX_SELECTED_CHARS=\K\d+' frontend/.env.production)
+          FE_DEV=$(grep -oP '^VITE_HIGHLIGHT_MAX_SELECTED_CHARS=\K\d+' frontend/.env.development)
+
+          echo "backend=$BE frontend(production)=$FE_PROD frontend(development)=$FE_DEV"
+          if [ "$BE" != "$FE_PROD" ] || [ "$BE" != "$FE_DEV" ]; then
+            echo "::error::하이라이트 길이 상한 불일치 — backend=$BE, frontend(production)=$FE_PROD, frontend(development)=$FE_DEV"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # YAML 정적 검사 — Gradle 이 필요 없는 것들을 한 잡에 모았다.
+  #
+  # 세 검사는 성격이 다르다(배포 배선 / API 계약 / Spring 설정 중복 키). 잡을
+  # 나누지 않은 이유는 셋 다 PyYAML 하나만 있으면 되고 수 초 안에 끝나서, 러너를
+  # 여러 개 띄우는 비용이 검사 자체보다 크기 때문이다. 하나가 무거워지면 그때 쪼갠다.
+  # ---------------------------------------------------------------------------
+  yaml-checks:
+    name: YAML 정적 검사 (k8s · contracts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      # --- [1] 배포 배선 ---
+      # configMapKeyRef 의 키 오타는 kubectl apply 도 통과하고 파드도 뜬다. 그 환경변수만
+      # 조용히 비어서 앱이 자기 기본값으로 동작한다 — 봇이 RAG 용 비싼 모델을 쓰고 있어도
+      # 에러도 로그도 없다. 배포 전에 잡을 수 있는 유일한 지점이 여기다.
+      - name: k8s 매니페스트 파싱 + ConfigMap 키 참조 검사
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          docs = [d for p in sorted(glob.glob("k8s/**/*.yaml", recursive=True))
+                    for d in yaml.safe_load_all(open(p, encoding="utf-8")) if d]
+          if not docs:
+              sys.exit("k8s/**/*.yaml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          configmaps = {d["metadata"]["name"]: set((d.get("data") or {}).keys())
+                        for d in docs if d.get("kind") == "ConfigMap"}
+
+          bad, checked = [], 0
+          for d in docs:
+              spec = d.get("spec") or {}
+              pod = (spec.get("template") or {}).get("spec") or spec
+              for c in (pod.get("containers") or []) + (pod.get("initContainers") or []):
+                  for env in c.get("env") or []:
+                      ref = (env.get("valueFrom") or {}).get("configMapKeyRef")
+                      if not ref:
+                          continue
+                      checked += 1
+                      name, key = ref.get("name"), ref.get("key")
+                      ok = key in configmaps.get(name, ())
+                      owner = d["metadata"]["name"]
+                      print(f"  [{'OK ' if ok else 'FAIL'}] {owner}: {env['name']} <- {name}/{key}")
+                      if not ok:
+                          known = ", ".join(sorted(configmaps.get(name, ()))) or "(없음)"
+                          bad.append(f"{owner}: {name}/{key} 가 없다. 있는 키: {known}")
+
+          print(f"\n매니페스트 {len(docs)}건 / ConfigMap {len(configmaps)}개 / 키 참조 {checked}건")
+          if bad:
+              sys.exit("\n참조 오류:\n  - " + "\n  - ".join(bad))
+          PY
+
+      # --- [2] API 계약 (contracts/README.md §검증, "아직 하지 않은 것" 해소) ---
+      # 계약이 파싱조차 안 되는 상태로 커밋된 전례가 있다 — flow mapping `{ }` 안의 `?` 가
+      # YAML 복합 키 지시자로 잡혔고, 사람이 읽어서는 못 잡았다. 파싱 2줄이 그걸 잡는다.
+      #
+      # 파일이 0건이면 통과해 버리므로 건수도 함께 확인한다. 못 깨지는 검사는 검사가 아니다.
+      - name: 계약 YAML 파싱
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          paths = sorted(glob.glob("backend/contracts/*.yaml"))
+          if not paths:
+              sys.exit("backend/contracts/*.yaml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          # 🔴 safe_load 는 중복 키를 조용히 "마지막 값이 이김"으로 통과시킨다. 실제로
+          # catalog-v1.yaml 에 BookSynopsisDetail / BookSynopsisDetailEnvelope 가 두 번씩
+          # 정의돼 있었는데 이 검사를 계속 통과했고, openapi-typescript(redocly)만
+          # YamlParseError 로 죽어서 프론트 타입 생성이 막혀 있었다 - 그 결과 계약에서
+          # 생성해야 할 타입을 사람이 손으로 적게 됐다. application*.yml 과 같은
+          # StrictLoader 로 여기서도 잡는다.
+          class StrictLoader(yaml.SafeLoader):
+              pass
+
+          def no_duplicates(loader, node, deep=False):
+              mapping = {}
+              for key_node, value_node in node.value:
+                  key = loader.construct_object(key_node, deep=deep)
+                  if key in mapping:
+                      raise yaml.constructor.ConstructorError(
+                          "while constructing a mapping", node.start_mark,
+                          f"found duplicate key {key!r}", key_node.start_mark)
+                  mapping[key] = loader.construct_object(value_node, deep=deep)
+              return mapping
+
+          StrictLoader.add_constructor(
+              yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+
+          for p in paths:
+              yaml.load(open(p, encoding="utf-8"), Loader=StrictLoader)
+              print(f"  OK  {p}")
+
+          print(f"\n계약 {len(paths)}건 파싱 통과")
+          PY
+
+      # --- [3] Spring 설정 중복 키 (application-prod.yml 4개 서비스 동시 장애 재발 방지) ---
+      # PyYAML의 safe_load는 중복 키를 조용히 마지막 값으로 덮어써서 통과시킨다 - 실제
+      # 배포에 쓰는 SnakeYAML(Java)은 기본값이 반대(중복 키 발견 시 예외)라, 이 차이 때문에
+      # 로컬/CI에서는 안 보이던 문제가 기동 시점에야 DuplicateKeyException 으로 터졌다.
+      # SnakeYAML과 같은 엄격 모드로 다시 검사해서 빌드 전에 잡는다.
+      - name: application*.yml 중복 키 검사
+        working-directory: .
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+
+          class StrictLoader(yaml.SafeLoader):
+              pass
+
+          def no_duplicates(loader, node, deep=False):
+              mapping = {}
+              for key_node, value_node in node.value:
+                  key = loader.construct_object(key_node, deep=deep)
+                  if key in mapping:
+                      raise yaml.constructor.ConstructorError(
+                          "while constructing a mapping", node.start_mark,
+                          f"found duplicate key {key!r}", key_node.start_mark)
+                  mapping[key] = loader.construct_object(value_node, deep=deep)
+              return mapping
+
+          StrictLoader.add_constructor(
+              yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+
+          paths = sorted(glob.glob("backend/**/src/main/resources/application*.yml", recursive=True))
+          if not paths:
+              sys.exit("application*.yml 이 0건이다. 경로가 바뀌었는지 확인할 것.")
+
+          bad = []
+          for p in paths:
+              try:
+                  for _ in yaml.load_all(open(p, encoding="utf-8"), Loader=StrictLoader):
+                      pass
+                  print(f"  OK  {p}")
+              except yaml.YAMLError as e:
+                  bad.append(f"{p}: {e}")
+
+          print(f"\n{len(paths)}건 검사")
+          if bad:
+              sys.exit("\n중복 키 발견:\n  - " + "\n  - ".join(bad))
+          PY
+
   build:
     name: Build & Test
     runs-on: ubuntu-latest
+    needs: boundary
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,9 +303,6 @@ jobs:
       - name: Build & Test
         run: ./gradlew build
 
-      - name: Verify Docker image build
-        run: docker build -f apps/api/Dockerfile .
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,3 +310,18 @@ jobs:
           name: backend-test-results
           path: backend/**/build/reports/tests/
           if-no-files-found: ignore
+
+  # 서비스별 이미지가 각각 빌드되는지 확인한다. 하나만 확인하면
+  # 나머지 3개가 깨진 채로 main 에 들어갈 수 있다.
+  docker:
+    name: 이미지 빌드 검증 (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, order, member, ai]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Docker image build
+        run: docker build -f apps/${{ matrix.service }}-api/Dockerfile .
