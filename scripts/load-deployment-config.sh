@@ -3,34 +3,32 @@
 # Variables에 복제하지 않고 SSM을 단일 원본으로 사용한다.
 set -euo pipefail
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 <dev|prod> <split|integrated> <github-env-file>" >&2
+if [[ $# -eq 2 ]]; then
+  DEPLOY_ENV="$1"
+  ENV_FILE="$2"
+elif [[ $# -eq 3 ]]; then
+  DEPLOY_ENV="$1"
+  # $2 는 하위 호환성을 위해 무시함 (integrated 모드로 고정)
+  ENV_FILE="$3"
+else
+  echo "usage: $0 <dev|prod> [mode] <github-env-file>" >&2
   exit 1
 fi
 
-DEPLOY_ENV="$1"
-MODE="$2"
-ENV_FILE="$3"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 
-if [[ "$DEPLOY_ENV" != "dev" && "$DEPLOY_ENV" != "prod" ]] ||
-   [[ "$MODE" != "split" && "$MODE" != "integrated" ]]; then
-  echo "unsupported deployment target: environment=$DEPLOY_ENV mode=$MODE" >&2
+if [[ "$DEPLOY_ENV" != "dev" && "$DEPLOY_ENV" != "prod" ]]; then
+  echo "unsupported deployment target: environment=$DEPLOY_ENV" >&2
   exit 1
 fi
 
-INFRA_ENV="$DEPLOY_ENV"
-DATA_ENV="$DEPLOY_ENV"
-EDGE_PREFIX="/$DEPLOY_ENV"
-if [[ "$MODE" == "integrated" ]]; then
-  INFRA_ENV="integrated"
-  if [[ "$DEPLOY_ENV" == "prod" ]]; then
-    DATA_ENV="integrated"
-    EDGE_PREFIX="/integrated"
-  else
-    DATA_ENV="dev"
-    EDGE_PREFIX="/integrated/dev"
-  fi
+INFRA_ENV="integrated"
+if [[ "$DEPLOY_ENV" == "prod" ]]; then
+  DATA_ENV="integrated"
+  EDGE_PREFIX="/integrated"
+else
+  DATA_ENV="dev"
+  EDGE_PREFIX="/integrated/dev"
 fi
 
 ssm() {
@@ -60,7 +58,7 @@ VPC_CIDR="$(aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --region "$AWS_REGION" --q
 put DEPLOY_ENV "$DEPLOY_ENV"
 put INFRA_ENV "$INFRA_ENV"
 put DATA_ENV "$DATA_ENV"
-put EKS_CLUSTER "lion-team3-${INFRA_ENV}"
+put EKS_CLUSTER "lion-team3-integrated"
 put API_HOST "$DOMAIN"
 put FRONTEND_ORIGIN "https://${DOMAIN}"
 put VPC_CIDR "$VPC_CIDR"
@@ -70,9 +68,7 @@ put DB_WRITER_ENDPOINT "$(ssm "$DATA_ENV" data/db_endpoint)"
 put DB_READER_ENDPOINT "$(ssm "$DATA_ENV" data/db_reader_endpoint)"
 put DB_NAME "bookdb_${DEPLOY_ENV}"
 put AI_DB_NAME "bookdb_${DEPLOY_ENV}"
-DB_SSL_MODE="disable"
-if [[ "$DEPLOY_ENV" == "prod" && "$MODE" == "split" ]]; then DB_SSL_MODE="require"; fi
-put DB_SSL_MODE "$DB_SSL_MODE"
+put DB_SSL_MODE "disable"
 put SPRING_PROFILE "prod"
 put REDIS_HOST "$(ssm "$DATA_ENV" data/valkey_endpoint)"
 put AWS_COGNITO_USER_POOL_ID "$(ssm "$DATA_ENV" auth/user_pool_id)"
@@ -85,7 +81,7 @@ put ECR_MEMBER_REPO "lion-team3-${INFRA_ENV}/member"
 put ECR_AI_REPO "lion-team3-${INFRA_ENV}/ai"
 put CLOUDFRONT_DIST_ID "$(ssm_optional "${EDGE_PREFIX}/edge/cloudfront_distribution_id")"
 
-if [[ "$MODE" == "integrated" && "$DEPLOY_ENV" == "dev" ]]; then
+if [[ "$DEPLOY_ENV" == "dev" ]]; then
   put AI_SERVICE_IRSA_ARN "$(ssm integrated dev/ai/service_irsa_arn)"
   put MEMBER_SERVICE_IRSA_ARN "$(ssm integrated dev/member/service_irsa_arn)"
   put CATALOG_SERVICE_IRSA_ARN "$(ssm integrated dev/catalog/service_irsa_arn)"
