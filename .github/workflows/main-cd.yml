@@ -52,10 +52,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # dorny/paths-filter 가 HEAD~1(이 push 직전 커밋)과 diff 하려면 그 커밋
+          # 객체가 로컬에 있어야 한다 — 기본 fetch-depth(1)는 head_sha 하나만 받아온다.
+          fetch-depth: 2
 
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # 🔴 base 를 안 주면 paths-filter 기본값(레포 기본 브랜치 = main)으로 diff 한다.
+          # dev 는 main 보다 훨씬 앞서 있어서 그 둘을 통째로 비교하면 "이번 push 에서
+          # 바뀐 것"이 아니라 "dev 전체 역사 vs main"이 나와, 거의 항상 4개 서비스가
+          # 전부 바뀐 것으로 잡힌다(2026-08-31 워크플로 파일만 고친 push 에서 order 가
+          # 배포 대상으로 잡힌 게 이 버그였다 — "Ref main is not checked out" 경고도 같은
+          # 원인: 얕은 체크아웃이라 main 히스토리 자체가 없어 diff 를 못 한 것이었다).
+          # HEAD~1 로 명시해 "이 push 직전 dev 커밋"과만 비교한다.
+          base: HEAD~1
           predicate-quantifier: 'some'
           filters: |
             shared: &shared
