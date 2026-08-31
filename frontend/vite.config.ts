@@ -1,6 +1,25 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+
+// 값이 없으면 Number(undefined)=NaN 이 되고 `length > NaN` 은 항상 false 라, 상한 검사가
+// 조용히 사라진다(챕터 전체가 통째로 긁힌다). 런타임에 터뜨리면 사용자가 흰 화면을 보므로
+// 빌드를 세운다 — 배선이 끊긴 채로는 배포가 나가지 않는다.
+const REQUIRED_NUMERIC_ENV = ["VITE_HIGHLIGHT_MAX_SELECTED_CHARS"];
+
+function assertRequiredEnv(mode: string) {
+  // envDir 은 vite 실행 디렉터리(= 이 파일이 있는 frontend/) 기준이라 "." 로 충분하다.
+  // process.cwd() 를 쓰면 @types/node 가 필요해진다.
+  const env = loadEnv(mode, ".", "VITE_");
+  for (const key of REQUIRED_NUMERIC_ENV) {
+    const value = Number(env[key]);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(
+        `${key} 가 없거나 양수가 아닙니다 (mode=${mode}, 값=${env[key] ?? "미설정"}).`,
+      );
+    }
+  }
+}
 
 // nginx/default.conf 의 경로 라우팅을 로컬 dev 서버에서 그대로 흉내낸다.
 // (도커 없이 각 backend 서비스를 gradlew bootRun 등으로 개별 기동했을 때 기준.
@@ -28,10 +47,14 @@ const backendProxy = {
   "/api/catalog": { target: "http://localhost:8081", changeOrigin: true },
 };
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    port: 3000,
-    proxy: backendProxy,
-  },
+export default defineConfig(({ mode }) => {
+  assertRequiredEnv(mode);
+
+  return {
+    plugins: [react(), tailwindcss()],
+    server: {
+      port: 3000,
+      proxy: backendProxy,
+    },
+  };
 });

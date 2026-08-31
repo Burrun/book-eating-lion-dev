@@ -82,6 +82,7 @@ class EbookServiceTest {
         assertThat(result.ebookAvailable()).isTrue();
         assertThat(result.presignedUrl()).isEqualTo("https://signed.example/alice");
         assertThat(result.expiresAt()).isEqualTo(expiresAt);
+        assertThat(result.purchased()).isTrue();
         // 구매 확정만으로 통과하므로 && 단락 평가로 구독 조회는 아예 안 나가야 한다.
         verifyNoInteractions(memberSubscriptionPort);
     }
@@ -100,6 +101,8 @@ class EbookServiceTest {
 
         assertThat(result.ebookAvailable()).isTrue();
         assertThat(result.presignedUrl()).isEqualTo("https://signed.example/alice");
+        // 읽을 수는 있어도 구매는 아니다 — 뷰어가 이 값으로 사자 진입점을 숨긴다.
+        assertThat(result.purchased()).isFalse();
     }
 
     @Test

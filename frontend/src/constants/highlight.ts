@@ -8,4 +8,8 @@
 //
 // 🔴 백엔드 catalog.highlight.max-selected-chars 와 같은 값이어야 한다. 프론트가 더 크면
 // 사용자는 다 긁고 나서 저장 단계에서 거절당한다.
-export const MAX_SELECTED_CHARS = Number(import.meta.env.VITE_HIGHLIGHT_MAX_SELECTED_CHARS ?? 500);
+//
+// 값은 .env.development / .env.production 이 준다 — 여기 폴백을 두지 않는다. 폴백이 있으면
+// env 배선이 끊겨도(실제로 오래 그런 상태였다) 아무도 모른 채 상수값으로 돌아간다.
+// 누락은 vite.config.ts 가 빌드 시점에 잡는다.
+export const MAX_SELECTED_CHARS = Number(import.meta.env.VITE_HIGHLIGHT_MAX_SELECTED_CHARS);

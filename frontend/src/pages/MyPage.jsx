@@ -3,16 +3,16 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { Award, BookOpen, Flame, Send, Star, X } from "lucide-react";
+import { Award, BookOpen, Flame, Star, X } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Modal from "../components/Modal.jsx";
 import Skeleton from "../components/Skeleton.jsx";
 import { useToast } from "../components/Toast.jsx";
 import LionCharacter, { getLionTier } from "../components/LionCharacter.jsx";
+import LionAskPanel from "../components/LionAskPanel.jsx";
 import {
   fetchProfile,
   feedLion,
-  askLion,
   fetchCoupons,
   fetchReturnRequests,
   fetchReviews,
@@ -429,10 +429,6 @@ function StreakBadge({ label, streakCount }) {
   );
 }
 
-// 책 1권을 먹였을 때 오르는 경험치. 백엔드 Lion.EXP_PER_FEED 와 같은 값이며 책과 무관하게
-// 고정이다(구독 회원은 서버에서 2배로 들어오고, 화면은 서버 응답 exp 를 그대로 쓴다).
-const EXP_PER_FEED = 40;
-
 // 레벨 1당 필요한 경험치. 백엔드 Lion.EXP_PER_LEVEL 과 같아야 한다. 진행바 표시(exp % 100)에만 쓴다
 // — 실제 레벨/경험치는 항상 서버 응답값을 그대로 쓰고 프론트에서 다시 계산하지 않는다.
 const EXP_PER_LEVEL = 100;
@@ -455,7 +451,7 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
   }, []);
 
   // 실제 exp/level/growthStage는 항상 서버(POST /api/ai/lion/feed) 응답값을 그대로 쓴다 —
-  // 프론트에서 따로 계산하면 서버 값과 어긋날 수 있다. +EXP 애니메이션 숫자만 낙관적으로 먼저 보여준다.
+  // 프론트에서 따로 계산하면 서버 값과 어긋날 수 있다.
   //
   // feedLion(ai-service) 성공 후 markBookFed(catalog-service)를 이어서 부른다 — 두 서비스가
   // 동기 호출로 얽히지 않도록 프론트가 오케스트레이션한다. markBookFed가 실패해도(네트워크
@@ -467,12 +463,16 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
     const book = books?.find((b) => b.bookId === active.id);
     if (!book) return;
 
+    // 카드만 낙관적으로 치운다. 먹는 연출(+EXP)은 서버가 확인해준 뒤에만 재생한다 — 미리
+    // 보여주면 실패해서 카드가 되돌아와도 사용자는 EXP가 오른 장면을 이미 본 뒤다.
     setBooks((prev) => prev.filter((b) => b.bookId !== active.id));
-    setIsFeeding(true);
-    setFeedAmount(EXP_PER_FEED);
 
     feedLion(book.bookId)
       .then((status) => {
+        // 오른 EXP는 서버 응답의 차이로 구한다. 구독 회원은 2배로 들어오므로
+        // (FeedService.expMultiplier) 상수를 쓰면 실제의 절반만 보이고, 이미 먹인 책이면
+        // 멱등이라 0이다 — 그땐 연출 자체를 건너뛴다.
+        const gainedExp = status.exp - exp;
         setExp(status.exp);
         if (status.level > level) {
           const prevTier = getLionTier(level);
@@ -484,6 +484,11 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
           });
         }
         setLevel(status.level);
+        if (gainedExp > 0) {
+          setFeedAmount(gainedExp);
+          setIsFeeding(true);
+          setTimeout(() => setIsFeeding(false), 600);
+        }
         markBookFed(book.bookId).catch(() => {
           // catalog 쪽 표시만 실패한 것 — EXP는 이미 올랐으니 조용히 넘어간다.
         });
@@ -492,8 +497,6 @@ function LionFeedingCard({ exp, setExp, level, setLevel }) {
         setBooks((prev) => [...prev, book]);
         toast.error("먹이기에 실패했어요. 잠시 후 다시 시도해주세요.");
       });
-
-    setTimeout(() => setIsFeeding(false), 600);
   };
 
   return (
@@ -724,42 +727,7 @@ function DraggableBook({ id, bookTitle, percentage }) {
   );
 }
 
-// citations[].score 는 0~1 이고 클수록 유사하다. 화면은 백분율 하나만 쓰므로
-// 가장 가까운 근거를 대표값으로 삼는다. 근거가 없으면(grounded: false) 0 이다.
-function toSimilarityPercent(citations) {
-  if (!citations?.length) return 0;
-  return Math.round(Math.max(...citations.map((c) => c.score)) * 100);
-}
-
 function LionRagCard() {
-  const [question, setQuestion] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | loading | streaming | done
-  const [displayedAnswer, setDisplayedAnswer] = useState("");
-  const [similarity, setSimilarity] = useState(null);
-
-  const handleAsk = async () => {
-    if (!question.trim() || status === "loading" || status === "streaming") return;
-    setStatus("loading");
-    setDisplayedAnswer("");
-
-    const result = await askLion(question);
-    setSimilarity(toSimilarityPercent(result.citations));
-    setStatus("streaming");
-
-    const full = result.answer;
-    let i = 0;
-    const interval = setInterval(() => {
-      i += 2;
-      setDisplayedAnswer(full.slice(0, i));
-      if (i >= full.length) {
-        clearInterval(interval);
-        setStatus("done");
-      }
-    }, 25);
-  };
-
-  const isBusy = status === "loading" || status === "streaming";
-
   return (
     <section className="rounded-2xl border-2 border-[var(--color-forest)]/15 bg-white p-6 shadow-[0_1px_3px_rgba(27,59,54,0.08)]">
       <h2 className="font-display mb-4 flex items-center gap-2 text-lg text-[var(--color-forest)]">
@@ -775,61 +743,8 @@ function LionRagCard() {
         구매한 책의 본문에서 찾아 답해요. 어느 책의 어느 대목인지도 함께 알려줘요.
       </p>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleAsk();
-        }}
-        className="flex gap-2"
-      >
-        <input
-          type="text"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder="객체지향 캡슐화 설명한 부분이 어느 책이야?"
-          className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          shimmer={false}
-          disabled={isBusy}
-          className="shrink-0 px-4"
-        >
-          <Send size={15} />
-        </Button>
-      </form>
-
-      {status !== "idle" && (
-        <div className="mt-4 rounded-xl bg-[var(--color-forest)]/5 p-4">
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg leading-none">🦁</span>
-            {status === "loading" ? (
-              <span className="flex items-center gap-1 pt-1.5">
-                {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-[var(--color-forest)]/40"
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
-                  />
-                ))}
-              </span>
-            ) : (
-              <p className="text-sm text-[var(--color-ink)]">
-                <span className="font-medium text-[var(--color-forest)]">사자 사서 답변: </span>
-                {displayedAnswer}
-                {status === "streaming" && <span className="animate-pulse">▌</span>}
-                {status === "done" && (
-                  <span className="ml-2 inline-block rounded-full bg-[var(--color-honey)]/20 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)]">
-                    유사도 {similarity}%
-                  </span>
-                )}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* bookIds 없음 = 구매한 책 전체가 검색 대상. */}
+      <LionAskPanel placeholder="객체지향 캡슐화 설명한 부분이 어느 책이야?" />
     </section>
   );
 }
