@@ -196,9 +196,9 @@ resource "aws_iam_role" "github_actions_terraform" {
 data "aws_iam_policy_document" "terraform_permissions" {
   count = var.create_terraform_role ? 1 : 0
 
-  # 이 role 스스로 github_actions/github_actions_db_power 같은 lion-team3 계열
-  # role/policy를 만들고 고칠 수 있어야 terraform apply가 이 모듈 자체를 관리할 수
-  # 있다. 다른 팀 role까지 건드리지 못하게 이름으로 좁힌다.
+  # 이 role 스스로 github_actions 같은 lion-team3 계열 role/policy를 만들고 고칠
+  # 수 있어야 terraform apply가 이 모듈 자체를 관리할 수 있다. 다른 팀 role까지
+  # 건드리지 못하게 이름으로 좁힌다.
   statement {
     sid    = "ScopedIam"
     effect = "Allow"
@@ -273,40 +273,4 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
   name   = "terraform-apply-destroy"
   role   = aws_iam_role.github_actions_terraform[0].id
   policy = data.aws_iam_policy_document.terraform_permissions[0].json
-}
-
-# db-power.yml(야간 dev Postgres EC2 stop/start) 전용 role. 인스턴스 하나만 건드릴
-# 수 있게 terraform role보다도 훨씬 좁게 잡는다 - 이 role이 뚫려도 피해가 그 인스턴스
-# 하나로 끝나게.
-resource "aws_iam_role" "github_actions_db_power" {
-  count              = var.create_db_power_role ? 1 : 0
-  name               = "github-actions-lion-team3-db-power"
-  assume_role_policy = data.aws_iam_policy_document.trust.json
-}
-
-data "aws_iam_policy_document" "db_power_permissions" {
-  count = var.create_db_power_role ? 1 : 0
-
-  statement {
-    sid       = "StartStopOneInstance"
-    effect    = "Allow"
-    actions   = ["ec2:StartInstances", "ec2:StopInstances"]
-    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/${var.db_power_instance_id}"]
-  }
-
-  # DescribeInstances는 리소스 수준 권한을 지원하지 않는다 - stop/start 성공 여부
-  # 확인용으로만 쓰이므로 읽기 전용으로 계정 스코프 허용.
-  statement {
-    sid       = "DescribeReadOnly"
-    effect    = "Allow"
-    actions   = ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "github_actions_db_power" {
-  count  = var.create_db_power_role ? 1 : 0
-  name   = "db-start-stop"
-  role   = aws_iam_role.github_actions_db_power[0].id
-  policy = data.aws_iam_policy_document.db_power_permissions[0].json
 }
