@@ -231,6 +231,31 @@ resource "aws_eks_addon" "coredns" {
   })
 }
 
+# HPA(catalog/order/member/ai-rag)가 CPU·메모리 목표로 스케일하려면 Resource
+# Metrics API(metrics.k8s.io)가 있어야 한다. 이게 없으면 모든 HPA가
+# TARGETS=<unknown>으로 뜨고 절대 스케일하지 않으며 `kubectl top`도 실패한다
+# (2026-08-31 integrated 클러스터에서 실측 - metrics-server addon 자체가 없어서
+# catalog/order/member/ai HPA가 전부 죽어 있었다). vpc-cni/kube-proxy/coredns와
+# 함께 EKS 관리형 addon으로 둔다.
+resource "aws_eks_addon" "metrics_server" {
+  cluster_name = aws_eks_cluster.this.name
+  addon_name   = "metrics-server"
+  depends_on   = [aws_eks_node_group.system] # Pod가 뜨려면 노드가 먼저 있어야 함
+
+  # 이 addon은 원래 누락돼 있어서 CLI(`aws eks create-addon`)로 먼저 깔고 나중에
+  # terraform이 흡수하는 경로를 탄다. OVERWRITE가 없으면 그 apply가
+  # "addon already exists"로 실패한다(sibling addon들은 처음부터 terraform이
+  # 만들어서 이 옵션이 필요 없었다).
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  # metrics-server는 부트스트랩 의존성이 아니라 toleration이 없으면 Karpenter
+  # 노드로 스케줄되지만(coredns 주석 참고), 클러스터를 새로 만들 때 Karpenter
+  # 노드가 아직 없는 창을 없애려고 시스템 노드그룹 taint도 견디게 열어둔다.
+  configuration_values = jsonencode({
+    tolerations = [local.system_pool_toleration]
+  })
+}
+
 # Pod/Node CPU·메모리를 CloudWatch Container Insights로 수집
 resource "aws_eks_addon" "cloudwatch_observability" {
   cluster_name = aws_eks_cluster.this.name
