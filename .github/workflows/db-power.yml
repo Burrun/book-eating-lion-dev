@@ -1,0 +1,42 @@
+name: DB Power (dev Postgres EC2)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "start 또는 stop"
+        type: choice
+        options: [start, stop]
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: db-power
+  cancel-in-progress: false
+
+jobs:
+  toggle:
+    name: ${{ inputs.action }} lion-team3-dev-ec2-postgres
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      INSTANCE_ID: i-07e730fed45de433b
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.DB_POWER_AWS_ROLE_ARN }}
+          role-session-name: db-power-${{ inputs.action }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ${{ inputs.action }} instance
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.action }}" = "stop" ]; then
+            aws ec2 stop-instances --instance-ids "$INSTANCE_ID"
+          else
+            aws ec2 start-instances --instance-ids "$INSTANCE_ID"
+          fi
