@@ -1,0 +1,474 @@
+name: Rollback Dev Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_commit_sha:
+        description: "되돌릴 이전 정상 커밋 SHA (40자리 전체). 실제로 배포된 적 있는 커밋이어야 합니다"
+        type: string
+        required: true
+      deployment_mode:
+        description: "인프라 운영 모드 (integrated=공용 클러스터, split=환경별 클러스터)"
+        type: choice
+        options: [ integrated, split ]
+        default: integrated
+        required: true
+      revert_git:
+        description: "Git dev 브랜치에 Revert 커밋 자동 생성 & 푸시 여부"
+        type: boolean
+        default: true
+        required: true
+      services:
+        description: "롤백 대상 서비스 (콤마 구분: catalog,order,member,ai,frontend / 기본 all)"
+        type: string
+        default: "all"
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+
+concurrency:
+  group: rollback-dev-${{ github.event.inputs.deployment_mode }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 0. 입력 검증: 40자리 full SHA 만 받는다
+  # ---------------------------------------------------------------------------
+  # 짧은 SHA 는 세 군데에서 조용히 깨진다:
+  #   1) actions/checkout 의 ref 는 raw SHA 일 때 40자리를 요구한다
+  #   2) main-cd 가 이미지를 full SHA 로 태깅하므로 7자리 태그는 ECR 에 없다
+  #   3) 그 결과가 ImagePullBackOff 라, 원인이 SHA 길이라는 걸 알아채기까지 오래 걸린다
+  # 장애 대응 중에 이걸 디버깅하게 두느니 시작 5초 만에 끊는다.
+  validate:
+    name: 입력 검증
+    runs-on: ubuntu-latest
+    steps:
+      - name: target_commit_sha 형식 확인
+        env:
+          TARGET_SHA: ${{ github.event.inputs.target_commit_sha }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$TARGET_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::target_commit_sha 는 40자리 full SHA 여야 합니다(입력: '$TARGET_SHA'). git rev-parse <short-sha> 로 확장해서 다시 실행하세요."
+            exit 1
+          fi
+          echo "SHA 형식 확인: $TARGET_SHA"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      # 🔴 이 워크플로는 DB 를 건드리지 않는다. 앱/매니페스트만 되돌아가고 스키마는 앞선
+      # 상태로 남는다 - Liquibase 는 앞으로만 가기 때문이다(DATABASECHANGELOG 에 실행 기록이
+      # 남아 changeSet 이 되돌려지지 않는다).
+      #
+      # 컬럼 추가(nullable)뿐이면 대개 무해하지만, NOT NULL 컬럼 추가나 컬럼 삭제/이름 변경이
+      # 섞여 있으면 옛 코드가 그 스키마에서 못 돈다(인프라-트러블슈팅 ㉕: members.nickname
+      # NOT NULL 위반으로 회원가입 500).
+      #
+      # 자동 복원은 하지 않는다 - DB 복원은 되돌릴 수 없는 작업이라 버튼 하나로 돌게 두면
+      # 롤백보다 위험하다. 대신 "사람이 DDL 을 봐야 한다"는 사실을 여기서 크게 알린다.
+      # 막지는 않는다: 장애 대응 중에 롤백 자체를 세우면 안 된다.
+      - name: DB 스키마 변경 감지 (Liquibase changelog diff)
+        env:
+          TARGET_SHA: ${{ github.event.inputs.target_commit_sha }}
+        run: |
+          set -euo pipefail
+          CHANGELOG_GLOB='backend/apps/*/src/main/resources/db/changelog/**'
+
+          if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::$TARGET_SHA 커밋을 찾을 수 없습니다."
+            exit 1
+          fi
+
+          # 따옴표로 감싸 bash 가 아니라 git 이 매칭하게 한다 - 워킹트리에 그 경로가 없으면
+          # bash 글롭은 확장되지 않은 리터럴을 그대로 넘겨 결과가 달라진다.
+          CHANGED=$(git diff --name-only "$TARGET_SHA" origin/dev -- "$CHANGELOG_GLOB" || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "Liquibase changelog 변경 없음 - 스키마는 그대로라 앱만 되돌리면 됩니다."
+            {
+              echo "## DB 스키마"
+              echo ""
+              echo "✅ 대상 커밋과 현재 dev 사이에 Liquibase changelog 변경이 **없습니다**. 앱 롤백만으로 충분합니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "::warning::DB 스키마가 바뀐 구간입니다. 롤백 후 DDL 을 수동으로 확인해야 합니다."
+          {
+            echo "## ⚠️ DB 스키마 수동 확인 필요"
+            echo ""
+            echo "대상 커밋과 현재 \`dev\` 사이에 **Liquibase changelog 가 변경**됐습니다."
+            echo "이 워크플로는 앱/매니페스트만 되돌리고 **DB 는 건드리지 않습니다** - 스키마는 앞선 채로 남습니다."
+            echo ""
+            echo "### 변경된 changelog"
+            echo ""
+            echo '```'
+            echo "$CHANGED"
+            echo '```'
+            echo ""
+            echo "### 롤백 후 확인할 것"
+            echo ""
+            echo "| DDL 종류 | 롤백 후 |"
+            echo "| --- | --- |"
+            echo "| 컬럼 추가 (nullable) | 무해 - 옛 코드가 무시 |"
+            echo "| 컬럼 추가 (**NOT NULL**) | 🔴 옛 코드의 INSERT 가 제약 위반 |"
+            echo "| 컬럼 삭제 / 이름 변경 | 🔴 옛 코드가 없는 컬럼을 조회 |"
+            echo "| 테이블 추가 | 무해 |"
+            echo ""
+            echo "아래 위험 항목이 섞여 있으면 **롤백 대신 앞으로 고쳐 재배포(roll-forward)** 를 검토하세요."
+            echo ""
+            echo '```bash'
+            echo "git diff $TARGET_SHA origin/dev -- 'backend/apps/*/src/main/resources/db/changelog/**'"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 1. Git Revert: dev 브랜치에 Revert 커밋 생성 및 푸시 (히스토리 보존)
+  # ---------------------------------------------------------------------------
+  git-revert:
+    name: Git Revert (dev 브랜치)
+    needs: [validate]
+    # github.event.inputs.* 는 type:boolean 이어도 문자열 "true"/"false" 다. boolean 과
+    # 비교하면 GHA 가 숫자로 캐스팅해('true'->NaN, true->1) 항상 false 가 되어 이 job 이
+    # 조용히 통째로 건너뛰어진다 - 배포는 되돌아갔는데 git 은 그대로인 채 초록불로 끝난다.
+    if: github.event.inputs.revert_git == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Configure Git Author
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create Revert Commit & Push
+        env:
+          TARGET_SHA: ${{ github.event.inputs.target_commit_sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "현재 dev HEAD: $CURRENT_SHA"
+          echo "복구 목표 SHA: $TARGET_SHA"
+
+          # 현재 HEAD와 목표 SHA가 같으면 revert 불필요
+          if [ "$CURRENT_SHA" = "$TARGET_SHA" ] || [[ "$CURRENT_SHA" == "$TARGET_SHA"* ]]; then
+            echo "현재 HEAD가 이미 목표 커밋과 같습니다. Git Revert를 건너뜁니다."
+            exit 0
+          fi
+
+          # 조상이 아니면 TARGET_SHA..HEAD 가 엉뚱한(또는 빈) 커밋 집합이 된다.
+          if ! git merge-base --is-ancestor "$TARGET_SHA" HEAD; then
+            echo "::error::$TARGET_SHA 가 dev HEAD 의 조상이 아닙니다. SHA 를 확인하세요."
+            exit 1
+          fi
+
+          # HEAD부터 TARGET_SHA 직후 커밋까지 순차 Revert 커밋 생성.
+          # 🔴 머지 커밋은 -m 없이 revert 하면 "commit is a merge but no -m option was given"
+          # 으로 죽는다. 이 리포 dev 히스토리는 머지 커밋이 빽빽해서 실패가 기본값에 가깝다.
+          # -m 1 은 "첫 부모(=머지 대상 브랜치) 기준으로 되돌린다"는 뜻이고, PR 머지 커밋에서는
+          # 이게 항상 맞는 선택이다. 충돌이 나면 진행 중 상태를 남기지 않고 정리한 뒤 멈춘다 -
+          # 장애 대응 중에 반쯤 revert 된 브랜치를 남기는 게 최악이다.
+          echo "Revert 커밋 생성 중..."
+          if ! git revert --no-edit -m 1 "$TARGET_SHA..HEAD"; then
+            git revert --abort || true
+            echo "::error::자동 Revert 실패(충돌 등). 배포 롤백은 계속 진행되며, git 되돌리기는 수동으로 하세요."
+            exit 1
+          fi
+          git push origin dev
+          echo "dev 브랜치 Revert 푸시 완료."
+
+  # ---------------------------------------------------------------------------
+  # 2. Base Manifests: 공통 리소스 적용
+  # ---------------------------------------------------------------------------
+  base:
+    name: 공통 매니페스트 롤백
+    needs: [validate]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.deployment_mode == 'integrated' && 'integrated-dev' || 'dev' }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      DEPLOY_SHA: ${{ github.event.inputs.target_commit_sha }}
+      DEPLOY_ENV: dev
+      DEPLOYMENT_MODE: ${{ github.event.inputs.deployment_mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-rollback-dev-base-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load deployment configuration from SSM
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
+      - name: Update EKS kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Render & apply base manifests
+        env:
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          AWS_COGNITO_CLIENT_ID: ${{ secrets.AWS_COGNITO_CLIENT_ID }}
+          AWS_COGNITO_CLIENT_SECRET: ${{ secrets.AWS_COGNITO_CLIENT_SECRET }}
+          CATALOG_DB_USERNAME: ${{ secrets.CATALOG_DB_USERNAME }}
+          CATALOG_DB_PASSWORD: ${{ secrets.CATALOG_DB_PASSWORD }}
+          ORDER_DB_USERNAME: ${{ secrets.ORDER_DB_USERNAME }}
+          ORDER_DB_PASSWORD: ${{ secrets.ORDER_DB_PASSWORD }}
+          KAKAOPAY_SECRET_KEY: ${{ secrets.KAKAOPAY_SECRET_KEY }}
+          MEMBER_DB_USERNAME: ${{ secrets.MEMBER_DB_USERNAME }}
+          MEMBER_DB_PASSWORD: ${{ secrets.MEMBER_DB_PASSWORD }}
+          AI_DB_USERNAME: ${{ secrets.AI_DB_USERNAME }}
+          AI_DB_PASSWORD: ${{ secrets.AI_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # 비어 있으면 모든 매니페스트에 리터럴 "${K8S_NAMESPACE}"가 그대로 박혀
+          # kubectl apply가 그 이름 그대로의(존재하지 않는) 네임스페이스를 만들려 한다.
+          if [ -z "$K8S_NAMESPACE" ]; then
+            echo "::error::필수 값 K8S_NAMESPACE 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $K8S_NAMESPACE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          mkdir -p rendered
+          for f in k8s/base/*.yaml; do
+            envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
+          done
+          kubectl apply -f rendered/
+
+  # ---------------------------------------------------------------------------
+  # 3. Backend Services: 이전 정상 커밋 SHA 이미지로 매니페스트 재배포
+  # ---------------------------------------------------------------------------
+  rollback-backend:
+    name: ${{ matrix.service }} 롤백 → EKS
+    needs: [base]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.deployment_mode == 'integrated' && 'integrated-dev' || 'dev' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: catalog
+            deployments: catalog-deployment
+          - service: order
+            deployments: order-deployment
+          - service: member
+            deployments: member-deployment
+          - service: ai
+            deployments: ai-rag-deployment ai-bot-deployment
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      DEPLOY_SHA: ${{ github.event.inputs.target_commit_sha }}
+      DEPLOY_ENV: dev
+      DEPLOYMENT_MODE: ${{ github.event.inputs.deployment_mode }}
+    steps:
+      - name: 서비스 선택 여부 확인
+        id: check
+        run: |
+          SERVICES="${{ github.event.inputs.services }}"
+          if [ "$SERVICES" = "all" ] || [[ ",$SERVICES," == *",${{ matrix.service }},"* ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "${{ matrix.service }} 롤백 제외됨."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.check.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-rollback-${{ matrix.service }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load deployment configuration from SSM
+        if: steps.check.outputs.enabled == 'true'
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
+      - name: Login to Amazon ECR
+        if: steps.check.outputs.enabled == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Update EKS kubeconfig
+        if: steps.check.outputs.enabled == 'true'
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      # apply 는 이미지가 없어도 성공한다 - 파드만 ImagePullBackOff 로 뜨고 rollout status 가
+      # 타임아웃될 때까지 아무도 모른다. main-cd 는 서비스별로 "변경된 것만" 빌드하므로
+      # 임의의 커밋에 4개 서비스 이미지가 다 있다는 보장이 없다(배포된 적 없는 커밋이면 더더욱).
+      # 클러스터를 건드리기 전에 여기서 끊는다.
+      - name: Verify target image exists in ECR
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          IMAGE_TAG: ${{ env.DEPLOY_SHA }}
+        run: |
+          set -euo pipefail
+          case "${{ matrix.service }}" in
+            catalog) REPO="$ECR_CATALOG_REPO" ;;
+            order)   REPO="$ECR_ORDER_REPO" ;;
+            member)  REPO="$ECR_MEMBER_REPO" ;;
+            ai)      REPO="$ECR_AI_REPO" ;;
+          esac
+          if ! aws ecr describe-images --repository-name "$REPO"                  --image-ids "imageTag=$IMAGE_TAG" --region "$AWS_REGION" > /dev/null 2>&1; then
+            echo "::error::$REPO:$IMAGE_TAG 이미지가 ECR 에 없습니다. 그 커밋이 실제로 배포된 적 있는지 확인하세요(main-cd 는 변경된 서비스만 빌드합니다)."
+            exit 1
+          fi
+          echo "이미지 확인: $REPO:$IMAGE_TAG"
+
+      - name: Render & apply service manifests (with target IMAGE_TAG)
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ env.DEPLOY_SHA }}
+        run: |
+          set -euo pipefail
+          # 🔴 아래 가드는 main-cd.yml 과 같은 세트다. 전부 실제 사고로 하나씩 추가된 것이고
+          # (인프라-트러블슈팅 ⑨/⑮/㉓), 값이 비면 envsubst 가 손대지 않아 매니페스트에
+          # "${...}" 리터럴이 그대로 박힌 채 apply 된다. 롤백은 장애 중에 도는 워크플로라
+          # 여기서 조용히 깨진 매니페스트를 올리면 장애가 두 배가 된다.
+          if [ -z "$K8S_NAMESPACE" ]; then
+            echo "::error::필수 값 K8S_NAMESPACE 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_VECTOR_BUCKET" ]; then
+            echo "::error::필수 값 AI_VECTOR_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "catalog" ] && [ -z "$EBOOK_S3_BUCKET" ]; then
+            echo "::error::필수 값 EBOOK_S3_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 AI_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "member" ] && [ -z "$MEMBER_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 MEMBER_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "catalog" ] && [ -z "$CATALOG_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 CATALOG_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          if [ "${{ matrix.service }}" = "order" ] && [ -z "$ORDER_SERVICE_IRSA_ARN" ]; then
+            echo "::error::필수 값 ORDER_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
+            exit 1
+          fi
+          VARS='$ECR_REGISTRY $ECR_CATALOG_REPO $ECR_ORDER_REPO $ECR_MEMBER_REPO $ECR_AI_REPO $IMAGE_TAG $SPRING_PROFILE $K8S_NAMESPACE $DB_SSL_MODE $DB_NAME $AI_DB_NAME $AI_VECTOR_BUCKET $AWS_REGION $REDIS_HOST $AWS_COGNITO_USER_POOL_ID $SQS_PURCHASE_QUEUE_URL $SQS_INGEST_QUEUE_URL $EBOOK_S3_BUCKET $AI_SERVICE_IRSA_ARN $MEMBER_SERVICE_IRSA_ARN $CATALOG_SERVICE_IRSA_ARN $ORDER_SERVICE_IRSA_ARN $CHAT_ALLOWED_ORIGINS $KAKAOPAY_FRONTEND_CALLBACK_URL'
+          mkdir -p rendered
+          for f in k8s/${{ matrix.service }}/*.yaml; do
+            envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
+          done
+          kubectl apply -f rendered/
+
+      - name: Wait for rollout
+        if: steps.check.outputs.enabled == 'true'
+        run: |
+          for d in ${{ matrix.deployments }}; do
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=300s
+          done
+
+      # 롤백이 실패했을 때 되돌릴 곳이 없는 게 제일 곤란하다 - 이 워크플로 자체가 최후 수단이라
+      # 여기서 멈추면 클러스터가 롤아웃 중간 상태로 남는다. main-cd 와 같은 방식으로 직전
+      # 리비전으로 되돌린다(이미 뜬 파드가 있으면 그게 장애 전 상태다).
+      - name: Undo failed rollback
+        if: failure() && steps.check.outputs.enabled == 'true'
+        run: |
+          for d in ${{ matrix.deployments }}; do
+            kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=300s || true
+          done
+
+  # ---------------------------------------------------------------------------
+  # 4. Frontend: 이전 정상 커밋 소스로 빌드 후 S3 동기화 & 캐시 무효화
+  # ---------------------------------------------------------------------------
+  rollback-frontend:
+    name: Frontend 롤백 → S3 & CloudFront
+    needs: [base]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.deployment_mode == 'integrated' && 'integrated-dev' || 'dev' }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      DEPLOY_SHA: ${{ github.event.inputs.target_commit_sha }}
+      DEPLOY_ENV: dev
+      DEPLOYMENT_MODE: ${{ github.event.inputs.deployment_mode }}
+    steps:
+      - name: 서비스 선택 여부 확인
+        id: check
+        run: |
+          SERVICES="${{ github.event.inputs.services }}"
+          if [ "$SERVICES" = "all" ] || [[ ",$SERVICES," == *",frontend,"* ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Frontend 롤백 제외됨."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Set up Node.js
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install & build (Target Commit)
+        if: steps.check.outputs.enabled == 'true'
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.check.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: gha-rollback-frontend-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load frontend deployment targets from SSM
+        if: steps.check.outputs.enabled == 'true'
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+
+      - name: Sync to Amazon S3
+        if: steps.check.outputs.enabled == 'true'
+        run: |
+          test -n "$FRONTEND_S3_BUCKET"
+          aws s3 sync ./frontend/dist "s3://${FRONTEND_S3_BUCKET}" --delete
+
+      - name: Invalidate CloudFront cache
+        if: steps.check.outputs.enabled == 'true'
+        run: |
+          if [[ -n "$CLOUDFRONT_DIST_ID" ]]; then
+            aws cloudfront create-invalidation \
+              --distribution-id "$CLOUDFRONT_DIST_ID" \
+              --paths "/*"
+          elif [[ "$DEPLOY_ENV" == "dev" && "$DEPLOYMENT_MODE" == "integrated" ]]; then
+            echo "CloudFront distribution is not configured; skipping cache invalidation."
+          else
+            echo "CLOUDFRONT_DIST_ID is required for this deployment target." >&2
+            exit 1
+          fi
