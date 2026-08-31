@@ -1,19 +1,14 @@
 name: Main CD (EKS Production)
 
-# Backend CI / Frontend CI 가 main 브랜치에서 성공적으로 완료된 뒤에만 배포한다.
+# Backend CI / Frontend CI 가 dev 브랜치에서 성공적으로 완료된 뒤 자동으로 dev에 배포한다.
+# prod 배포는 workflow_dispatch(수동)로만 실행한다.
 #
-# dev/prod는 GitHub Environments로 분리돼 있다(각 job의 `environment:` 참고) -
-# Variables/Secrets가 환경별로 완전히 분리되므로 sync-github-config.sh를 dev로
-# 돌린 뒤 prod로 돌려도 서로 안 덮어쓴다(docs/개발 문서/인프라-트러블슈팅.md ⑮).
-# workflow_run 트리거(수동 dispatch 없이 자동으로 도는 경로)에는 environment
-# 입력이 없으므로 기본값 dev로 떨어진다 - 지금 main 브랜치는 사실상 안 쓰이고
-# 실배포는 전부 workflow_dispatch(dev 브랜치 대상)로 이뤄지므로 이 기본값이
-# 실제 운영과 맞는다.
+# dev/prod는 GitHub Environments(integrated-dev / integrated-prod)로 분리돼 있다.
 on:
   workflow_run:
     workflows: [ "Backend CI", "Frontend CI" ]
     types: [ completed ]
-    branches: [ "main" ]
+    branches: [ "dev" ]
   workflow_dispatch:
     inputs:
       environment:
@@ -21,12 +16,6 @@ on:
         type: choice
         options: [ dev, prod ]
         default: dev
-        required: true
-      deployment_mode:
-        description: "인프라 운영 모드 (split=환경별 클러스터, integrated=공용 클러스터+namespace)"
-        type: choice
-        options: [ split, integrated ]
-        default: split
         required: true
       services:
         description: "배포할 서비스 (콤마 구분: catalog,order,member,ai,frontend). 기본 all=전체"
@@ -38,27 +27,13 @@ permissions:
   id-token: write   # AWS OIDC AssumeRole 용
   contents: read
 
-# "배포 대상 환경"을 가리키는 조건식 - `github.event_name == 'workflow_dispatch' &&
-# github.event.inputs.environment || 'dev'`. workflow_dispatch가 아니면(=
-# workflow_run) inputs 자체가 없으므로 github.event_name으로 명시적으로
-# 분기한다 - `|| 'dev'`만 쓰면 나중에 폴백 로직이 바뀔 때 이 갈래를 놓치기 쉽다.
-#
-# 워크플로 레벨 `env:`로 한 곳에 모아 재사용하고 싶었지만, `concurrency.group`과
-# `jobs.<job_id>.environment` 둘 다 `env` 컨텍스트를 지원하지 않는다(공식 문서
-# context-availability 표 확인, `gh workflow run`으로 실제 422 파싱 에러까지
-# 재현해 검증함 - 2026-08-21). 그래서 아래 concurrency.group과 각 job의
-# environment: 3곳에 이 조건식을 그대로 반복한다 - DRY보다 "실제로 파싱되는
-# 워크플로"가 우선이다.
 concurrency:
-  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+  group: main-cd-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
   cancel-in-progress: true
 
 jobs:
   # ---------------------------------------------------------------------------
   # 변경된 서비스 판별 — Phase 3-4
-  #
-  # 이게 MSA 의 실질적 이득 중 하나다.
-  # "리뷰 문구 하나 고쳤는데 결제 서비스가 재배포된다"면 MSA 를 한 의미가 없다.
   # ---------------------------------------------------------------------------
   changes:
     name: 변경 서비스 판별
@@ -69,10 +44,6 @@ jobs:
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     outputs:
-      # workflow_dispatch는 커밋 범위가 불명확해(마지막 배포 이후 여러 PR이
-      # 쌓였을 수 있음) paths-filter의 diff 결과를 못 믿는다 - 수동 실행 시엔
-      # 대신 services 입력값(콤마구분/all)을 직접 본다. 자동 트리거(Backend CI
-      # 완료)는 push 1건에 대응하는 diff라 paths-filter 결과를 그대로 쓴다.
       catalog: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',catalog,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.catalog == 'true') }}
       order: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',order,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.order == 'true') }}
       member: ${{ (github.event_name == 'workflow_dispatch' && (github.event.inputs.services == 'all' || contains(format(',{0},', github.event.inputs.services), ',member,'))) || (github.event_name != 'workflow_dispatch' && steps.filter.outputs.member == 'true') }}
@@ -126,7 +97,7 @@ jobs:
     name: 공통 매니페스트
     needs: changes
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ format('integrated-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev') }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -145,29 +116,19 @@ jobs:
       - name: Load deployment configuration from SSM
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$GITHUB_ENV"
 
       - name: Validate deployment environment isolation
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
           ACTUAL_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
         run: |
           set -euo pipefail
           ACTUAL_CLUSTER="$EKS_CLUSTER"
           ACTUAL_DB_NAME="$DB_NAME"
           ACTUAL_AI_DB_NAME="$AI_DB_NAME"
-          if [[ "$DEPLOYMENT_MODE" == "integrated" ]]; then
-            EXPECTED_CLUSTER="lion-team3-integrated"
-            EXPECTED_NAMESPACE="$DEPLOY_ENV"
-          elif [[ "$DEPLOYMENT_MODE" == "split" ]]; then
-            EXPECTED_CLUSTER="lion-team3-${DEPLOY_ENV}"
-            EXPECTED_NAMESPACE="lion-app"
-          else
-            echo "Unsupported deployment mode: $DEPLOYMENT_MODE" >&2
-            exit 1
-          fi
+          EXPECTED_CLUSTER="lion-team3-integrated"
+          EXPECTED_NAMESPACE="$DEPLOY_ENV"
 
           if [[ "$DEPLOY_ENV" == "dev" ]]; then
             EXPECTED_DB_NAME="bookdb_dev"
@@ -235,7 +196,7 @@ jobs:
     name: ${{ matrix.service }} → ECR & EKS
     needs: [changes, base]
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ format('integrated-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev') }}
     strategy:
       fail-fast: false
       matrix:
@@ -279,8 +240,7 @@ jobs:
         if: matrix.changed == 'true'
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$GITHUB_ENV"
 
       - name: Login to Amazon ECR
         if: matrix.changed == 'true'
@@ -363,19 +323,19 @@ jobs:
                --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "ECR에 ${{ env.DEPLOY_SHA }} 태그가 이미 있어 push를 건너뜁니다 (재실행 등으로 중복)."
           else
-          # 사전 조회 직후 다른 실행이 먼저 push할 수 있으므로, immutable 태그
-          # 충돌은 이미 같은 이미지가 게시된 정상 경쟁 상황으로 처리한다.
-          if ! docker push "$IMAGE:${{ env.DEPLOY_SHA }}"; then
-            if aws ecr describe-images \
-                 --repository-name "$REPOSITORY" \
-                 --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
-                 --region "$AWS_REGION" >/dev/null 2>&1; then
-              echo "동시 실행이 ${{ env.DEPLOY_SHA }} 태그를 먼저 게시했습니다. 기존 이미지를 사용합니다."
-            else
-              echo "::error::ECR 이미지 push 실패: ${{ env.DEPLOY_SHA }}"
-              exit 1
+            # 사전 조회 직후 다른 실행이 먼저 push할 수 있으므로, immutable 태그
+            # 충돌은 이미 같은 이미지가 게시된 정상 경쟁 상황으로 처리한다.
+            if ! docker push "$IMAGE:${{ env.DEPLOY_SHA }}"; then
+              if aws ecr describe-images \
+                   --repository-name "$REPOSITORY" \
+                   --image-ids imageTag="${{ env.DEPLOY_SHA }}" \
+                   --region "$AWS_REGION" >/dev/null 2>&1; then
+                echo "동시 실행이 ${{ env.DEPLOY_SHA }} 태그를 먼저 게시했습니다. 기존 이미지를 사용합니다."
+              else
+                echo "::error::ECR 이미지 push 실패: ${{ env.DEPLOY_SHA }}"
+                exit 1
+              fi
             fi
-          fi
           fi
           docker push "$IMAGE:main-${{ github.run_number }}"
 
@@ -388,57 +348,34 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           IMAGE_TAG: ${{ env.DEPLOY_SHA }}
-          # /ws/ai/chat 의 유일한 Origin 방어선(k8s/ai/configmap.yaml 참고). 이 VARS 목록에
-          # 빠져 있으면 envsubst 가 손대지 않아 ConfigMap 에 "${CHAT_ALLOWED_ORIGINS}" 리터럴이
-          # 그대로 박히고, 그 값이 그대로 allowed-origin-pattern 이 돼서 실제 브라우저 Origin과
-          # 절대 매치되지 않아 핸드셰이크가 전부 거절된다 — FRONTEND_ORIGIN 과 같은 값이어야
-          # 하므로 별도 GH Variable 없이 재사용한다.
-          # 카카오페이 결제 완료 후 되돌아올 프론트엔드 콜백 페이지. 이 VARS 목록에
-          # 빠져 있으면(과거 실제로 그랬음) order-api 코드 기본값(localhost:5173)이
-          # 그대로 쓰여 실결제 후 사용자가 localhost로 리다이렉트된다 — FRONTEND_ORIGIN에
-          # 경로만 붙인 값이라 별도 GH Variable 없이 재사용한다(인프라-트러블슈팅.md ⑲).
         run: |
           set -euo pipefail
           export CHAT_ALLOWED_ORIGINS="$FRONTEND_ORIGIN"
           export KAKAOPAY_FRONTEND_CALLBACK_URL="$FRONTEND_ORIGIN/payments/kakao/callback"
-          # 비어 있으면 모든 매니페스트에 리터럴 "${K8S_NAMESPACE}"가 그대로 박혀
-          # kubectl apply가 그 이름 그대로의(존재하지 않는) 네임스페이스를 만들려다
-          # base 매니페스트가 만든 실제 네임스페이스와 어긋난다.
           if [ -z "$K8S_NAMESPACE" ]; then
             echo "::error::필수 값 K8S_NAMESPACE 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 파드가 뜬 뒤 GetIndex 검증에서 죽는다. 여기서 먼저 끊는 게 싸다.
           if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_VECTOR_BUCKET" ]; then
             echo "::error::필수 값 AI_VECTOR_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 catalog configmap 에 "${EBOOK_S3_BUCKET}" 리터럴이 그대로 박힌다.
           if [ "${{ matrix.service }}" = "catalog" ] && [ -z "$EBOOK_S3_BUCKET" ]; then
             echo "::error::필수 값 EBOOK_S3_BUCKET 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 serviceaccount.yaml에 리터럴 "${AI_SERVICE_IRSA_ARN}"이 그대로
-          # 박혀 ai-rag/ai-bot이 default SA로 뜨고 AWS SDK 자격증명 체인이 빈다.
           if [ "${{ matrix.service }}" = "ai" ] && [ -z "$AI_SERVICE_IRSA_ARN" ]; then
             echo "::error::필수 값 AI_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 serviceaccount.yaml에 리터럴 "${MEMBER_SERVICE_IRSA_ARN}"이 그대로
-          # 박혀 member-service가 default SA로 뜨고 Cognito 호출용 AWS SDK 자격증명 체인이 빈다.
           if [ "${{ matrix.service }}" = "member" ] && [ -z "$MEMBER_SERVICE_IRSA_ARN" ]; then
             echo "::error::필수 값 MEMBER_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 serviceaccount.yaml에 리터럴 "${CATALOG_SERVICE_IRSA_ARN}"이 그대로
-          # 박혀 catalog-service가 default SA로 뜨고 EPUB presign용 AWS SDK 자격증명 체인이 빈다.
           if [ "${{ matrix.service }}" = "catalog" ] && [ -z "$CATALOG_SERVICE_IRSA_ARN" ]; then
             echo "::error::필수 값 CATALOG_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
           fi
-          # 비어 있으면 order-service가 default SA로 뜨고 구매 확정 SQS 발행이 실패하는데,
-          # SqsBookPurchasePublisher가 예외를 삼켜서 결제는 성공한 것처럼 보인다 - 증상이
-          # RAG의 "구매한 책에서 근거를 찾지 못했습니다"로만 나와 추적이 오래 걸린다.
           if [ "${{ matrix.service }}" = "order" ] && [ -z "$ORDER_SERVICE_IRSA_ARN" ]; then
             echo "::error::필수 값 ORDER_SERVICE_IRSA_ARN 가 비어 있습니다. environment 의 Variables 를 확인하세요."
             exit 1
@@ -476,12 +413,11 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode == 'integrated' && format('integrated-{0}', github.event.inputs.environment) || github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+    environment: ${{ format('integrated-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev') }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-      DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -510,8 +446,7 @@ jobs:
       - name: Load frontend deployment targets from SSM
         env:
           DEPLOY_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
-          DEPLOYMENT_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_mode || 'split' }}
-        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$DEPLOYMENT_MODE" "$GITHUB_ENV"
+        run: ./scripts/load-deployment-config.sh "$DEPLOY_ENV" "$GITHUB_ENV"
 
       - name: Sync to Amazon S3
         run: |
@@ -524,7 +459,7 @@ jobs:
             aws cloudfront create-invalidation \
               --distribution-id "$CLOUDFRONT_DIST_ID" \
               --paths "/*"
-          elif [[ "$DEPLOY_ENV" == "dev" && "$DEPLOYMENT_MODE" == "integrated" ]]; then
+          elif [[ "$DEPLOY_ENV" == "dev" ]]; then
             echo "CloudFront distribution is not configured; skipping cache invalidation."
           else
             echo "CLOUDFRONT_DIST_ID is required for this deployment target." >&2

@@ -13,7 +13,7 @@ on:
       - 'frontend/.env.production'
       - 'frontend/.env.development'
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
     paths:
       - 'backend/**'
       - 'k8s/**'
