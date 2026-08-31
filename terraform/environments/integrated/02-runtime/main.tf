@@ -451,7 +451,7 @@ resource "aws_ssm_parameter" "order_service_irsa_arn_integrated_dev" {
 resource "null_resource" "trigger_github_actions" {
   count = var.trigger_github_actions ? 1 : 0
 
-  triggers   = {
+  triggers = {
     always_run = timestamp()
   }
 
