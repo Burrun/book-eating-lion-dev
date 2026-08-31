@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
@@ -1263,13 +1263,30 @@ function CouponsTab() {
   const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 최초 로드와 등록 후 새로고침이 겹칠 수 있다. 각 호출에 번호를 매겨 가장 최근
+  // 호출의 응답만 상태에 반영한다 — 느린 최초 요청이 뒤늦게 도착해 새로 등록한
+  // 쿠폰을 덮어쓰거나, 오래된 실패가 성공한 새로고침을 에러로 뒤집는 걸 막는다.
+  const reqIdRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+
   const load = useCallback(() => {
+    const reqId = ++reqIdRef.current;
     fetchCoupons()
       .then((data) => {
+        if (!mountedRef.current || reqId !== reqIdRef.current) return;
         setState(data);
         setIsError(false);
       })
-      .catch(() => setIsError(true));
+      .catch(() => {
+        if (!mountedRef.current || reqId !== reqIdRef.current) return;
+        setIsError(true);
+      });
   }, []);
 
   useEffect(() => {

@@ -360,15 +360,27 @@ public class OrderService {
      *
      * <p>afterCommit 은 catalog-service 응답을 기다리는 것과 무관하다 — 둘 다 비동기 채널로
      * 던지고 소비는 상대 서비스가 알아서 한다.
+     *
+     * <p>🔴 두 채널은 서로 독립이다. afterCommit 시점엔 주문이 이미 커밋됐으므로 한쪽 발행이
+     * 실패해도 예외를 올려봐야 되돌릴 게 없고, 같은 Runnable 안에서 던지면 뒤엣놈(SQS)이
+     * 아예 안 나간다. 그래서 각각 try/catch 로 감싸 로그만 남기고 서로를 막지 않는다.
      */
     private void publishPurchaseConfirmed(String memberId, String nickname, List<OrderItem> items) {
         String grantedAt = LocalDateTime.now().toString();
         Runnable publish = () -> {
-            for (OrderItem item : items) {
-                reviewPermissionPublisher.publish(
-                        new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
+            try {
+                for (OrderItem item : items) {
+                    reviewPermissionPublisher.publish(
+                            new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
+                }
+            } catch (RuntimeException e) {
+                log.error("리뷰 권한 이벤트 발행 실패 — 결제는 이미 확정됨. 수동 확인 필요. memberId={}", memberId, e);
             }
-            items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+            try {
+                items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+            } catch (RuntimeException e) {
+                log.error("구매 확정 SQS 이벤트 발행 실패 — 결제는 이미 확정됨. 수동 확인 필요. memberId={}", memberId, e);
+            }
         };
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
