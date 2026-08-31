@@ -154,6 +154,13 @@ export default function EbookViewer({
     // 본문은 iframe 안이라 바깥 문서의 이벤트로는 선택을 잡을 수 없다. 렌더된 문서마다
     // 직접 리스너를 단다(react-reader가 챕터를 새로 그릴 때마다 이 훅이 다시 불린다).
     rendition.hooks.content.register((contents) => {
+      // 구텐베르크 EPUB의 0.css는 a:hover{color:red}를 둔다 — 진짜 하이퍼링크용이다.
+      // 그런데 본문의 북마크용 앵커(<a id="chapNN"/>)는 epub.js가 iframe.srcdoc으로
+      // 넣는 순간 text/html로 파싱돼(선언은 application/xhtml+xml인데도) 안 닫힌 <a>가
+      // 되고, HTML 파서가 뒤따르는 문단마다 그 <a>를 복제해 다시 연다. 그래서 본문
+      // 전체가 hover 시 빨개진다. href 없는 앵커는 링크가 아니므로 hover 색을 뺀다.
+      contents.addStylesheetRules([["a:not([href]):hover", ["color", "inherit", true]]]);
+
       let settleTimer = null;
 
       const capture = () => {
