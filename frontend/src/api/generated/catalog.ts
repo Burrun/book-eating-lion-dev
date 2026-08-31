@@ -370,7 +370,7 @@ export interface paths {
      *     append 다.
      *
      *     `selectedText` 의 길이 상한은 서버 설정 `catalog.highlight.max-selected-chars`(기본
-     *     500자)다. 요구사항은 "한 번에 1페이지까지"였지만 epub.js 의 화면 페이지는 창 크기·폰트에
+     *     1000자)다. 요구사항은 "한 번에 1페이지까지"였지만 epub.js 의 화면 페이지는 창 크기·폰트에
      *     따라 경계가 달라져 저장 규칙으로 쓸 수 없어 글자 수로 대신 건다. 상한을 넘기면 잘라
      *     저장하지 않고 400(INVALID_REQUEST)으로 거절한다.
      *
@@ -1168,7 +1168,7 @@ export interface components {
       bookTitle?: string;
       /** @description 선택 구간의 EPUB CFI range. 뷰어가 원문 위치로 돌아가는 데 쓴다. */
       cfiRange?: string;
-      /** @description 사용자가 긁은 원문. 길이 상한은 서버 설정이 정한다(기본 500자). */
+      /** @description 사용자가 긁은 원문. 길이 상한은 서버 설정이 정한다(기본 1000자). */
       selectedText?: string;
       /** @description 원문에 덧붙인 사용자의 말. 비어 있을 수 있다(형광펜만 그은 경우). */
       memoText?: string | null;
