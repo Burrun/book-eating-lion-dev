@@ -19,6 +19,7 @@ import {
   fetchLionStatus,
 } from "../api/mypage.js";
 import { getFeedableBooks, markBookFed } from "../api/readingProgress.ts";
+import { registerCoupon } from "../api/coupons.ts";
 import { getRecentBooks, getWishlist } from "../api/wishlist.ts";
 import { deleteReview, updateReview } from "../api/reviews.ts";
 import { cancelRestockAlert, getMyRestockAlerts } from "../api/restockAlerts.ts";
@@ -1256,53 +1257,90 @@ function OrdersTab() {
 }
 
 function CouponsTab() {
+  const toast = useToast();
   const [state, setState] = useState(null);
   const [isError, setIsError] = useState(false);
+  const [code, setCode] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    let ignore = false;
+  const load = useCallback(() => {
     fetchCoupons()
       .then((data) => {
-        if (!ignore) setState(data);
+        setState(data);
+        setIsError(false);
       })
-      .catch(() => {
-        if (!ignore) setIsError(true);
-      });
-    return () => {
-      ignore = true;
-    };
+      .catch(() => setIsError(true));
   }, []);
 
-  if (!state && !isError) return <TabSkeleton />;
-  if (isError) {
-    return (
-      <p className="py-10 text-center text-sm text-[var(--color-coral)]">
-        쿠폰 목록을 불러오지 못했어요.
-      </p>
-    );
-  }
-  if (state.length === 0) return <EmptyState message="사용 가능한 쿠폰이 없어요" />;
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  // 만료/사용 분기는 없앴다. 백엔드가 미사용 + 미만료 쿠폰만 내려주므로
-  // 만료된 항목이 이 목록에 도달할 경로가 없다.
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    const trimmed = code.trim();
+    if (!trimmed || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const issued = await registerCoupon(trimmed);
+      toast.success(`'${issued.couponName}' 쿠폰을 받았어요.`);
+      setCode("");
+      load();
+    } catch (err) {
+      // 백엔드 CouponExceptionHandler 가 내려주는 메시지를 그대로 보여준다
+      // (존재하지 않는 코드 / 만료 / 이미 보유).
+      const message =
+        err.response?.data?.error?.message ??
+        err.response?.data?.message ??
+        "쿠폰을 등록하지 못했어요. 코드를 다시 확인해주세요.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
-      <ul className="flex flex-col gap-2">
-        {state.map((coupon) => (
-          <li
-            key={coupon.memberCouponId}
-            className="flex items-center justify-between rounded-xl border border-dashed border-[var(--color-honey)]/50 px-4 py-3"
-          >
-            <div>
-              <p className="text-sm font-medium text-[var(--color-ink)]">{coupon.couponName}</p>
-              <p className="text-sm text-[var(--color-ink)] opacity-50">
-                ~{coupon.expiresAt?.slice(0, 10)}까지
-              </p>
-            </div>
-            <span className="text-xs font-medium text-[var(--color-coral)]">사용 가능</span>
-          </li>
-        ))}
-      </ul>
+      {/* 쿠폰 코드 등록 — 목록이 비어 있어도 항상 보인다(바로 그때 필요하므로). */}
+      <form onSubmit={handleRegister} className="flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="쿠폰 코드 입력"
+          aria-label="쿠폰 코드"
+          className="min-w-0 flex-1 rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm uppercase focus:border-[var(--color-honey)] focus:outline-none"
+        />
+        <Button type="submit" disabled={!code.trim()} loading={isSubmitting}>
+          등록
+        </Button>
+      </form>
+
+      {!state && !isError && <TabSkeleton />}
+      {isError && (
+        <p className="py-10 text-center text-sm text-[var(--color-coral)]">
+          쿠폰 목록을 불러오지 못했어요.
+        </p>
+      )}
+      {state && state.length === 0 && <EmptyState message="사용 가능한 쿠폰이 없어요" />}
+      {state && state.length > 0 && (
+        // 만료/사용 분기는 없다. 백엔드가 미사용 + 미만료 쿠폰만 내려준다.
+        <ul className="flex flex-col gap-2">
+          {state.map((coupon) => (
+            <li
+              key={coupon.memberCouponId}
+              className="flex items-center justify-between rounded-xl border border-dashed border-[var(--color-honey)]/50 px-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-[var(--color-ink)]">{coupon.couponName}</p>
+                <p className="text-sm text-[var(--color-ink)] opacity-50">
+                  ~{coupon.expiresAt?.slice(0, 10)}까지
+                </p>
+              </div>
+              <span className="text-xs font-medium text-[var(--color-coral)]">사용 가능</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
