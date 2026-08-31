@@ -1,4 +1,4 @@
-# order — 쓰기·트랜잭션 정합성. 2 → 30
+# order — 쓰기·트랜잭션 정합성. 2 → 30(prod) / 2 → 8(dev)
 #
 # 기획서의 "Order Pod 2개 → 50개 핀포인트 확장" 요구에 대응하는 자리다.
 # 전환 전에는 단일 Deployment 에 max 10 이라 이 요구 자체가 표현 불가능했다.
@@ -6,6 +6,9 @@
 # 상한을 30으로 둔 이유: replica 가 늘면 Aurora 커넥션이 배수로 늘어난다.
 # maximum-pool-size 10 × 30 = 300 커넥션이 상한선이며, 그 이상은
 # RDS Proxy 없이는 Aurora 쪽이 먼저 터진다.
+#
+# dev 는 ORDER_HPA_MAX_REPLICAS 로 낮춘다 — 이유는 catalog/hpa.yaml 상단 참고
+# (2026-08-31 quota exceeded 로 main-cd 롤아웃이 막힌 사고).
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -17,7 +20,7 @@ spec:
     kind: Deployment
     name: order-deployment
   minReplicas: 2
-  maxReplicas: 30
+  maxReplicas: ${ORDER_HPA_MAX_REPLICAS}
   metrics:
     - type: Resource
       resource:

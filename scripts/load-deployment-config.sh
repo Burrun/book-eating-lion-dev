@@ -66,6 +66,13 @@ put FRONTEND_S3_BUCKET "$(ssm "$DATA_ENV" storage/frontend_bucket_id)"
 put EBOOK_S3_BUCKET "$(ssm "$DATA_ENV" storage/media_bucket_id)"
 put DB_WRITER_ENDPOINT "$(ssm "$DATA_ENV" data/db_endpoint)"
 put DB_READER_ENDPOINT "$(ssm "$DATA_ENV" data/db_reader_endpoint)"
+if [[ "$DEPLOY_ENV" == "dev" ]]; then
+  put CATALOG_HPA_MAX_REPLICAS "6"
+  put ORDER_HPA_MAX_REPLICAS "8"
+else
+  put CATALOG_HPA_MAX_REPLICAS "20"
+  put ORDER_HPA_MAX_REPLICAS "30"
+fi
 put DB_NAME "bookdb_${DEPLOY_ENV}"
 put AI_DB_NAME "bookdb_${DEPLOY_ENV}"
 put DB_SSL_MODE "disable"
