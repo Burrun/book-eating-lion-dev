@@ -9,9 +9,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.wiki.config.RagProperties;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort.Match;
+import com.bookeatinglion.ai.wiki.repository.WikiBookRepository;
 import com.bookeatinglion.ai.wiki.router.QueryRouter;
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +34,8 @@ class WikiRagServiceTest {
     private static final RagProperties PROPS = new RagProperties(8, 3, 0.75, 12288, 5, 50);
 
     private PurchasedBookCache purchasedBookCache;
+    private MemberSubscriptionClient memberSubscriptionClient;
+    private WikiBookRepository wikiBookRepository;
     private GuardedAiCalls ai;
     private VectorSearchPort vectorSearch;
     private WikiRagService service;
@@ -39,13 +43,34 @@ class WikiRagServiceTest {
     @BeforeEach
     void setUp() {
         purchasedBookCache = mock(PurchasedBookCache.class);
+        memberSubscriptionClient = mock(MemberSubscriptionClient.class);
+        wikiBookRepository = mock(WikiBookRepository.class);
         ai = mock(GuardedAiCalls.class);
         vectorSearch = mock(VectorSearchPort.class);
 
+        // 기본은 비구독. 구독 케이스는 subscribed() 로 따로 켠다.
+        subscribed(false);
         when(ai.embed(anyString())).thenReturn(new float[1024]);
         when(ai.complete(anyString(), anyString())).thenReturn("생성된 답변 [1].");
 
-        service = new WikiRagService(purchasedBookCache, ai, vectorSearch, new QueryRouter(), PROPS);
+        service = new WikiRagService(
+                purchasedBookCache,
+                memberSubscriptionClient,
+                wikiBookRepository,
+                ai,
+                vectorSearch,
+                new QueryRouter(),
+                PROPS);
+    }
+
+    private void subscribed(boolean value) {
+        when(memberSubscriptionClient.getSubscriptionStatus(MEMBER_ID))
+                .thenReturn(new MemberSubscriptionClient.SubscriptionStatus(MEMBER_ID, value));
+    }
+
+    /** 인제스트가 끝난 책 전체 — 구독 회원의 검색 허용 목록이 된다. */
+    private void ingested(Long... bookIds) {
+        when(wikiBookRepository.findAllBookIds()).thenReturn(List.of(bookIds));
     }
 
     private static Match match(long bookId, int page, double distance) {
@@ -85,6 +110,62 @@ class WikiRagServiceTest {
         found(match(1L, 1, 0.2));
 
         service.ask(MEMBER_ID, "김첨지", AskMode.SEARCH, List.of(1L, 3L, 99L), 5);
+
+        assertThat(capturedFilter()).containsExactly(1L);
+    }
+
+    /**
+     * 구독 회원은 eBook 보유 도서 전체를 열람할 수 있으므로(EbookService) 검색 대상도
+     * 인제스트된 책 전체다. 전문을 읽을 수 있는 책의 인용을 막을 이유가 없다.
+     */
+    @Test
+    void 구독_회원은_안_산_책도_검색_대상이_된다() {
+        fed(1L);
+        subscribed(true);
+        ingested(1L, 2L, 3L);
+        found(match(2L, 1, 0.2));
+
+        service.ask(MEMBER_ID, "김첨지", AskMode.SEARCH, null, 5);
+
+        assertThat(capturedFilter()).containsExactlyInAnyOrder(1L, 2L, 3L);
+    }
+
+    /**
+     * 🔴 구독을 열어도 좁히기 속성은 그대로다. 인제스트도 구매도 안 된 책을 bookIds 로
+     * 넣어 넓힐 수 없다 — 여기가 뚫리면 접근 제어 사고다.
+     */
+    @Test
+    void 구독_회원이어도_인제스트_안_된_책은_넣을_수_없다() {
+        fed(1L);
+        subscribed(true);
+        ingested(1L, 2L);
+        found(match(2L, 1, 0.2));
+
+        service.ask(MEMBER_ID, "김첨지", AskMode.SEARCH, List.of(2L, 99L), 5);
+
+        assertThat(capturedFilter()).containsExactly(2L);
+    }
+
+    /** 구매분만으로 요청 범위가 채워지면 member-service 를 부르지 않는다(불필요한 왕복 제거). */
+    @Test
+    void 요청_범위가_구매분에_다_들어가면_구독을_조회하지_않는다() {
+        fed(1L, 2L);
+        found(match(1L, 1, 0.2));
+
+        service.ask(MEMBER_ID, "김첨지", AskMode.SEARCH, List.of(1L), 5);
+
+        verify(memberSubscriptionClient, never()).getSubscriptionStatus(anyString());
+        assertThat(capturedFilter()).containsExactly(1L);
+    }
+
+    @Test
+    void 비구독_회원은_구매한_책만_검색한다() {
+        fed(1L);
+        subscribed(false);
+        ingested(1L, 2L, 3L);
+        found(match(1L, 1, 0.2));
+
+        service.ask(MEMBER_ID, "김첨지", AskMode.SEARCH, null, 5);
 
         assertThat(capturedFilter()).containsExactly(1L);
     }

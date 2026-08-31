@@ -1,9 +1,11 @@
 package com.bookeatinglion.ai.wiki.service;
 
+import com.bookeatinglion.ai.client.MemberSubscriptionClient;
 import com.bookeatinglion.ai.wiki.config.RagProperties;
 import com.bookeatinglion.ai.wiki.port.VectorIndexPort;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort;
 import com.bookeatinglion.ai.wiki.port.VectorSearchPort.Match;
+import com.bookeatinglion.ai.wiki.repository.WikiBookRepository;
 import com.bookeatinglion.ai.wiki.router.QueryRouter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -20,15 +22,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 구매한 책 RAG. 계획서 §4 파이프라인의 구현이다.
+ * 읽을 수 있는 책 RAG. 계획서 §4 파이프라인의 구현이다.
  *
  * <p>
- * 🔴 <b>검색 권한의 근거는 "구매"다.</b> 라이언에게 먹였는지(게이미피케이션)와는 별개다 —
- * 사자를 안 키워도 산 책은 읽을 수 있어야 하고, 반대로 먹였다고 안 산 책을 읽을 수는 없다.
- * 그래서 필터는 {@code purchased_books} 이지 {@code fed_books} 가 아니다.
+ * 🔴 <b>검색 권한의 근거는 "열람 권한"이다</b> — 구매했거나 구독 중이면 된다({@link
+ * #allowedBooks}). 라이언에게 먹였는지(게이미피케이션)와는 별개다 — 사자를 안 키워도 볼 수
+ * 있는 책은 물어볼 수 있어야 하고, 반대로 먹였다고 볼 권한이 생기지는 않는다. 그래서 필터는
+ * {@code purchased_books}(+구독 시 {@code wiki_books}) 이지 {@code fed_books} 가 아니다.
  *
  * <p>
- * 문 두 개를 통과해야 LLM 을 부른다 — <b>(3) 볼 권한이 있는가</b>(구매한 책과의 교집합),
+ * 문 두 개를 통과해야 LLM 을 부른다 — <b>(3) 볼 권한이 있는가</b>(열람 가능한 책과의 교집합),
  * <b>(7) 근거가 충분한가</b>(거리 가드). 근거 없이 LLM 을 부르면 반드시 지어내고,
  * 그건 프롬프트로 막을 수 없다.
  */
@@ -38,13 +41,20 @@ public class WikiRagService {
 
     private static final Logger log = LoggerFactory.getLogger(WikiRagService.class);
 
-    /** grounded=false 일 때의 고정 문구. 여기서 LLM 을 부르지 않는 것이 핵심이다. */
-    private static final String NOT_GROUNDED_ANSWER = "구매한 책에서 근거를 찾지 못했습니다.";
+    /**
+     * grounded=false 일 때의 고정 문구. 여기서 LLM 을 부르지 않는 것이 핵심이다.
+     *
+     * <p>"구매한 책"이 아니라 "읽을 수 있는 책"이다 — 구독 회원은 구매하지 않은 책도 검색
+     * 대상이므로(allowedBooks) 구매를 언급하면 사실과 다르다.
+     */
+    private static final String NOT_GROUNDED_ANSWER = "읽을 수 있는 책에서 근거를 찾지 못했습니다.";
 
     /** 응답에 싣는 인용문 길이. 청크 원문은 최대 4KB 라 그대로 실으면 응답이 비대해진다. */
     private static final int SNIPPET_MAX_CHARS = 200;
 
     private final PurchasedBookCache purchasedBookCache;
+    private final MemberSubscriptionClient memberSubscriptionClient;
+    private final WikiBookRepository wikiBookRepository;
     private final GuardedAiCalls ai;
     private final VectorSearchPort vectorSearch;
     private final QueryRouter queryRouter;
@@ -61,7 +71,10 @@ public class WikiRagService {
         // (3) 접근 제어. 여기가 비면 검색 자체를 하지 않는다.
         Set<Long> allowed = allowedBooks(memberId, requestedBookIds);
         if (allowed.isEmpty()) {
-            log.info("검색 대상 없음 — 구매한 책이 없거나 요청 bookIds 와 교집합이 비었다. memberId={}", memberId);
+            log.info(
+                    "검색 대상 없음 — 볼 수 있는 책이 없거나 요청 bookIds 와 교집합이 비었다. memberId={} 요청bookIds={}",
+                    memberId,
+                    requestedBookIds);
             return notGrounded(mode);
         }
 
@@ -113,19 +126,38 @@ public class WikiRagService {
     }
 
     /**
-     * 🔴 {@code requestedBookIds} 는 <b>좁히기 전용</b>이다. 구매한 책과 교집합만 남긴다.
+     * 검색해도 되는 책. <b>구매한 책 ∪ (구독 중이면) 인제스트된 책 전체</b>다.
      *
      * <p>
-     * 합집합으로 구현하면 클라이언트가 아무 bookId 나 넣어 안 산 책의 본문을 그대로
+     * 구독을 포함하는 이유는 열람 권한과 맞추기 위해서다 — {@code EbookService} 가 구독
+     * 회원에게 eBook 보유 도서 <i>전체</i>의 열람을 허용한다. 전문을 읽을 수 있는 책의
+     * 200자 인용을 막는 것은 더 좁은 권리가 아니라 설명할 수 없는 예외였다. 인제스트는
+     * 도서 등록 시점에 이미 끝나 있으므로(AdminBookService#publishIngestEvent) 추가 비용도
+     * 없다 — 질의 비용은 {@code DailyQuota} 가 통제한다.
+     *
+     * <p>
+     * 🔴 {@code requestedBookIds} 는 <b>좁히기 전용</b>이다. 허용 집합과 교집합만 남긴다.
+     * 합집합으로 구현하면 클라이언트가 아무 bookId 나 넣어 권한 없는 책의 본문을 그대로
      * 읽어갈 수 있다. 에러도 로그도 없이 정상 응답처럼 보이는 접근 제어 사고다.
      */
     private Set<Long> allowedBooks(String memberId, Collection<Long> requestedBookIds) {
-        Set<Long> purchased = purchasedBookCache.purchasedBookIds(memberId);
+        Set<Long> allowed = new LinkedHashSet<>(purchasedBookCache.purchasedBookIds(memberId));
+
+        // 구매분만으로 요청 범위가 이미 채워지면 member-service 를 부르지 않는다 —
+        // 뷰어에서 오는 질의는 대부분 자기가 산 책 하나로 좁혀져 있다(DailyQuota 가
+        // 무료 상한 아래에서 구독 조회를 건너뛰는 것과 같은 이유).
+        boolean coveredByPurchase =
+                requestedBookIds != null && !requestedBookIds.isEmpty() && allowed.containsAll(requestedBookIds);
+        if (!coveredByPurchase
+                && memberSubscriptionClient.getSubscriptionStatus(memberId).subscribed()) {
+            allowed.addAll(wikiBookRepository.findAllBookIds());
+        }
+
         if (requestedBookIds == null || requestedBookIds.isEmpty()) {
-            return purchased;
+            return allowed;
         }
         Set<Long> narrowed = new LinkedHashSet<>(requestedBookIds);
-        narrowed.retainAll(purchased);
+        narrowed.retainAll(allowed);
         return narrowed;
     }
 
@@ -225,7 +257,7 @@ public class WikiRagService {
 
     /** search 모드의 answer. LLM 을 부르지 않으므로 생성문이 아니다. */
     private static String summary(List<Citation> citations) {
-        return "구매한 책에서 근거 %d곳을 찾았습니다.".formatted(citations.size());
+        return "읽을 수 있는 책에서 근거 %d곳을 찾았습니다.".formatted(citations.size());
     }
 
     private static AskResult notGrounded(AskMode mode) {

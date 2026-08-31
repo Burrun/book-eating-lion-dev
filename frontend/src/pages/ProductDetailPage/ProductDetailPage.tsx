@@ -88,8 +88,6 @@ export default function ProductDetailPage() {
   const [editText, setEditText] = useState("");
   const [isEbookOpen, setIsEbookOpen] = useState(false);
   const [ebookUrl, setEbookUrl] = useState<string | null>(null);
-  // 구매 확정 여부(구독 열람과 구분). 뷰어의 사자 진입점 노출에만 쓴다.
-  const [isPurchased, setIsPurchased] = useState(false);
   const { data: wishlist = [] } = useQuery({
     queryKey: ["wishlist"],
     queryFn: getWishlist,
@@ -121,7 +119,6 @@ export default function ProductDetailPage() {
         return;
       }
       setEbookUrl(access.presignedUrl);
-      setIsPurchased(access.purchased);
       setIsEbookOpen(true);
     },
     onError: (err: unknown) => {
@@ -142,7 +139,6 @@ export default function ProductDetailPage() {
   function handleCloseEbook() {
     setIsEbookOpen(false);
     setEbookUrl(null);
-    setIsPurchased(false);
   }
 
   // addToCart(api/cart.js)가 로그인/게스트 분기를 내부에서 이미 처리하므로 여기서는 그대로 호출만 한다.
@@ -496,7 +492,6 @@ export default function ProductDetailPage() {
         url={ebookUrl}
         title={book.title}
         bookId={id}
-        purchased={isPurchased}
         onProgressChange={setLivePercentage}
       />
     </main>

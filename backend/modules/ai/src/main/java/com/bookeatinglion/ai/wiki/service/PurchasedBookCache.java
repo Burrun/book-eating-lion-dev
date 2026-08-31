@@ -13,7 +13,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 구매한 책 목록의 읽기 경로. purchase-based access control.
+ * 구매한 책 목록의 읽기 경로.
+ *
+ * <p>검색 허용 목록의 <b>일부</b>다 — 구독 회원은 여기에 인제스트된 책 전체가 더해진다
+ * ({@code WikiRagService#allowedBooks}). 이 클래스는 "구매"만 안다.
  */
 @Component
 @RequiredArgsConstructor
