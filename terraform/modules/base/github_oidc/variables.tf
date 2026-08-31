@@ -77,3 +77,21 @@ variable "eks_cluster_name" {
 # 예정"이라는 문자열일 뿐이다 — 클러스터는 02-runtime에서 만들어지는데, 00-base가
 # 그 모듈 출력을 입력으로 받으면 00-base -> 02-runtime 역방향 의존이 생긴다
 # (edge_routing/dns_zone과 같은 원칙: 대상이 없는 계층에서 그 대상을 참조하지 않는다).
+
+variable "create_terraform_role" {
+  description = "terraform-apply.yml/terraform-destroy.yml(GitHub Actions)이 쓸 IAM Role을 이 호출에서 만들지 여부. 계정당 한 번만(integrated에서만) true로 둔다."
+  type        = bool
+  default     = false
+}
+
+variable "create_db_power_role" {
+  description = "야간 비용 절감용 DB EC2 stop/start 워크플로(db-power.yml)가 쓸 IAM Role을 이 호출에서 만들지 여부. 계정당 한 번만(integrated에서만) true로 둔다. environment로 이름을 나누지 않는다 - 인스턴스 하나만 대상이라 환경별로 쪼갤 이유가 없다."
+  type        = bool
+  default     = false
+}
+
+variable "db_power_instance_id" {
+  description = "create_db_power_role = true일 때 start/stop을 허용할 EC2 인스턴스 ID 하나 (예: i-07e730fed45de433b). 이 인스턴스 하나로만 권한을 좁힌다."
+  type        = string
+  default     = null
+}

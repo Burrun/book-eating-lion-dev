@@ -181,3 +181,132 @@ resource "aws_iam_role_policy" "github_actions" {
   role   = aws_iam_role.github_actions.id
   policy = data.aws_iam_policy_document.permissions.json
 }
+
+# terraform-apply.yml/terraform-destroy.yml 전용 role. 배포 role(위 github_actions)과
+# 분리하는 이유는 terraform-apply.yml 안의 에러 메시지("배포 전용 AWS_ROLE_ARN을
+# 대신 사용하면 안 됩니다")에 남아있다 - terraform apply/destroy는 이 프로젝트가
+# 만드는 모든 리소스 타입에 걸쳐 훨씬 넓은 권한이 필요해서, 매 배포마다 도는 CD role에
+# 그 권한을 얹으면 CD가 실수로 인프라를 바꿀 수 있는 범위가 커진다.
+resource "aws_iam_role" "github_actions_terraform" {
+  count              = var.create_terraform_role ? 1 : 0
+  name               = "github-actions-lion-team3-${var.environment}-terraform"
+  assume_role_policy = data.aws_iam_policy_document.trust.json
+}
+
+data "aws_iam_policy_document" "terraform_permissions" {
+  count = var.create_terraform_role ? 1 : 0
+
+  # 이 role 스스로 github_actions/github_actions_db_power 같은 lion-team3 계열
+  # role/policy를 만들고 고칠 수 있어야 terraform apply가 이 모듈 자체를 관리할 수
+  # 있다. 다른 팀 role까지 건드리지 못하게 이름으로 좁힌다.
+  statement {
+    sid    = "ScopedIam"
+    effect = "Allow"
+    actions = [
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:GetRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:PassRole",
+      "iam:ListInstanceProfilesForRole",
+    ]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/lion-team3-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-lion-team3-*",
+    ]
+  }
+
+  statement {
+    sid    = "IamReadOnly"
+    effect = "Allow"
+    actions = [
+      "iam:ListRoles",
+      "iam:ListOpenIDConnectProviders",
+      "iam:GetOpenIDConnectProvider",
+      "iam:ListPolicies",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+    ]
+    resources = ["*"]
+  }
+
+  # 이 프로젝트가 실제로 만드는 서비스 타입으로만 좁힌다(계정을 공유하는 다른 팀의
+  # 서비스까지는 안 건드림). 리소스 단위로 더 좁히는 건 EKS/EC2/RDS 등 대부분
+  # 서비스가 apply 시점엔 아직 존재하지 않는 리소스라 비현실적이라 서비스 단위로 그침.
+  statement {
+    sid    = "ProjectServicesFull"
+    effect = "Allow"
+    actions = [
+      "eks:*",
+      "ec2:*",
+      "elasticloadbalancing:*",
+      "autoscaling:*",
+      "rds:*",
+      "elasticache:*",
+      "sqs:*",
+      "cognito-idp:*",
+      "s3:*",
+      "cloudfront:*",
+      "acm:*",
+      "wafv2:*",
+      "route53:*",
+      "ecr:*",
+      "ssm:*",
+      "logs:*",
+      "kms:*",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions_terraform" {
+  count  = var.create_terraform_role ? 1 : 0
+  name   = "terraform-apply-destroy"
+  role   = aws_iam_role.github_actions_terraform[0].id
+  policy = data.aws_iam_policy_document.terraform_permissions[0].json
+}
+
+# db-power.yml(야간 dev Postgres EC2 stop/start) 전용 role. 인스턴스 하나만 건드릴
+# 수 있게 terraform role보다도 훨씬 좁게 잡는다 - 이 role이 뚫려도 피해가 그 인스턴스
+# 하나로 끝나게.
+resource "aws_iam_role" "github_actions_db_power" {
+  count              = var.create_db_power_role ? 1 : 0
+  name               = "github-actions-lion-team3-db-power"
+  assume_role_policy = data.aws_iam_policy_document.trust.json
+}
+
+data "aws_iam_policy_document" "db_power_permissions" {
+  count = var.create_db_power_role ? 1 : 0
+
+  statement {
+    sid       = "StartStopOneInstance"
+    effect    = "Allow"
+    actions   = ["ec2:StartInstances", "ec2:StopInstances"]
+    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/${var.db_power_instance_id}"]
+  }
+
+  # DescribeInstances는 리소스 수준 권한을 지원하지 않는다 - stop/start 성공 여부
+  # 확인용으로만 쓰이므로 읽기 전용으로 계정 스코프 허용.
+  statement {
+    sid       = "DescribeReadOnly"
+    effect    = "Allow"
+    actions   = ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions_db_power" {
+  count  = var.create_db_power_role ? 1 : 0
+  name   = "db-start-stop"
+  role   = aws_iam_role.github_actions_db_power[0].id
+  policy = data.aws_iam_policy_document.db_power_permissions[0].json
+}
