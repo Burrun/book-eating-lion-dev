@@ -10,7 +10,12 @@ domain_name = "book.ajttk.com"
 # foundation-model이 아니라 inference-profile이다 - 실제 배포 전 콘솔에서 정확한 ARN 재확인.
 bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
-  "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  # global. 프로필도 호출한 리전의 ARN으로 평가된다 — us-east-1로 두면 ap-northeast-2에서
+  # 도는 ai-service의 LLM 호출이 전부 403이다(2026-08-31 dev 실배포에서 겪음).
+  "arn:aws:bedrock:ap-northeast-2:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  # 아래 apac.과 같은 이유로 라우팅 대상 foundation-model도 허용한다. global.은 라우팅
+  # 리전이 고정되지 않아 리전을 비워 둔다.
+  "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
   # apac. 크로스리전 프로필은 호출마다 APAC 내 리전으로 라우팅된다(dev에서 ap-southeast-2로
   # 라우팅되어 AccessDenied 발생 - 2026-08-25). inference-profile ARN만으론 부족하고

@@ -12,7 +12,11 @@ enable_edge_routing = true
 
 bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
-  "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  # global. 프로필은 호출한 리전의 ARN으로 권한이 평가된다 — us-east-1로 두면
+  # ap-northeast-2에서 도는 ai-service의 LLM 호출이 전부 403이다(2026-08-31 실배포).
+  "arn:aws:bedrock:ap-northeast-2:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  # 프로필 ARN만으론 부족하고 라우팅 대상 모델도 허용해야 한다(아래 nova-micro와 같은 이유).
+  "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
   "arn:aws:bedrock:ap-northeast-2:*:inference-profile/apac.amazon.nova-micro-v1:0",
   "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0",
 ]
