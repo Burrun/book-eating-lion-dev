@@ -123,6 +123,12 @@ module "github_oidc" {
   extra_media_bucket_arns    = [data.aws_ssm_parameter.dev_media_bucket_arn.value]
   # 02-runtime의 eks_cluster 기본 이름(lion-team3-${environment})과 반드시 같아야 한다.
   eks_cluster_name = "lion-team3-${var.environment}"
+
+  # terraform-apply.yml/terraform-destroy.yml, db-power.yml 전용 role. 계정당
+  # 한 번만(integrated에서만) 만든다 - dev/prod 00-base에선 켜지 않음.
+  create_terraform_role = true
+  create_db_power_role  = true
+  db_power_instance_id  = "i-07e730fed45de433b" # lion-team3-dev-ec2-postgres
 }
 
 locals {
