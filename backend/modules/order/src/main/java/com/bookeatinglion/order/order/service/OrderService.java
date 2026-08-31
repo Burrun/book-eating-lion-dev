@@ -194,7 +194,9 @@ public class OrderService {
      */
     @Transactional
     public OrderResponse approveKakaoPay(String memberId, String nickname, Long orderId, String pgToken) {
-        Order order = orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+        // 행을 잠그고 읽는다 — 같은 주문에 승인 요청이 동시에 두 번 들어와도 뒤엣놈은 여기서
+        // 앞엣놈의 커밋을 기다렸다가 아래 상태 검사에서 카카오 승인 전에 거절된다.
+        Order order = orderRepository.findWithLockById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
         if (!order.isOwnedBy(memberId)) {
             throw new UnauthorizedOrderAccessException(orderId);
         }
@@ -226,8 +228,10 @@ public class OrderService {
 
             MemberCoupon memberCoupon = null;
             if (order.getPendingMemberCouponId() != null) {
+                // FOR UPDATE — 같은 쿠폰이 걸린 다른 주문의 승인과 겹치면 그쪽 커밋을 기다렸다가
+                // used 를 다시 본다. 카카오 승인 전이라 여기서 거절하면 환불이 필요 없다.
                 memberCoupon = memberCouponRepository
-                        .findById(order.getPendingMemberCouponId())
+                        .findWithLockById(order.getPendingMemberCouponId())
                         .orElseThrow(() -> new OrderCouponNotFoundException(order.getPendingMemberCouponId()));
                 if (memberCoupon.isUsed()) {
                     throw new InvalidCouponException("이미 사용한 쿠폰입니다: " + order.getPendingMemberCouponId());
@@ -347,27 +351,47 @@ public class OrderService {
     }
 
     /**
-     * 결제 확정(order.markPaid() 직후) 후속 이벤트 발행. 리뷰 권한은 Redis Streams 로 즉시
-     * 보낸다 — catalog-service 가용성과 무관해야 하는 별개 관심사라 커밋 대기 없이 나가도 된다.
-     * 구매 확정 SQS 이벤트는 afterCommit 훅으로 미룬다 — 커밋 전에 나가면, 이후 재고 차감/카드
-     * 승인 등에서 롤백이 나도 ai-service 는 이미 검색 권한으로 적재해버려 되돌릴 수 없다.
+     * 결제 확정(order.markPaid() 직후) 후속 이벤트 발행. 리뷰 권한(Redis Streams)과 구매 확정
+     * (SQS) 둘 다 <b>afterCommit</b> 으로 미룬다 — 커밋 전에 나가면, 이후 단계
+     * (쿠폰 사용확정 / createDelivery 의 UNIQUE 충돌 등)에서 롤백이 나도 catalog 는 이미 리뷰
+     * 권한을, ai 는 이미 검색 권한을 적재해버려 되돌릴 수 없다. 리뷰 권한은 eBook 열람 권한까지
+     * 겸하므로(EbookService.getAccess 가 review_permissions 존재만 본다) 롤백된 주문에 새어
+     * 나가면 결제 안 된 책을 계속 읽게 된다.
+     *
+     * <p>afterCommit 은 catalog-service 응답을 기다리는 것과 무관하다 — 둘 다 비동기 채널로
+     * 던지고 소비는 상대 서비스가 알아서 한다.
+     *
+     * <p>🔴 두 채널은 서로 독립이다. afterCommit 시점엔 주문이 이미 커밋됐으므로 한쪽 발행이
+     * 실패해도 예외를 올려봐야 되돌릴 게 없고, 같은 Runnable 안에서 던지면 뒤엣놈(SQS)이
+     * 아예 안 나간다. 그래서 각각 try/catch 로 감싸 로그만 남기고 서로를 막지 않는다.
      */
     private void publishPurchaseConfirmed(String memberId, String nickname, List<OrderItem> items) {
         String grantedAt = LocalDateTime.now().toString();
-        for (OrderItem item : items) {
-            reviewPermissionPublisher.publish(
-                    new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
-        }
+        Runnable publish = () -> {
+            try {
+                for (OrderItem item : items) {
+                    reviewPermissionPublisher.publish(
+                            new ReviewPermissionGranted(memberId, item.getId(), item.getBookId(), nickname, grantedAt));
+                }
+            } catch (RuntimeException e) {
+                log.error("리뷰 권한 이벤트 발행 실패 — 결제는 이미 확정됨. 수동 확인 필요. memberId={}", memberId, e);
+            }
+            try {
+                items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+            } catch (RuntimeException e) {
+                log.error("구매 확정 SQS 이벤트 발행 실패 — 결제는 이미 확정됨. 수동 확인 필요. memberId={}", memberId, e);
+            }
+        };
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+                    publish.run();
                 }
             });
         } else {
-            items.forEach(item -> bookPurchasePublisher.publish(memberId, item.getBookId()));
+            publish.run();
         }
     }
 
@@ -510,8 +534,12 @@ public class OrderService {
             return null;
         }
 
+        // FOR UPDATE — 쿠폰 적용은 결제 직전에 일어난다. 같은 쿠폰을 쓰는 두 주문이 동시에
+        // 들어오면 뒤엣놈은 앞엣놈의 커밋을 기다렸다가 아래 isUsed() 에서 걸려 결제 전에
+        // 거절된다. 이 락이 없으면 둘 다 통과해 할인이 두 번 적용되고, 취소 시
+        // findByUsedOrderId 는 한 주문만 찾아 나머지 쿠폰은 복구되지 않는다.
         MemberCoupon memberCoupon = memberCouponRepository
-                .findById(memberCouponId)
+                .findWithLockById(memberCouponId)
                 .orElseThrow(() -> new OrderCouponNotFoundException(memberCouponId));
 
         if (!memberCoupon.isOwnedBy(memberId)) {

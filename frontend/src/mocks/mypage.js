@@ -137,6 +137,50 @@ export const MOCK_COUPON_STATE = [
   },
 ];
 
+// USE_MOCK 모드의 POST /api/coupons/register 흉내. 실제 coupons 카탈로그가 없으므로
+// 알려진 코드 몇 개만 성공시키고, 나머지는 백엔드(CouponExceptionHandler)와 같은 모양의
+// 에러 객체를 던져 화면이 실제와 같은 분기를 타게 한다.
+const MOCK_COUPON_CATALOG = [
+  {
+    couponId: 21,
+    couponCode: "HELLOLION",
+    couponName: "라이언 첫인사 2,000원 할인",
+    discountAmount: 2000,
+    minimumOrderAmount: 10000,
+  },
+  {
+    couponId: 22,
+    couponCode: "BOOKWORM5",
+    couponName: "책벌레 5,000원 할인",
+    discountAmount: 5000,
+    minimumOrderAmount: 30000,
+  },
+];
+
+function couponError(code, message) {
+  const err = new Error(message);
+  err.response = { data: { error: { code, message } } };
+  return err;
+}
+
+export function mockRegisterCoupon(rawCode) {
+  const code = rawCode.trim().toUpperCase();
+  const catalogEntry = MOCK_COUPON_CATALOG.find((c) => c.couponCode === code);
+  if (!catalogEntry) {
+    throw couponError("COUPON_NOT_FOUND", `존재하지 않는 쿠폰 코드입니다: ${rawCode}`);
+  }
+  if (MOCK_COUPON_STATE.some((c) => c.couponCode === code)) {
+    throw couponError("COUPON_ALREADY_ISSUED", `이미 보유한 쿠폰입니다: ${rawCode}`);
+  }
+  const issued = {
+    memberCouponId: 900 + MOCK_COUPON_STATE.length + 1,
+    ...catalogEntry,
+    expiresAt: "2026-12-31T23:59:59",
+  };
+  MOCK_COUPON_STATE.push(issued);
+  return issued;
+}
+
 export const MOCK_RETURN_REQUESTS = [
   {
     id: 1,

@@ -241,7 +241,7 @@ class OrderServiceTest {
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
         MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.of(memberCoupon));
         stubOrderAndPaymentSave();
         when(cardClient.deduct(anyLong(), any())).thenReturn(new CardClient.CardOperationResult(true, null));
 
@@ -329,7 +329,7 @@ class OrderServiceTest {
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
         MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.of(memberCoupon));
         stubOrderAndPaymentSave();
         when(kakaoPayClient.ready(anyLong(), anyString(), anyString(), eq(7000)))
                 .thenReturn(new KakaoReadyResult("T1", "https://mockup-pg-web.kakao.com/redirect"));
@@ -390,7 +390,7 @@ class OrderServiceTest {
         setUp();
         when(inventoryRepository.findByBookIdIn(List.of(100L))).thenReturn(List.of(inventory(100L, 10)));
         when(catalogClient.getBook(100L)).thenReturn(book(100L, "책1", 10000));
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.empty());
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.empty());
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
@@ -407,7 +407,7 @@ class OrderServiceTest {
         Coupon coupon = new Coupon("C1", "쿠폰", 1000, 5000, LocalDateTime.now().plusDays(1));
         MemberCoupon memberCoupon = new MemberCoupon(OTHER_MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.of(memberCoupon));
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
@@ -424,7 +424,7 @@ class OrderServiceTest {
         Coupon coupon = new Coupon("C1", "쿠폰", 500, 50000, LocalDateTime.now().plusDays(1));
         MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.of(memberCoupon));
 
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(100L, 1)), 9L, recipient(), PaymentMethod.KAKAO_PAY, null);
@@ -453,7 +453,7 @@ class OrderServiceTest {
     void 카카오페이_승인은_재고차감_쿠폰사용확정_장바구니비우기까지_전부_끝낸다() {
         setUp();
         Order order = pendingKakaoOrder(7000, 9L);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         Payment payment = readyPayment(order, 7000);
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         OrderItem item = new OrderItem(order, 100L, "책1", 1, 10000);
@@ -464,7 +464,7 @@ class OrderServiceTest {
         Coupon coupon = new Coupon("C1", "쿠폰", 3000, 5000, LocalDateTime.now().plusDays(1));
         MemberCoupon memberCoupon = new MemberCoupon(MEMBER_ID, coupon);
         ReflectionTestUtils.setField(memberCoupon, "id", 9L);
-        when(memberCouponRepository.findById(9L)).thenReturn(Optional.of(memberCoupon));
+        when(memberCouponRepository.findWithLockById(9L)).thenReturn(Optional.of(memberCoupon));
 
         when(kakaoPayClient.approve(1L, MEMBER_ID, "T1", "pg-token")).thenReturn(new KakaoApproveResult("A1"));
 
@@ -482,7 +482,7 @@ class OrderServiceTest {
     void 카카오페이_승인_완료시_리뷰권한과_구매확정_이벤트가_발행된다() {
         setUp();
         Order order = pendingKakaoOrder(7000, null);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         Payment payment = readyPayment(order, 7000);
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
@@ -504,7 +504,7 @@ class OrderServiceTest {
     void 승인_시점에_재고가_부족하면_카카오_승인_API를_호출하지_않는다() {
         setUp();
         Order order = pendingKakaoOrder(10000, null);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         Payment payment = readyPayment(order, 10000);
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         OrderItem item = new OrderItem(order, 100L, "책1", 5, 2000);
@@ -523,7 +523,7 @@ class OrderServiceTest {
         setUp();
         Order order = order(1L, MEMBER_ID, 10000);
         ReflectionTestUtils.setField(order, "orderStatus", OrderStatus.PAID);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(PaymentAlreadyProcessedException.class);
@@ -533,7 +533,7 @@ class OrderServiceTest {
     void 결제정보가_없으면_승인_요청은_예외를_던진다() {
         setUp();
         Order order = pendingKakaoOrder(10000, null);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
@@ -544,7 +544,7 @@ class OrderServiceTest {
     void 타인의_주문에_승인_요청하면_예외를_던진다() {
         setUp();
         Order order = order(1L, OTHER_MEMBER_ID, 10000);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 1L, "pg-token"))
                 .isInstanceOf(UnauthorizedOrderAccessException.class);
@@ -553,7 +553,7 @@ class OrderServiceTest {
     @Test
     void 존재하지_않는_주문에_승인_요청하면_예외를_던진다() {
         setUp();
-        when(orderRepository.findById(999L)).thenReturn(Optional.empty());
+        when(orderRepository.findWithLockById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.approveKakaoPay(MEMBER_ID, NICKNAME, 999L, "pg-token"))
                 .isInstanceOf(OrderNotFoundException.class);
@@ -563,7 +563,7 @@ class OrderServiceTest {
     void 카카오페이_승인_완료시_배송이_PENDING_상태로_생성된다() {
         setUp();
         Order order = pendingKakaoOrder(7000, null);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         Payment payment = readyPayment(order, 7000);
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);
@@ -583,7 +583,7 @@ class OrderServiceTest {
     void 배송이_이미_생성돼_있으면_승인_재시도에도_중복_생성하지_않는다() {
         setUp();
         Order order = pendingKakaoOrder(7000, null);
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.findWithLockById(1L)).thenReturn(Optional.of(order));
         Payment payment = readyPayment(order, 7000);
         when(paymentRepository.findByOrderId(1L)).thenReturn(Optional.of(payment));
         OrderItem item = new OrderItem(order, 100L, "책1", 1, 7000);

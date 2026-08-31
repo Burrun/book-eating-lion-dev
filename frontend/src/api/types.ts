@@ -164,6 +164,11 @@ export type CouponResponse = Order["CouponResponse"];
 export type CouponCreateRequest = Order["CouponCreateRequest"];
 export type CouponUpdateRequest = Order["CouponUpdateRequest"];
 
+// --- 보유 쿠폰 (MemberCoupon, 일반 사용자) ---
+// GET /api/coupons/me 로 목록, POST /api/coupons/register 로 코드 입력 발급.
+export type MemberCouponView = Order["MemberCouponView"];
+export type RegisterCouponRequest = Order["RegisterCouponRequest"];
+
 // --- 장바구니 (Cart) ---
 export type CartItemView = Order["CartItemView"];
 export type CartResponse = Order["CartResponse"];
