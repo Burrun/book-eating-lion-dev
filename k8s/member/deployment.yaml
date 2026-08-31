@@ -21,6 +21,9 @@ spec:
         app: member-service
         tier: backend
     spec:
+      # k8s/base/10-priorityclass.yaml 참고 — dev/prod 가 같은 노드풀을 공유해서,
+      # 노드 압박 시 어느 쪽이 먼저 밀려날지를 이걸로 정한다.
+      priorityClassName: ${K8S_NAMESPACE}-workload
       serviceAccountName: member-service
       affinity:
         podAntiAffinity:

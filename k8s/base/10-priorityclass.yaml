@@ -1,0 +1,32 @@
+# dev/prod 가 같은 Karpenter 노드풀을 공유한다(§ 단일 클러스터 통합). 노드가 압박받는
+# 순간(스팟 회수, Karpenter 반응 지연, 인스턴스 한도) kubelet 은 우선순위 낮은 파드부터
+# 쫓아낸다 — PriorityClass 가 없으면 dev/prod 우선순위가 같아서 prod 가 쫓겨날 수 있다.
+#
+# ResourceQuota(10-quota.yaml)는 "얼마나 쓸 수 있는가"의 상한이고, 이건 "자원이 모자랄
+# 때 누가 먼저 밀려나는가"다. 서로 다른 문제라 둘 다 필요하다.
+#
+# 두 클래스 다 낮은 값(<1000)으로 둔다 — system-cluster-critical(2000000000) 같은
+# 클러스터 필수 애드온보다 훨씬 아래라 이 값을 잘못 키워도 kube-system 파드를 밀어낼
+# 일이 없다. globalDefault 는 안 켠다 — 켜면 이름 안 붙은 모든 파드(애드온 포함)가
+# 여기 걸려 의도치 않은 범위 확장이 된다.
+#
+# PriorityClass 는 클러스터 범위 객체라 base 매니페스트에 한 번만 둔다. 각 서비스
+# deployment.yaml 은 이미 있는 ${K8S_NAMESPACE} 를 그대로 재사용해
+# priorityClassName: ${K8S_NAMESPACE}-workload 로 참조한다 — 새 envsubst 변수를
+# 추가하면 main-cd.yml 의 VARS 목록에 넣는 걸 잊는 사고가 또 난다(오늘 이미 두 번
+# 겪었다: scripts/main-cd.yml 이 CI paths 에서 빠졌던 것, paths-filter base 미지정).
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: dev-workload
+value: 100
+globalDefault: false
+description: "dev 네임스페이스 워크로드. 노드 압박 시 prod 보다 먼저 밀려난다."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: prod-workload
+value: 1000
+globalDefault: false
+description: "prod 네임스페이스 워크로드. 노드 압박 시 dev 보다 나중에 밀려난다."

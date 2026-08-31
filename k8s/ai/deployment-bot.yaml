@@ -28,6 +28,9 @@ spec:
         app: ai-bot
         tier: backend
     spec:
+      # k8s/base/10-priorityclass.yaml 참고 — dev/prod 가 같은 노드풀을 공유해서,
+      # 노드 압박 시 어느 쪽이 먼저 밀려날지를 이걸로 정한다.
+      priorityClassName: ${K8S_NAMESPACE}-workload
       # terraform/modules/compute/ai_service_iam 의 IRSA 신뢰 정책이 이 이름의
       # ServiceAccount(system:serviceaccount:lion-app:ai-bot)만 AssumeRoleWithWebIdentity를
       # 허용한다 - 없으면 default SA로 떠서 AWS SDK가 빈 자격증명 체인으로 기동에 실패한다.
