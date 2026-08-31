@@ -231,6 +231,39 @@ resource "aws_eks_addon" "coredns" {
   })
 }
 
+# 리소스 메트릭(CPU·메모리)으로 스케일하는 HPA는 Resource Metrics API
+# (metrics.k8s.io)가 있어야 한다. 이게 없으면 그런 HPA가 TARGETS=<unknown>으로
+# 뜨고 절대 스케일하지 않으며 `kubectl top`도 실패한다 (2026-08-31
+# lion-team3-integrated에서 실측 - metrics-server addon 자체가 없어서
+# catalog/order/member/ai HPA가 전부 죽어 있었다). 커스텀 메트릭
+# (예: http_server_requests_active)을 쓰는 HPA는 이 addon과 무관하며, 별도로
+# Prometheus Adapter나 KEDA가 있어야 스케일한다. vpc-cni/kube-proxy/coredns와
+# 함께 EKS 관리형 addon으로 둔다.
+resource "aws_eks_addon" "metrics_server" {
+  cluster_name = aws_eks_cluster.this.name
+  addon_name   = "metrics-server"
+  depends_on   = [aws_eks_node_group.system] # Pod가 뜨려면 노드가 먼저 있어야 함
+
+  # OVERWRITE는 addon 생성 시 self-managed Kubernetes 리소스(예: 매니페스트로
+  # 직접 깔아 둔 metrics-server Deployment)와의 충돌만 덮어쓴다. 이미
+  # `aws eks create-addon`으로 만들어 둔 "EKS 관리형 addon"을 terraform 상태로
+  # 가져오지는 못하므로, 그런 클러스터(2026-08-31 기준 lion-team3-integrated)에선
+  # 이 옵션과 무관하게 CreateAddon이 ResourceInUseException("addon already
+  # exists")으로 실패한다. apply 전에 한 번만 수동 import가 필요하다:
+  #   terraform import '<이 리소스의 module 경로>.aws_eks_addon.metrics_server' \
+  #     lion-team3-integrated:metrics-server
+  # sibling addon(vpc-cni/kube-proxy/coredns)들은 처음부터 terraform이 만들어서
+  # import도 이 옵션도 필요 없었다.
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  # metrics-server는 부트스트랩 의존성이 아니라 toleration이 없으면 Karpenter
+  # 노드로 스케줄되지만(coredns 주석 참고), 클러스터를 새로 만들 때 Karpenter
+  # 노드가 아직 없는 창을 없애려고 시스템 노드그룹 taint도 견디게 열어둔다.
+  configuration_values = jsonencode({
+    tolerations = [local.system_pool_toleration]
+  })
+}
+
 # Pod/Node CPU·메모리를 CloudWatch Container Insights로 수집
 resource "aws_eks_addon" "cloudwatch_observability" {
   cluster_name = aws_eks_cluster.this.name
