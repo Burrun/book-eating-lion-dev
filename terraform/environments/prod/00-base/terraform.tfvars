@@ -14,7 +14,8 @@ aws_region  = "ap-northeast-2"
 domain_name        = "book.ajttk.com"
 parent_zone_domain = "ajttk.com"
 
-waf_rate_limit = 2000
+waf_rate_limit   = 2000
+waf_ip_allowlist = ["118.217.76.39/32"]
 
 # TODO: S3 버킷 이름은 전역 유일이어야 함 — 실제 배포 전 고유한 이름으로 교체
 frontend_bucket_name = "book-eating-lion-prod-frontend"

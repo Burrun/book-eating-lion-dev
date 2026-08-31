@@ -23,8 +23,10 @@ dev_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:06103980462
 prod_recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-prod-vectors/index/recommendation-books-v1"
 prod_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-prod-vectors/index/wiki-v1"
 
-admin_principal_arns = []
+admin_principal_arns = [
+  "arn:aws:iam::061039804626:user/b-student-02",
+]
 # 현재 dev.ajttk.com은 integrated CloudFront가 담당한다. 운영 상태와 코드 기본값을
 # 일치시켜 옵션 없는 apply가 dev edge 리소스를 제거하지 않게 한다. split dev로
 # 되돌릴 때만 별도 PR에서 false로 바꾸고 의도적인 컷백 절차를 수행한다.
-enable_dev_cutover = false
+enable_dev_cutover = true

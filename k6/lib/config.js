@@ -21,6 +21,13 @@ export const WS_URL = __ENV.WS_URL || (BASE_URL.replace(/^http/, 'ws'));
 export const TEST_BOOK_ID = Number(__ENV.TEST_BOOK_ID || 1);
 export const TEST_BOOK_CATEGORY = __ENV.TEST_BOOK_CATEGORY || 'IT/컴퓨터';
 
+// 03-pod-failure.js가 쓰는 재고. book_id=1(TEST_BOOK_ID)은 05-payment-concurrency.js가
+// 소진시키는 자원이라 공유하면 03이 05 뒤에 도니 "재고 0 → catalogClient 호출 전에
+// 즉시 400" 으로 카탈로그 의존 경로를 아예 안 타게 된다(order-v1.yaml OrderService:
+// checkStock이 catalogClient.getBook()보다 먼저 실행됨). 시드에 재고가 있는 다른
+// book_id(101/102)를 기본으로 써서 05와 자원을 분리한다.
+export const SECONDARY_BOOK_ID = Number(__ENV.SECONDARY_BOOK_ID || 101);
+
 // Cognito 실계정. setup()에서 1회만 로그인해 토큰을 전 VU가 공유한다(§0-7).
 export const LOGIN_EMAIL = __ENV.LOGIN_EMAIL;
 export const LOGIN_PASSWORD = __ENV.LOGIN_PASSWORD;
@@ -29,6 +36,38 @@ export function requireAuthEnv() {
   if (!LOGIN_EMAIL || !LOGIN_PASSWORD) {
     throw new Error(
       'LOGIN_EMAIL / LOGIN_PASSWORD 가 없다. Cognito 테스트 계정을 -e LOGIN_EMAIL=... -e LOGIN_PASSWORD=... 로 전달할 것.',
+    );
+  }
+}
+
+// 콤마로 구분된 -e 값을 배열로 판다(예: -e CHAT_CUSTOMER_EMAILS=a@x.com,b@x.com,c@x.com).
+function parseList(raw) {
+  return (raw || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+// 06-chat-concurrency.js 전용. 상담 채팅은 "1인 1방 강제"(ChatRoomStore.openOrResume)라
+// 05/07처럼 로그인 토큰 하나를 여러 VU가 공유하면 전부 같은 방 하나로 몰려 "여러 세션이
+// 서로 다른 Pod에서 브로드캐스트를 받는지"를 검증할 수 없다(§0-10) — 그래서 채팅만
+// 계정 풀이 필요하다. 상담사 계정은 Cognito `cognito:groups`에 ADMIN이 있어야 한다
+// (ai-v1.yaml POST /api/ai/bot/chat/ticket 설명 참고).
+export const CHAT_CUSTOMER_EMAILS = parseList(__ENV.CHAT_CUSTOMER_EMAILS);
+export const CHAT_CUSTOMER_PASSWORDS = parseList(__ENV.CHAT_CUSTOMER_PASSWORDS);
+export const CHAT_AGENT_EMAIL = __ENV.CHAT_AGENT_EMAIL;
+export const CHAT_AGENT_PASSWORD = __ENV.CHAT_AGENT_PASSWORD;
+
+export function requireChatEnv() {
+  if (
+    CHAT_CUSTOMER_EMAILS.length === 0 ||
+    CHAT_CUSTOMER_EMAILS.length !== CHAT_CUSTOMER_PASSWORDS.length ||
+    !CHAT_AGENT_EMAIL ||
+    !CHAT_AGENT_PASSWORD
+  ) {
+    throw new Error(
+      'CHAT_CUSTOMER_EMAILS/CHAT_CUSTOMER_PASSWORDS(콤마로 구분, 개수 일치)와 ' +
+        'CHAT_AGENT_EMAIL/CHAT_AGENT_PASSWORD(ADMIN 그룹 계정)가 모두 필요하다 — README §0-10 참고.',
     );
   }
 }

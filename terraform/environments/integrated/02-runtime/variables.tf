@@ -14,7 +14,7 @@ variable "cluster_version" {
 }
 
 variable "domain_name" {
-  description = "이 클러스터에 새로 연결할 도메인 (prod 도메인). dev.ajttk.com 컷오버는 여기서 안 한다 - main.tf 상단 주석 참고"
+  description = "이 클러스터에 연결할 prod 도메인. enable_dev_cutover=true이면 dev.ajttk.com도 이 integrated 런타임이 함께 소유한다. 컷오버 전 dev/02-runtime의 엣지 소유권을 먼저 반납해야 한다."
   type        = string
 }
 
@@ -26,8 +26,9 @@ variable "dev_domain_name" {
 
 variable "enable_dev_cutover" {
   description = <<-EOT
-    true로 바꾸면 dev.ajttk.com을 이 integrated 클러스터로 컷오버하는
-    module.edge_routing_dev가 생성된다.
+    true이면 dev.ajttk.com용 CloudFront/Route53를 이 integrated 클러스터가
+    소유한다. integrated 모드에서는 true로 설정해야 dev/prod 도메인이
+    동시에 동작한다.
 
     ⚠️ 켜기 전에 반드시 dev/02-runtime 쪽의 edge_routing 모듈을 먼저
     destroy(또는 주석 처리 후 apply)할 것. 안 그러면 두 tfstate가 같은

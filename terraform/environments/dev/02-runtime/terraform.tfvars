@@ -5,6 +5,11 @@ cluster_version = "1.34" # 1.30은 표준+연장 지원(26개월) 다 지나서 
 # 00-base와 동일한 값이어야 함
 domain_name = "dev.ajttk.com"
 
+# split 모드에서는 dev 클러스터가 dev 도메인의 CloudFront/Route53를 소유한다.
+# integrated 모드로 전환할 때는 integrated/02-runtime의 dev cutover를 먼저
+# 활성화하기 전에 이 값을 false로 바꾸고 이 환경을 apply해 소유권을 반납한다.
+enable_edge_routing = true
+
 bedrock_model_arns = [
   "arn:aws:bedrock:ap-northeast-2::foundation-model/amazon.titan-embed-text-v2:0",
   "arn:aws:bedrock:us-east-1:*:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",

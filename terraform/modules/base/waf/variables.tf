@@ -8,3 +8,9 @@ variable "rate_limit" {
   type        = number
   default     = 2000
 }
+
+variable "ip_allowlist" {
+  description = "WAF 규칙을 우회할 IPv4 주소 목록 (CIDR 표기, 예: 118.217.76.39/32)"
+  type        = list(string)
+  default     = []
+}

@@ -1,15 +1,13 @@
 # 트래픽 경로: 도메인 -> CloudFront -> (기본) S3 프론트엔드 / (/api/*) ALB(ingress-nginx NLB)
 # 도메인이 ALB를 직접 가리키는 레코드는 만들지 않는다 (TERRAFORM_STRUCTURE.md §3.3-4).
 
-# /api/* ordered_cache_behavior가 쓰는 AWS 관리형 정책 - Host 헤더를 포함해 뷰어
-# 요청을 오리진(ALB)에 그대로 전달하면서 캐싱은 끈다. 아래 forwarded_values 관련
-# 주석 참고.
-data "aws_cloudfront_cache_policy" "caching_disabled" {
-  name = "Managed-CachingDisabled"
-}
-
-data "aws_cloudfront_origin_request_policy" "all_viewer" {
-  name = "Managed-AllViewer"
+# AWS 관리형 정책 ID는 리전에 종속되지 않는 고정 식별자다. 데이터 소스를
+# 배포 생성 시점에 해석하면 AWS provider가 ordered_cache_behavior를 확장하는
+# 단계에서 null -> 값으로 바꾸며 inconsistent final plan을 반환할 수 있다.
+# 따라서 사용하지 않는 data source 조회 없이 AWS가 공개한 관리형 ID를 사용한다.
+locals {
+  caching_disabled_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+  all_viewer_policy_id       = "216adef6-5c7f-47e4-b989-5492eafa07d3"
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
@@ -102,8 +100,8 @@ resource "aws_cloudfront_distribution" "this" {
     # 떨어진다(2026-08-23 dev 실배포에서 실제로 겪음 - 회원가입/로그인 전부 404).
     # AWS 관리형 Origin Request Policy "AllViewer"는 Host를 포함한 모든 뷰어 헤더/
     # 쿠키/쿼리스트링을 오리진에 그대로 전달한다 - 캐싱은 API라 여전히 끈다("CachingDisabled").
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    cache_policy_id          = local.caching_disabled_policy_id
+    origin_request_policy_id = local.all_viewer_policy_id
   }
 
   # /api/*에는 안 걸리는 별도 경로 - 없으면 default_cache_behavior(S3 오리진)로 떨어져서
@@ -119,8 +117,8 @@ resource "aws_cloudfront_distribution" "this" {
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    cache_policy_id          = local.caching_disabled_policy_id
+    origin_request_policy_id = local.all_viewer_policy_id
   }
 
   restrictions {

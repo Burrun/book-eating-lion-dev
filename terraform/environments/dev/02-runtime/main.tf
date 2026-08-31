@@ -35,27 +35,33 @@ data "aws_ssm_parameter" "github_actions_role_arn" {
 }
 
 data "aws_ssm_parameter" "route53_zone_id" {
-  name = "${local.ssm_prefix}/edge/route53_zone_id"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/edge/route53_zone_id"
 }
 
 data "aws_ssm_parameter" "acm_certificate_arn" {
-  name = "${local.ssm_prefix}/edge/acm_certificate_arn"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/edge/acm_certificate_arn"
 }
 
 data "aws_ssm_parameter" "waf_web_acl_arn" {
-  name = "${local.ssm_prefix}/edge/waf_web_acl_arn"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/edge/waf_web_acl_arn"
 }
 
 data "aws_ssm_parameter" "frontend_bucket_id" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_id"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/storage/frontend_bucket_id"
 }
 
 data "aws_ssm_parameter" "frontend_bucket_arn" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_arn"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/storage/frontend_bucket_arn"
 }
 
 data "aws_ssm_parameter" "frontend_bucket_domain_name" {
-  name = "${local.ssm_prefix}/storage/frontend_bucket_domain_name"
+  count = var.enable_edge_routing ? 1 : 0
+  name  = "${local.ssm_prefix}/storage/frontend_bucket_domain_name"
 }
 
 data "aws_ssm_parameter" "ai_ingest_channel_arn" {
@@ -147,27 +153,39 @@ module "ingress_alb" {
 # 이 모듈이 폐기된 건 아니고, 동시에 같은 도메인을 두 곳에서 소유할 수만
 # 없는 것뿐이다.
 module "edge_routing" {
+  count  = var.enable_edge_routing ? 1 : 0
   source = "../../../modules/compute/edge_routing"
 
   environment                 = var.environment
   domain_name                 = var.domain_name
   alb_dns_name                = module.ingress_alb.alb_dns_name
-  route53_zone_id             = data.aws_ssm_parameter.route53_zone_id.value
-  acm_certificate_arn         = data.aws_ssm_parameter.acm_certificate_arn.value
-  waf_web_acl_arn             = data.aws_ssm_parameter.waf_web_acl_arn.value
-  frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id.value
-  frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn.value
-  frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name.value
+  route53_zone_id             = data.aws_ssm_parameter.route53_zone_id[0].value
+  acm_certificate_arn         = data.aws_ssm_parameter.acm_certificate_arn[0].value
+  waf_web_acl_arn             = data.aws_ssm_parameter.waf_web_acl_arn[0].value
+  frontend_bucket_id          = data.aws_ssm_parameter.frontend_bucket_id[0].value
+  frontend_bucket_arn         = data.aws_ssm_parameter.frontend_bucket_arn[0].value
+  frontend_bucket_domain_name = data.aws_ssm_parameter.frontend_bucket_domain_name[0].value
 }
 
 # CD가 CloudFront 재생성 후 GitHub Variable을 수동 갱신하지 않고 실행 시점에
 # 최신 배포 ID를 찾을 수 있게 Parameter Store에 발행한다.
 resource "aws_ssm_parameter" "cloudfront_distribution_id" {
+  count = var.enable_edge_routing ? 1 : 0
   name  = "${local.ssm_prefix}/edge/cloudfront_distribution_id"
   type  = "String"
-  value = module.edge_routing.cloudfront_distribution_id
+  value = module.edge_routing[0].cloudfront_distribution_id
   # 기존 수동 등록 값을 첫 apply에서 Terraform 관리로 인수한다.
   overwrite = true
+}
+
+# integrated 런타임이 dev 도메인을 인수할 때 순서를 강제하기 위한 핸드오프 표식.
+# dev 엣지를 반납하는 apply가 먼저 완료되어야 integrated apply가 진행된다.
+resource "aws_ssm_parameter" "edge_ownership_handoff" {
+  name       = "/dev/edge/ownership_handoff"
+  type       = "String"
+  value      = var.enable_edge_routing ? "split-owned" : "integrated-ready"
+  overwrite  = true
+  depends_on = [module.edge_routing]
 }
 
 # ── 5. AI 서비스 IRSA (ingress_alb와 무관하게 나란히 적용 가능) ───
@@ -182,6 +200,7 @@ module "ai_service_iam" {
   recommendation_index_arn     = var.recommendation_index_arn
   purchased_book_rag_index_arn = var.purchased_book_rag_index_arn
   bedrock_model_arns           = var.bedrock_model_arns
+  media_bucket_arn             = data.aws_ssm_parameter.media_bucket_arn.value
 }
 
 # CI(scripts/sync-github-config.sh → main-cd.yml)가 k8s/ai/serviceaccount.yaml의

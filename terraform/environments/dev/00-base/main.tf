@@ -48,8 +48,9 @@ module "waf" {
     aws = aws.us_east_1
   }
 
-  name       = "lion-team3-${var.environment}"
-  rate_limit = var.waf_rate_limit
+  name         = "lion-team3-${var.environment}"
+  rate_limit   = var.waf_rate_limit
+  ip_allowlist = var.waf_ip_allowlist
 }
 
 module "storage" {
@@ -57,6 +58,10 @@ module "storage" {
 
   frontend_bucket_name = var.frontend_bucket_name
   media_bucket_name    = var.media_bucket_name
+  media_cors_allowed_origins = [
+    "https://dev.ajttk.com",
+    "https://www.dev.ajttk.com",
+  ]
 }
 
 module "container_reg" {

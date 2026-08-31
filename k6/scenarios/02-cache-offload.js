@@ -1,7 +1,7 @@
 // DB 부하 분산 — 캐싱 유무에 따른 Aurora/EC2-Postgres 부하 비교.
 //
 // 🔜 현재 backend/modules/book, catalog-api 어디에도 @Cacheable 등 캐싱 구현이
-// 없다(README §0-2). 캐싱이 배포되기 전에 이 스크립트를 돌리면 "캐시 없음" 구간의
+// 없다(README §0-3). 캐싱이 배포되기 전에 이 스크립트를 돌리면 "캐시 없음" 구간의
 // 베이스라인만 얻는다 — 그것도 유효한 데이터이므로 RUN_LABEL=cache-off로 남겨두고,
 // 나중에 캐싱 배포 후 RUN_LABEL=cache-on 으로 동일 스크립트를 재실행해 비교한다.
 //
