@@ -14,7 +14,9 @@ function assertRequiredEnv(mode: string) {
   for (const key of REQUIRED_NUMERIC_ENV) {
     const value = Number(env[key]);
     if (!Number.isFinite(value) || value <= 0) {
-      throw new Error(`${key} 가 없거나 양수가 아닙니다 (mode=${mode}, 값=${env[key] ?? "미설정"}).`);
+      throw new Error(
+        `${key} 가 없거나 양수가 아닙니다 (mode=${mode}, 값=${env[key] ?? "미설정"}).`,
+      );
     }
   }
 }
