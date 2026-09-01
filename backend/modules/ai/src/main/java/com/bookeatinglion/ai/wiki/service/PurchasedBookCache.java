@@ -47,13 +47,24 @@ public class PurchasedBookCache {
         return new LinkedHashSet<>(fromDb);
     }
 
+    /**
+     * SADD 가 실패하면 이 회원의 캐시를 통째로 지운다. 부분 반영된 채로 두면
+     * {@link #purchasedBookIds}가 "비어있지 않음"으로 보고 DB 대조 없이 그 stale 집합을
+     * 영원히 돌려준다 — 이 책 하나만 빠진 채로. 지워두면 다음 조회가 DB 로 떨어져
+     * 전체를 다시 채운다(방금 커밋된 이 구매 포함).
+     */
     public void add(String memberId, Long bookId) {
         String key = key(memberId);
         try {
             redis.opsForSet().add(key, String.valueOf(bookId));
             redis.expire(key, TTL);
         } catch (DataAccessException e) {
-            log.warn("Redis 갱신 실패 — 다음 질의에서 DB 로 채워진다. memberId={} bookId={}", memberId, bookId, e);
+            log.warn("Redis 갱신 실패 — 캐시를 무효화한다. memberId={} bookId={}", memberId, bookId, e);
+            try {
+                redis.delete(key);
+            } catch (DataAccessException e2) {
+                log.warn("Redis 캐시 무효화도 실패 — 다음 조회가 stale 데이터를 반환할 수 있다. memberId={}", memberId, e2);
+            }
         }
     }
 
