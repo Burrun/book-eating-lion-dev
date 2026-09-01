@@ -59,6 +59,12 @@ data:
   AWS_COGNITO_REGION: "${AWS_REGION}"
   AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
 
+  # member-service 구독 상태 조회(MemberSubscriptionClient). 같은 네임스페이스
+  # ClusterIP라 환경마다 안 바뀐다 — envsubst 변수로 안 두고 고정값으로 둔다.
+  # 이게 없으면 Spring 기본값(http://localhost:8083)으로 떨어져 매번 연결 실패,
+  # 구독 여부가 항상 "비구독"으로 강등된다(2026-09-01 dev에서 실제로 겪음).
+  SERVICES_MEMBER_URL: "http://member-service:8080"
+
   REDIS_HOST: "${REDIS_HOST}"
 
   # EPUB 원본 버킷. 벡터 버킷과 다르다 — 원본은 관리자가 올린 파일, 벡터는 파생물이라
