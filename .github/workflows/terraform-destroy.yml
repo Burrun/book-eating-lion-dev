@@ -51,6 +51,11 @@ jobs:
           role-session-name: terraform-destroy-${{ inputs.environment }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 권한이 빠져 있으면 리소스를 절반쯤 지운 뒤 AccessDenied 로 멈춘다.
+      # 시작 전에 role 을 대조해서 그 상태를 만들지 않는다.
+      - name: Verify terraform role IAM coverage
+        run: python3 scripts/check-terraform-iam-coverage.py "${{ vars.TERRAFORM_AWS_ROLE_ARN }}"
+
       - name: Destroy Terraform layers
         env:
           TARGET_ENV: ${{ inputs.environment }}

@@ -217,12 +217,58 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "iam:UntagRole",
       "iam:UpdateAssumeRolePolicy",
       "iam:PassRole",
+      "iam:ListRoleTags",
       "iam:ListInstanceProfilesForRole",
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/lion-team3-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-lion-team3-*",
     ]
+  }
+
+  # dev_tools/ec2_postgres 가 EC2 에 붙일 instance profile 을 만든다. instance-profile
+  # 은 role 과 ARN 타입이 달라서 위 ScopedIam 의 role/* 에 걸리지 않는다.
+  statement {
+    sid    = "ScopedInstanceProfile"
+    effect = "Allow"
+    actions = [
+      "iam:CreateInstanceProfile",
+      "iam:DeleteInstanceProfile",
+      "iam:GetInstanceProfile",
+      "iam:AddRoleToInstanceProfile",
+      "iam:RemoveRoleFromInstanceProfile",
+      "iam:TagInstanceProfile",
+      "iam:UntagInstanceProfile",
+      "iam:ListInstanceProfileTags",
+    ]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/lion-team3-*"]
+  }
+
+  # EKS/ELB/ElastiCache/RDS/Spot 은 첫 리소스를 만들 때 service-linked role 을 자동
+  # 생성한다. 계정에 이미 있으면 조용히 넘어가지만 destroy 후 재생성처럼 없는 상태에서
+  # apply 하면 여기서 막힌다. iam:AWSServiceName 조건으로 이 프로젝트가 쓰는
+  # 서비스로만 좁힌다.
+  statement {
+    sid       = "ServiceLinkedRoles"
+    effect    = "Allow"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values = [
+        "eks.amazonaws.com",
+        "eks-nodegroup.amazonaws.com",
+        "eks-fargate.amazonaws.com",
+        "elasticloadbalancing.amazonaws.com",
+        "autoscaling.amazonaws.com",
+        "spot.amazonaws.com",
+        "spotfleet.amazonaws.com",
+        "elasticache.amazonaws.com",
+        "rds.amazonaws.com",
+      ]
+    }
   }
 
   statement {
@@ -299,6 +345,11 @@ data "aws_iam_policy_document" "terraform_permissions" {
       # 못 덮어서 destroy/apply 가 여기서 막힌다.
       "cloudwatch:*",
       "events:*",
+      # base/alerting 의 알람 SNS Topic + email 구독.
+      "sns:*",
+      # dev_tools/ec2_postgres 의 마스터 비밀번호 Secret, 그리고 aurora_pg 가
+      # manage_master_user_password 로 RDS 에 맡겨 만드는 Secret 의 삭제.
+      "secretsmanager:*",
     ]
     resources = ["*"]
   }
