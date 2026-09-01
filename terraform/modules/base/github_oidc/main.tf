@@ -239,6 +239,37 @@ data "aws_iam_policy_document" "terraform_permissions" {
     resources = ["*"]
   }
 
+  # S3 backend의 상태 잠금 테이블. terraform init/plan/apply가 락을 잡고 푸는 데
+  # 필요하다. 락 테이블은 terraform/bootstrap에서 따로 만들므로 테이블 자체를
+  # 만들거나 지울 권한은 주지 않고, 락 아이템 읽기/쓰기로만 좁힌다.
+  statement {
+    sid    = "TerraformStateLock"
+    effect = "Allow"
+    actions = [
+      "dynamodb:DescribeTable",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+    ]
+    resources = ["arn:aws:dynamodb:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/book-eating-lion-tflock-*"]
+  }
+
+  # 02-runtime 의 eks_cluster 모듈이 IRSA 기반이 되는 OIDC provider 를 직접 만들고
+  # 지운다. 클러스터를 만들기 전에는 provider URL(= cluster id)을 알 수 없어서 리소스
+  # 단위로 못 좁힌다 - EKS 가 발급하는 provider 로만 한정하는 게 한계다.
+  statement {
+    sid    = "EksOidcProvider"
+    effect = "Allow"
+    actions = [
+      "iam:CreateOpenIDConnectProvider",
+      "iam:DeleteOpenIDConnectProvider",
+      "iam:TagOpenIDConnectProvider",
+      "iam:UntagOpenIDConnectProvider",
+      "iam:UpdateOpenIDConnectProviderThumbprint",
+    ]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/oidc.eks.${data.aws_region.current.name}.amazonaws.com/id/*"]
+  }
+
   # 이 프로젝트가 실제로 만드는 서비스 타입으로만 좁힌다(계정을 공유하는 다른 팀의
   # 서비스까지는 안 건드림). 리소스 단위로 더 좁히는 건 EKS/EC2/RDS 등 대부분
   # 서비스가 apply 시점엔 아직 존재하지 않는 리소스라 비현실적이라 서비스 단위로 그침.
@@ -263,6 +294,11 @@ data "aws_iam_policy_document" "terraform_permissions" {
       "ssm:*",
       "logs:*",
       "kms:*",
+      # eks_cluster 의 pod CPU 알람과 karpenter 의 spot 중단/리밸런스 EventBridge
+      # 규칙. logs:* 는 CloudWatch Logs 만 덮고 알람(cloudwatch)·규칙(events)은
+      # 못 덮어서 destroy/apply 가 여기서 막힌다.
+      "cloudwatch:*",
+      "events:*",
     ]
     resources = ["*"]
   }
