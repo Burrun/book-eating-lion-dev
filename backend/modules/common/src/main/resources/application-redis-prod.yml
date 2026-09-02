@@ -1,0 +1,20 @@
+# prod 환경 Redis 접속 정보 — order-api/catalog-api/ai-api 가 공통으로 import 한다.
+#
+# 세 서비스 각자의 application-prod.yml 에 이 블록이 복붙되어 있다가, "REDIS_HOST 는
+# xxx-config 에 이미 있었는데 이 키로는 안 읽혀서 죽은 값이었다"는 동일한 사고가
+# 세 번 반복됐다(/code-review 지적사항). 값을 한 곳에서만 관리해 재발을 막는다.
+#
+# 기본값을 두지 않는 것은 의도적이다 — kakaopay.secret-key 와 같은 원칙으로, REDIS_HOST
+# 가 없으면 기동 자체가 실패해야 잘못된 설정으로 조용히 뜨는 사고를 막는다.
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      # cache_valkey 모듈이 transit_encryption_enabled=true(TLS 강제)로 만든다 -
+      # 이 설정 없이는 클라이언트가 평문 TCP로 연결해서 TLS 핸드셰이크를 기대하는
+      # 서버가 응답을 안 하고, 타임아웃 설정도 없어 앱이 기동 중 영원히 멈춘다
+      # (2026-08-21 catalog/order/ai 전부 겪음 - 로그가 Hibernate 초기화 이후
+      # 조용히 끊기고 Startup probe 180초 뒤 kubelet이 강제 종료).
+      ssl:
+        enabled: true

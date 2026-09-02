@@ -7,6 +7,8 @@ import { signup } from "../api/auth.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+// members.nickname은 VARCHAR(50) NOT NULL UNIQUE (db/postgres/01-member_db.sql) - 그 상한과 맞춘다.
+const MAX_NICKNAME_LENGTH = 50;
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -14,6 +16,7 @@ export default function Signup() {
   const toast = useToast();
 
   const [name, setName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -22,8 +25,18 @@ export default function Signup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!name.trim() || !email.trim() || !password.trim() || !passwordConfirm.trim()) {
+    if (
+      !name.trim() ||
+      !nickname.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !passwordConfirm.trim()
+    ) {
       toast.error("모든 항목을 입력해주세요.");
+      return;
+    }
+    if (nickname.trim().length > MAX_NICKNAME_LENGTH) {
+      toast.error(`닉네임은 ${MAX_NICKNAME_LENGTH}자 이하여야 합니다.`);
       return;
     }
     if (!EMAIL_PATTERN.test(email.trim())) {
@@ -41,7 +54,7 @@ export default function Signup() {
 
     setIsSubmitting(true);
     try {
-      await signup(email, password, name);
+      await signup(email, password, name, nickname.trim());
       toast.success("회원가입이 완료되었습니다. 로그인해주세요.");
       // 가입 API가 토큰을 돌려주지 않아(백엔드 명세 확인 결과) 자동 로그인은 하지 않고
       // 로그인 페이지로 보낸다. 원래 진입 경로(from)가 있었다면 그대로 이어서 전달한다.
@@ -99,6 +112,22 @@ export default function Signup() {
             </label>
 
             <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">닉네임</span>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="다른 사용자에게 보여질 닉네임"
+                maxLength={MAX_NICKNAME_LENGTH}
+                autoComplete="nickname"
+                className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
+              />
+              <p className="text-xs text-[var(--color-ink)] opacity-50">
+                리뷰 등에서 실명 대신 표시되는 이름이에요. 다른 사용자와 중복될 수 없어요.
+              </p>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-[var(--color-ink)] opacity-80">이메일</span>
               <input
                 type="email"
@@ -122,6 +151,9 @@ export default function Signup() {
                 autoComplete="new-password"
                 className="w-full rounded-xl border border-[var(--color-forest)]/20 px-3.5 py-2.5 text-sm focus:border-[var(--color-honey)] focus:outline-none"
               />
+              <p className="text-xs text-[var(--color-ink)] opacity-50">
+                영문 대소문자, 숫자, 특수문자를 포함한 8자 이상
+              </p>
             </label>
 
             <label className="flex flex-col gap-1.5">

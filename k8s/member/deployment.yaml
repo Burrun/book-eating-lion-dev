@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-deployment
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: member-service
+    tier: backend
+spec:
+  selector:
+    matchLabels:
+      app: member-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: member-service
+        tier: backend
+    spec:
+      # k8s/base/10-priorityclass.yaml 참고 — dev/prod 가 같은 노드풀을 공유해서,
+      # 노드 압박 시 어느 쪽이 먼저 밀려날지를 이걸로 정한다.
+      priorityClassName: ${K8S_NAMESPACE}-workload
+      serviceAccountName: member-service
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - member-service
+                topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: member-service
+          image: "${ECR_REGISTRY}/${ECR_MEMBER_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: member-config
+            - secretRef:
+                name: member-secret
+
+          # 경량 서비스다. 인증은 BCrypt 해시와 JWT 검증이 전부라
+          # 큰 자원이 필요 없다 — RAG 를 여기 두지 않은 이유이기도 하다.
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "500m"
+              memory: "768Mi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            # OTel Java 자동계측 에이전트(JMX bean 스캔 등)의 부팅 오버헤드가 모든
+            # 서비스에 공통으로 붙어 무거운 초기화가 없는 서비스도 짧은 상한을 안정적으로
+            # 못 넘긴다 - 다른 서비스와 동일하게 180초로 맞춘다 (docs/개발 문서/k8s-명세.md §2.2가
+            # canonical source이니 여길 바꿀 땐 그 표도 같이 갱신할 것).
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30

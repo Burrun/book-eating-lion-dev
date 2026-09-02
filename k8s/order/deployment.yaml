@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-deployment
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: order-service
+    tier: backend
+spec:
+  selector:
+    matchLabels:
+      app: order-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: order-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - order-service
+                topologyKey: "kubernetes.io/hostname"
+      # k8s/base/10-priorityclass.yaml 참고 — dev/prod 가 같은 노드풀을 공유해서,
+      # 노드 압박 시 어느 쪽이 먼저 밀려날지를 이걸로 정한다.
+      priorityClassName: ${K8S_NAMESPACE}-workload
+      serviceAccountName: order-service
+      containers:
+        - name: order-service
+          image: "${ECR_REGISTRY}/${ECR_ORDER_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: order-config
+            - secretRef:
+                name: order-secret
+
+          # ---------------------------------------------------------------
+          # QoS: Guaranteed (requests == limits) — Phase 3-6
+          #
+          # 결제만 이렇게 간다. requests<limits(Burstable)로 두면 노드 CPU 경합 시
+          # throttle 되고 메모리 압박 시 먼저 evict 된다. 재고 차감 트랜잭션이
+          # 그런 식으로 끊기면 오버셀링 0건 KPI 가 무너진다.
+          #
+          # ai-* 에는 정반대 정책(requests≪limits)을 쓴다. 의도적인 차등이다.
+          # ---------------------------------------------------------------
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30

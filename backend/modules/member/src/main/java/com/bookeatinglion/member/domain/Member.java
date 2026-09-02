@@ -2,12 +2,11 @@ package com.bookeatinglion.member.domain;
 
 import com.bookeatinglion.common.domain.BaseEntity;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "members")
@@ -15,18 +14,20 @@ import java.time.LocalDate;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member extends BaseEntity {
 
+    // Cognito가 발급한 sub 값을 그대로 PK로 쓴다(팀 컨벤션 확정). auto-increment가 아니라
+    // @GeneratedValue를 붙이지 않는다 — register()에서 Cognito sub를 그대로 대입한다.
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false, unique = true)
-    private String cognitoSub;
+    @Column(name = "member_id")
+    private String id;
 
     @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
     private String name;
+
+    @Column(nullable = false, unique = true)
+    private String nickname;
 
     private String phoneNumber;
 
@@ -39,28 +40,22 @@ public class Member extends BaseEntity {
     @Column(nullable = false)
     private Role role;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MemberGrade grade;
-
-    @Column(nullable = false)
-    private int point;
-
     @Builder
-    public Member(String cognitoSub, String email, String name) {
-        this.cognitoSub = cognitoSub;
+    public Member(String id, String email, String name, String nickname) {
+        this.id = id;
         this.email = email;
         this.name = name;
+        this.nickname = nickname;
         this.role = Role.USER;
-        this.grade = MemberGrade.BRONZE;
-        this.point = 0;
     }
 
-    public static Member register(String cognitoSub, String email, String name) {
+    /** cognitoSub: Cognito가 발급한 sub. 이 값이 그대로 PK(member_id)가 된다. */
+    public static Member register(String cognitoSub, String email, String name, String nickname) {
         return Member.builder()
-                .cognitoSub(cognitoSub)
+                .id(cognitoSub)
                 .email(email)
                 .name(name)
+                .nickname(nickname)
                 .build();
     }
 

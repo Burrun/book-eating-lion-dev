@@ -1,0 +1,79 @@
+spring:
+  config:
+    import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
+
+  datasource:
+    # 다른 세 서비스와 같은 Aurora 클러스터, 다른 스키마다.
+    # AI_DB_HOST 는 db-primary-service 를 가리키며 나머지 서비스와 같은 엔드포인트다.
+    url: jdbc:postgresql://${AI_DB_HOST}:${AI_DB_PORT}/${AI_DB_NAME}?currentSchema=ai_db&sslmode=${DB_SSL_MODE:require}
+    username: ${AI_DB_USERNAME}
+    password: ${AI_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # 질의 경로가 DB 를 안 타므로 유휴 커넥션을 붙들 이유가 없다.
+      # (원래는 ai_db 전용 Serverless v2 를 auto-pause 시키려는 설정이었는데,
+      #  클러스터를 합치면서 그 목적은 사라졌다. 커넥션 절약 목적으로만 남긴다.)
+      minimum-idle: 0
+      idle-timeout: 60000
+      maximum-pool-size: 5
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: ai_db
+
+  # ElastiCache. k8s configmap 이 주는 이름은 REDIS_HOST 이고 Boot 가 읽는 키는
+  # spring.data.redis.host 다. 이 매핑이 없어서 prod 파드가 컨테이너 안
+  # localhost:6379 를 찾고 있었다.
+  # 기본값을 주지 않는다 — 미설정이면 조용히 로컬로 붙는 대신 기동이 실패해야 한다.
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  # DailyQuota/FedBookCache 가 spring.data.redis.host/port 를 쓴다. DailyQuota 는
+  # Redis 장애 시 fail-open 이라 이 값이 없으면 일일 사용량 제한(AI_DAILY_QUOTA)이
+  # 조용히 무력화되고, FedBookCache 는 항상 미스라 매 요청마다 불필요한 DB 조회가
+  # 추가된다. 값 자체는 위 application-redis-prod.yml import 로 온다(공유 파일 참고).
+
+  # JWT(Cognito) 검증 설정은 application-security-prod.yml import 로 온다
+  # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
+
+app:
+  ai:
+    clients: bedrock
+    bedrock:
+      region: ${AWS_BEDROCK_REGION}
+    vector:
+      bucket-name: ${AI_VECTOR_BUCKET}
+      # 인덱스명만 바꾸면 v2 컷오버·롤백이 끝난다.
+      index-name: ${AI_VECTOR_INDEX:wiki-v1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

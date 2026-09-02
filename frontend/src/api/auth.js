@@ -1,9 +1,10 @@
-import apiClient from "./client.js";
+import { apiClient } from "./client.ts";
 import { mockLogin, mockSignup } from "../mocks/auth.js";
 import { getCart, addToCart, updateQuantity } from "./cart.js";
 
-// 참고: 기존 mypage.js/checkout.js/cart.js는 apiClient 응답(ApiResponse<T> envelope)을
+// 참고: 기존 checkout.js/cart.js는 apiClient 응답(ApiResponse<T> envelope)을
 // 언래핑하지 않고 그대로 반환하는 기존 패턴을 쓴다(이번 스코프 밖, 손대지 않음).
+// mypage.js는 프로필 이름 파싱 버그를 계기로 unwrap()으로 통일했다.
 // 이 파일은 토큰 정합성이 중요해 실API 분기에서 `data.data`로 명시적으로 언래핑한다.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
@@ -13,9 +14,9 @@ export async function login(email, password) {
   return data.data;
 }
 
-export async function signup(email, password, name) {
-  if (USE_MOCK) return mockSignup(email, password, name);
-  const { data } = await apiClient.post("/auth/signup", { email, password, name });
+export async function signup(email, password, name, nickname) {
+  if (USE_MOCK) return mockSignup(email, password, name, nickname);
+  const { data } = await apiClient.post("/auth/signup", { email, password, name, nickname });
   return data.data;
 }
 

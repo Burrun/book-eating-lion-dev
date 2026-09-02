@@ -1,0 +1,49 @@
+# catalog — 읽기 95%, 캐시 친화적. 2 → 20(prod) / 2 → 6(dev)
+#
+# 서비스마다 상한이 다른 것이 핀포인트 확장 시연의 근거다(Phase 4).
+# 결제 부하를 걸면 order 만 30개로 늘고 나머지는 최소 replica 를 유지한다.
+#
+# dev/prod 가 같은 공유 노드풀·quota(shared-nodepool-guard)를 쓰는데 max 가
+# prod와 동일했던 탓에, dev 부하테스트(k6/scenarios/08-namespace-contention.js)
+# 만으로 quota 를 다 먹어 main-cd 롤아웃이 exceeded quota 로 막힌 사고가 있었다
+# (2026-08-31). dev 만 CATALOG_HPA_MAX_REPLICAS 로 낮춘다.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-hpa
+  namespace: ${K8S_NAMESPACE}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-deployment
+  minReplicas: 2
+  maxReplicas: ${CATALOG_HPA_MAX_REPLICAS}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  # 기본 scaleUp은 stabilizationWindowSeconds=0이라 매 reconcile(~15s)마다
+  # 그 순간 지표로 즉시 반응한다. 롤링 업데이트 중엔 구/신 pod가 섞여 지표가
+  # 출렁이는데, 이 기본값 때문에 2->3->4->...->8로 몇 분 만에 계속 오르며
+  # kubectl rollout status가 목표를 못 따라잡고(main-cd 600s 타임아웃) Rollback
+  # on failure가 방금 배포한 이미지를 되돌리는 사고로 이어졌다(2026-09-02,
+  # RoutingDataSourceConfig 배포 시도 중). 60초 안정화 + 60초당 +2 pod로
+  # 스케일업 속도 자체를 제한한다. scaleDown은 기본(300s)이 이미 보수적이라
+  # 안 건드린다.
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60

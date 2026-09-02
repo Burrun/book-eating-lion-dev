@@ -11,6 +11,9 @@ const INITIAL_WISHLIST: BookSummaryResponse[] = [
     coverImageUrl: null,
     category: "IT/개발",
     saleStatus: "ON_SALE",
+    averageRating: 0,
+    reviewCount: 0,
+    ebookAvailable: false,
   },
   {
     id: 3,
@@ -20,6 +23,9 @@ const INITIAL_WISHLIST: BookSummaryResponse[] = [
     coverImageUrl: null,
     category: "소설",
     saleStatus: "ON_SALE",
+    averageRating: 0,
+    reviewCount: 0,
+    ebookAvailable: false,
   },
   {
     id: 11,
@@ -29,6 +35,9 @@ const INITIAL_WISHLIST: BookSummaryResponse[] = [
     coverImageUrl: null,
     category: "인문",
     saleStatus: "OUT_OF_STOCK",
+    averageRating: 0,
+    reviewCount: 0,
+    ebookAvailable: false,
   },
   {
     id: 17,
@@ -38,6 +47,9 @@ const INITIAL_WISHLIST: BookSummaryResponse[] = [
     coverImageUrl: null,
     category: "자기계발",
     saleStatus: "ON_SALE",
+    averageRating: 0,
+    reviewCount: 0,
+    ebookAvailable: false,
   },
 ];
 

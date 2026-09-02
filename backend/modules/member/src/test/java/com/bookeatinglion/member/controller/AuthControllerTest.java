@@ -1,5 +1,11 @@
 package com.bookeatinglion.member.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.bookeatinglion.member.MemberModuleTestApplication;
 import com.bookeatinglion.member.dto.LoginRequest;
 import com.bookeatinglion.member.dto.RefreshRequest;
@@ -8,6 +14,7 @@ import com.bookeatinglion.member.dto.SignupResponse;
 import com.bookeatinglion.member.dto.TokenResponse;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import com.bookeatinglion.member.exception.DuplicateEmailException;
+import com.bookeatinglion.member.exception.DuplicateNicknameException;
 import com.bookeatinglion.member.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -18,12 +25,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -41,12 +42,12 @@ class AuthControllerTest {
 
     @Test
     void 회원가입은_200과_회원정보를_반환한다() throws Exception {
-        when(authService.signup(any())).thenReturn(new SignupResponse(1L, "lion@bookeating.com", "책먹는사자"));
+        when(authService.signup(any())).thenReturn(new SignupResponse("sub-1", "lion@bookeating.com", "책먹는사자", "사자왕"));
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자"))))
+                                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.email").value("lion@bookeating.com"));
@@ -59,18 +60,30 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자"))))
+                                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("DUPLICATE_EMAIL"));
     }
 
     @Test
-    void 회원가입_요청값이_유효하지_않으면_400을_반환한다() throws Exception {
+    void 이미_사용중인_닉네임이면_409를_반환한다() throws Exception {
+        when(authService.signup(any())).thenThrow(new DuplicateNicknameException("사자왕"));
+
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new SignupRequest("invalid-email", "1234", ""))))
+                                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("DUPLICATE_NICKNAME"));
+    }
+
+    @Test
+    void 회원가입_요청값이_유효하지_않으면_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SignupRequest("invalid-email", "1234", "", ""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
@@ -92,8 +105,7 @@ class AuthControllerTest {
     void 로그인_요청값이_유효하지_않으면_400을_반환한다() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new LoginRequest("invalid-email", ""))))
+                        .content(objectMapper.writeValueAsString(new LoginRequest("invalid-email", ""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST"));
@@ -115,7 +127,8 @@ class AuthControllerTest {
 
     @Test
     void 토큰_재발급은_200과_새_토큰을_반환한다() throws Exception {
-        when(authService.refresh(any())).thenReturn(new TokenResponse("new-access-token", "refresh-token", "Bearer", 3600));
+        when(authService.refresh(any()))
+                .thenReturn(new TokenResponse("new-access-token", "refresh-token", "Bearer", 3600));
 
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -6,14 +6,30 @@ on:
       environment:
         description: "적용할 환경"
         type: choice
-        options: [dev, prod]
+        options: [dev, prod, integrated]
         default: dev
         required: true
       layer:
         description: "적용할 Terraform 계층"
         type: choice
-        options: [all, 00-base, 01-data, 02-runtime]
+        options: [all, 00-base, 01-data, 02-runtime, 03-deploy]
         default: all
+        required: true
+      deployment_mode:
+        description: "엣지 소유권 모드 (전환 시 기존 소유자부터 반납 apply)"
+        type: choice
+        options: [split, integrated]
+        default: split
+        required: true
+      confirm_edge_handoff:
+        description: "위험한 엣지 소유권 반납/컷백을 명시적으로 승인"
+        type: boolean
+        default: false
+        required: true
+      perform_edge_handoff:
+        description: "모드 전환 시 기존 소유자 runtime을 먼저 반납 apply"
+        type: boolean
+        default: false
         required: true
       deploy_modules:
         description: "Terraform 적용 후 Catalog/Order/Member/AI를 배포"
@@ -31,7 +47,9 @@ permissions:
   actions: write
 
 concurrency:
-  group: terraform-apply-${{ inputs.environment }}
+  # runtime은 dev/integrated가 같은 dev 도메인 엣지 리소스를 순차적으로 인수한다.
+  # 다른 계층은 환경별로 병렬 실행해도 충돌하지 않는다.
+  group: terraform-apply-${{ (inputs.layer == 'all' || inputs.layer == '02-runtime') && 'edge-runtime' || inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +57,7 @@ jobs:
     name: ${{ inputs.environment }} / ${{ inputs.layer }} 적용
     if: inputs.confirmation == format('APPLY-{0}', inputs.environment)
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment == 'integrated' && 'integrated-prod' || inputs.environment }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       TF_IN_AUTOMATION: "true"
@@ -54,54 +72,149 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.TERRAFORM_AWS_ROLE_ARN }}
           role-session-name: terraform-${{ inputs.environment }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify required configuration
         env:
-          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+          TERRAFORM_AWS_ROLE_ARN: ${{ vars.TERRAFORM_AWS_ROLE_ARN }}
         run: |
           set -euo pipefail
-          if [ -z "$AWS_ROLE_ARN" ]; then
-            echo "::error::GitHub Environment '${{ inputs.environment }}'의 AWS_ROLE_ARN Variable이 비어 있습니다."
+          if [ -z "$TERRAFORM_AWS_ROLE_ARN" ]; then
+            echo "::error::Terraform 대상 '${{ inputs.environment }}'의 TERRAFORM_AWS_ROLE_ARN Variable이 비어 있습니다. 배포 전용 AWS_ROLE_ARN을 대신 사용하면 안 됩니다."
             exit 1
           fi
           aws sts get-caller-identity
+
+      # 권한이 빠져 있으면 리소스를 절반쯤 만든 뒤 AccessDenied 로 멈춘다.
+      # 시작 전에 role 을 대조해서 그 상태를 만들지 않는다.
+      # 00-base 가 이 role 자체를 소유하므로(all 은 00-base 부터 적용) 그 두 경우만
+      # 건너뛴다 - 안 그러면 role 을 고치는 apply 를 이 검사가 막는다.
+      - name: Verify terraform role IAM coverage
+        if: inputs.layer != '00-base' && inputs.layer != 'all'
+        run: python3 scripts/check-terraform-iam-coverage.py "${{ vars.TERRAFORM_AWS_ROLE_ARN }}"
 
       - name: Apply Terraform layers
         env:
           TARGET_ENV: ${{ inputs.environment }}
           TARGET_LAYER: ${{ inputs.layer }}
+          DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
+          CONFIRM_EDGE_HANDOFF: ${{ inputs.confirm_edge_handoff }}
+          PERFORM_EDGE_HANDOFF: ${{ inputs.perform_edge_handoff }}
         run: |
           set -euo pipefail
+
+          # 기본 모드 실수로 dev 도메인을 제거하지 않도록, 환경의 기본 소유자와
+          # 다른 모드는 명시적인 확인 없이는 실행하지 않는다.
+          if [ "$TARGET_ENV" = "integrated" ] && [ "$DEPLOYMENT_MODE" = "split" ] && [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+            echo "::error::integrated 환경의 split 컷백은 confirm_edge_handoff=true가 필요합니다. 일반 integrated 적용은 deployment_mode=integrated를 선택하세요."
+            exit 1
+          fi
+          if [ "$TARGET_ENV" = "dev" ] && [ "$DEPLOYMENT_MODE" = "integrated" ] && [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+            echo "::error::dev 환경의 integrated 핸드오프는 confirm_edge_handoff=true가 필요합니다. 일반 split 적용은 deployment_mode=split을 선택하세요."
+            exit 1
+          fi
+
+          # 한 번의 실행에서 기존 소유자의 edge만 안전하게 반납한 뒤 대상 runtime을
+          # 적용한다. false이면 기존처럼 수동 2단계 전환도 가능하다.
+          apply_edge_release() {
+            local source_env="$1"
+            local release_arg="$2"
+            local directory="terraform/environments/${source_env}/02-runtime"
+            local plan_file="${RUNNER_TEMP}/${source_env}-edge-release.tfplan"
+
+            echo "::group::Release ${source_env} edge ownership"
+            terraform -chdir="$directory" init -input=false
+            terraform -chdir="$directory" fmt -check
+            terraform -chdir="$directory" validate
+            terraform -chdir="$directory" plan -input=false "$release_arg" -out="$plan_file"
+            terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
+            echo "::endgroup::"
+          }
+
+          if [ "$PERFORM_EDGE_HANDOFF" = "true" ]; then
+            if [ "$CONFIRM_EDGE_HANDOFF" != "true" ]; then
+              echo "::error::자동 엣지 전환에는 confirm_edge_handoff=true가 필요합니다."
+              exit 1
+            fi
+            if [ "$TARGET_LAYER" != "all" ] && [ "$TARGET_LAYER" != "02-runtime" ]; then
+              echo "::error::자동 엣지 전환은 all 또는 02-runtime 계층에서만 실행할 수 있습니다."
+              exit 1
+            fi
+
+            if [ "$TARGET_ENV" = "integrated" ] && [ "$DEPLOYMENT_MODE" = "integrated" ]; then
+              apply_edge_release "dev" "-var=enable_edge_routing=false"
+            elif [ "$TARGET_ENV" = "dev" ] && [ "$DEPLOYMENT_MODE" = "split" ]; then
+              apply_edge_release "integrated" "-var=enable_dev_cutover=false"
+            else
+              echo "::error::자동 전환은 integrated/integrated 또는 dev/split 조합에서만 지원합니다."
+              exit 1
+            fi
+          fi
 
           apply_layer() {
             local layer="$1"
             local directory="terraform/environments/${TARGET_ENV}/${layer}"
             local plan_file="${RUNNER_TEMP}/${TARGET_ENV}-${layer}.tfplan"
+            local mode_args=()
+
+            # 모드 전환은 tfvars를 수정하지 않고 실행 시점 변수로 제어한다.
+            # dev 환경은 split 소유권을 켜거나(integrated 전환 시 끄거나),
+            # integrated 환경은 dev cutover를 켜거나(split 복귀 시 끈다).
+            if [ "$layer" = "02-runtime" ]; then
+              if [ "$TARGET_ENV" = "dev" ]; then
+                if [ "$DEPLOYMENT_MODE" = "split" ]; then
+                  mode_args+=("-var=enable_edge_routing=true")
+                else
+                  mode_args+=("-var=enable_edge_routing=false")
+                fi
+              elif [ "$TARGET_ENV" = "integrated" ]; then
+                if [ "$DEPLOYMENT_MODE" = "integrated" ]; then
+                  mode_args+=("-var=enable_dev_cutover=true")
+                else
+                  mode_args+=("-var=enable_dev_cutover=false")
+                fi
+              fi
+            fi
 
             echo "::group::Terraform ${TARGET_ENV}/${layer}"
             terraform -chdir="$directory" init -input=false
             terraform -chdir="$directory" fmt -check
             terraform -chdir="$directory" validate
 
-            # 최초 runtime 구축은 EKS가 먼저 있어야 Kubernetes/Helm provider가
-            # 클러스터에 접속할 수 있다. 이미 존재해도 target apply는 멱등이다.
+            # 최초 runtime 구축 시 3단계 부트스트랩 순서:
+            # 1) EKS Control Plane 먼저 생성 (K8s/Helm provider 인증 엔드포인트 확보)
+            # 2) Karpenter Helm Chart 먼저 설치 (EC2NodeClass/NodePool CRD 등록)
+            # 3) 전체 리소스 (K8s Manifest, Ingress, Edge 라우팅 등) 일괄 적용
             if [ "$layer" = "02-runtime" ]; then
-              local bootstrap_plan="${RUNNER_TEMP}/${TARGET_ENV}-eks-bootstrap.tfplan"
+              echo "::group::Bootstrap 1/2: EKS Cluster"
+              local eks_bootstrap_plan="${RUNNER_TEMP}/${TARGET_ENV}-eks-bootstrap.tfplan"
               terraform -chdir="$directory" plan \
                 -input=false \
+                "${mode_args[@]}" \
                 -target=module.eks_cluster \
-                -out="$bootstrap_plan"
-              terraform -chdir="$directory" apply -input=false -auto-approve "$bootstrap_plan"
+                -out="$eks_bootstrap_plan"
+              terraform -chdir="$directory" apply -input=false -auto-approve "$eks_bootstrap_plan"
+              echo "::endgroup::"
 
               local cluster_name
               cluster_name=$(terraform -chdir="$directory" output -raw cluster_name)
               aws eks update-kubeconfig --name "$cluster_name" --region "$AWS_REGION"
+
+              echo "::group::Bootstrap 2/2: Karpenter Helm Chart (CRD registration)"
+              local karpenter_bootstrap_plan="${RUNNER_TEMP}/${TARGET_ENV}-karpenter-bootstrap.tfplan"
+              terraform -chdir="$directory" plan \
+                -input=false \
+                "${mode_args[@]}" \
+                -target=module.karpenter.helm_release.karpenter \
+                -out="$karpenter_bootstrap_plan"
+              terraform -chdir="$directory" apply -input=false -auto-approve "$karpenter_bootstrap_plan"
+              echo "::endgroup::"
             fi
 
-            terraform -chdir="$directory" plan -input=false -out="$plan_file"
+            echo "::group::Final Apply: ${TARGET_ENV}/${layer} All Resources"
+            terraform -chdir="$directory" plan -input=false "${mode_args[@]}" -out="$plan_file"
             terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
             echo "::endgroup::"
           }
@@ -111,8 +224,20 @@ jobs:
               apply_layer 00-base
               apply_layer 01-data
               apply_layer 02-runtime
+              # dev는 기존 CloudFront가 02-runtime 상태에 있으므로 유지한다.
+              # 신규 prod만 CloudFront를 별도 배포 계층에서 관리한다.
+              if [ "$TARGET_ENV" = "prod" ]; then
+                apply_layer 03-deploy
+              fi
               ;;
             00-base|01-data|02-runtime)
+              apply_layer "$TARGET_LAYER"
+              ;;
+            03-deploy)
+              if [ "$TARGET_ENV" != "prod" ]; then
+                echo "::error::03-deploy는 현재 prod 전용입니다. dev CloudFront는 기존 02-runtime 상태를 유지합니다."
+                exit 1
+              fi
               apply_layer "$TARGET_LAYER"
               ;;
             *)
@@ -138,14 +263,24 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'main-cd.yml',
-              ref: context.ref.replace('refs/heads/', ''),
-              inputs: { environment: '${{ inputs.environment }}' }
-            });
-            core.notice('Main CD를 호출했습니다. 모듈 Pod 배포 상태는 별도 Main CD 실행에서 확인하세요.');
+            // main-cd 는 integrated 클러스터 고정이라 deployment_mode 입력을
+            // 더는 받지 않는다(5b74b9b 에서 제거). 선언되지 않은 입력을 넘기면
+            // createWorkflowDispatch 가 422 Unexpected inputs 로 거절한다.
+            const target = '${{ inputs.environment }}';
+            const deployments = target === 'integrated'
+              ? [{ environment: 'dev' }, { environment: 'prod' }]
+              : [{ environment: target }];
+
+            for (const inputs of deployments) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'main-cd.yml',
+                ref: context.ref.replace('refs/heads/', ''),
+                inputs,
+              });
+            }
+            core.notice(`Main CD를 ${deployments.length}건 호출했습니다. 별도 실행에서 Pod rollout 결과를 확인하세요.`);
 
       - name: Deployment handoff summary
         if: inputs.deploy_modules
@@ -153,7 +288,8 @@ jobs:
           {
             echo "## 모듈 배포 요청 완료"
             echo "- Workflow: \`Main CD (EKS)\`"
-            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Infrastructure: \`${{ inputs.environment }}\`"
+            echo "- Deployment mode: \`${{ inputs.environment == 'integrated' && 'integrated (dev + prod)' || 'split' }}\`"
             echo "- Services: Catalog, Order, Member, AI"
             echo "- Main CD 실행 화면에서 이미지 빌드와 Pod rollout 결과를 확인하세요."
           } >> "$GITHUB_STEP_SUMMARY"

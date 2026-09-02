@@ -1,0 +1,159 @@
+# 서비스 Pod 의 인/아웃바운드를 필요한 것만 남긴다.
+# NetworkPolicy 는 CNI 가 지원해야 적용된다 (EKS 기본 VPC CNI 는 최신 버전에서 지원).
+# 지원하지 않는 클러스터에서는 이 리소스가 생성되어도 아무 효과가 없다.
+---
+# 공통 규칙 — order-service 를 제외한 lion-app 백엔드 Pod 에 적용된다.
+#
+# order-service 는 여기서 빠져 있다. order-service-policy(아래)가 /internal/** 을
+# catalog-service 로만 제한하려는데, 이 baseline 의 "같은 네임스페이스 backend-tier
+# 전체 허용" 규칙이 order-service 에도 걸리면 두 정책이 OR 로 합쳐져서 그 제한이
+# 무의미해진다(/code-review 지적사항 — 예전엔 실제로 그랬다). order-service 를
+# podSelector 에서 빼는 대신, order-service-policy 쪽에 이 baseline 과 동일한
+# probe/DNS/DB/Redis/외부 egress 규칙을 그대로 복제해 뒀다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lion-app-baseline
+  namespace: ${K8S_NAMESPACE}
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+    matchExpressions:
+      - key: app
+        operator: NotIn
+        values:
+          - order-service
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Ingress 컨트롤러에서 오는 트래픽
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+        # kubelet 의 probe 는 Pod 가 아니라 "노드 IP" 에서 온다.
+        # namespaceSelector 로는 절대 매칭되지 않으므로 노드 대역을 따로 열어야 한다.
+        # 이 규칙이 빠지면 정책을 강제하는 CNI 에서 전 Pod 가 동시에 NotReady 로 떨어진다.
+        - ipBlock:
+            cidr: "${VPC_CIDR}"
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # 같은 네임스페이스의 다른 서비스 (서비스 간 동기 호출)
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    # CoreDNS — K8s Service DNS 로 서로를 찾으므로 필수다(§4 — Eureka 미사용)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # 같은 네임스페이스의 다른 서비스
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: backend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # Aurora PostgreSQL (5432) + Redis(ElastiCache)
+    - ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+
+    # S3 / ECR / Bedrock / 외부 HTTPS
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# order-service 전용 규칙 — lion-app-baseline 의 podSelector 에서 order-service 를
+# 뺐으므로(위 파일 참고) 이 정책 하나가 order-service 의 인/아웃바운드 전체를 정의한다.
+#
+# Ingress: /internal/** (재고 차감 API) 은 catalog-service 만 호출해야 한다는 의도를
+# 이제 실제로 강제한다 — 2026-08-13 기준 코드 확인 결과 catalog-api 의
+# OrderInventoryClient 가 order-service 를 호출하는 유일한 서비스 간 클라이언트다.
+# 다른 backend 서비스가 나중에 order-service 의 공개 API(/api/orders 등)를 동기
+# 호출해야 하게 되면 이 ingress 규칙에 그 서비스를 추가해야 한다 — 안 그러면
+# lion-app-baseline 과 달리 조용히 막힌다.
+#
+# NetworkPolicy 는 포트 단위로만 필터링하고 HTTP 경로를 못 보므로, /internal/** 과
+# 공개 API 가 같은 8080 포트인 이상 catalog-service 는 order-service 의 모든 API 에
+# 접근 가능하다 — 이 정책이 좁히는 건 "누가" 접근하냐지 "어느 경로"까지는 아니다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-service-policy
+  namespace: ${K8S_NAMESPACE}
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: catalog-service
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+        # kubelet 의 probe 는 Pod 가 아니라 "노드 IP" 에서 온다 — lion-app-baseline 의
+        # 33번 줄과 동일한 이유로 여기도 따로 열어야 한다.
+        - ipBlock:
+            cidr: "${VPC_CIDR}"
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    # lion-app-baseline 의 egress 규칙과 동일 — order-service 가 baseline 에서
+    # 빠졌으므로 DNS/DB/Redis/외부 접근을 여기서 다시 선언해야 한다.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+
+    - ports:
+        - protocol: TCP
+          port: 443

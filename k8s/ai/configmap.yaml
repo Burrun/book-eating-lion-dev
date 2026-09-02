@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-config
+  namespace: ${K8S_NAMESPACE}
+data:
+  SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
+  SERVER_PORT: "8080"
+
+  # 다른 세 서비스와 같은 클러스터, 다른 스키마(ai_db)다.
+  # 격리는 클러스터가 아니라 계정 권한이 만든다 — ai_svc 는 다른 스키마를 못 읽는다.
+  #
+  # 그리고 질의 경로(POST /api/ai/ask)는 애초에 DB 를 타지 않는다. 먹인 책 목록은
+  # Redis 에서 읽고 벡터는 S3 Vectors 에 있다. DB 는 먹이기/문의 같은 쓰기에만 쓴다.
+  AI_DB_HOST: "db-primary-service.${K8S_NAMESPACE}.svc.cluster.local"
+  AI_DB_PORT: "5432"
+  AI_DB_NAME: "${AI_DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
+  # dev EC2 PostgreSQL의 연결 한도를 두 AI Pod와 다른 서비스가 나눠 쓰도록 제한한다.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "0"
+
+  AWS_REGION: "${AWS_REGION}"
+  AWS_BEDROCK_REGION: "${AWS_REGION}"
+
+  # 벡터 버킷/인덱스. 인덱스명이 설정인 이유는 v2 컷오버와 롤백 때문이다 —
+  # 재인제스트한 wiki-v2 로 옮기고 문제가 생기면 되돌리는 게 이 한 줄이어야 한다.
+  # 차원·거리척도·비필터키가 어긋나면 기동 시 GetIndex 검증에서 파드가 죽는다.
+  AI_VECTOR_BUCKET: "${AI_VECTOR_BUCKET}"
+  AI_VECTOR_INDEX: "wiki-v1"
+  AI_RECOMMENDATION_VECTOR_INDEX: "recommendation-books-v1"
+
+  # 재배포 없이 바꾸는 값들. 여기 없는 임베딩 모델·차원·거리척도는 인덱스와 짝이라
+  # 일부러 뺐다 — 바꾸면 전건 재임베딩 + 인덱스 재생성이고, 임베딩 모델은 차원이 같으면
+  # 기동 검증도 통과해서 조용히 틀린 결과만 나온다.
+  #
+  # LLM 모델은 자료 마이그레이션이 없어 교체가 이 두 줄이다.
+  #
+  # 워크로드마다 다른 이유는 추론 난이도가 달라서다 — RAG 는 여러 책 근거를 종합해
+  # 인용 번호까지 맞춰야 하고, 봇은 FAQ 몇 건 중에서 맞는 항목을 고르면 된다.
+  #
+  # 두 Deployment 가 이 ConfigMap 을 통째로 가져다 쓰므로(envFrom) 같은 키가 두 값을
+  # 가질 수 없다. 그래서 값은 여기 두 키로 두고, 각 Deployment 는 자기가 어느 키를
+  # 읽을지만 env.valueFrom 으로 선언한다 — 모델 교체는 어느 쪽이든 이 파일에서 끝난다.
+  #
+  # 🔴 접두사를 떼지 말 것. 둘 다 해당 리전에서 inferenceTypesSupported 가
+  # [INFERENCE_PROFILE] 뿐이라 맨 모델 ID 로는 호출이 거부된다. 접두사가 서로 다르다 —
+  # Haiku 4.5 는 `global.`(ap-northeast-2/us-east-1 양쪽 ACTIVE), Nova 는 `apac.` 이다.
+  AI_LLM_MODEL_RAG: "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+  AI_LLM_MODEL_BOT: "apac.amazon.nova-micro-v1:0"
+  # 🔴 잠정값. 계획서 8~9단계(golden set → 거리 분포)에서 확정할 것.
+  AI_MAX_DISTANCE: "0.75"
+  # RAG 일일 질의 상한. 구독 여부로 갈린다(POST /api/ai/lion/ask 만 해당 —
+  # 상담 봇 /ws/ai/chat 에는 총량 제한이 없고 Bulkhead 동시성 제한만 있다).
+  AI_DAILY_QUOTA_FREE: "5"
+  AI_DAILY_QUOTA_SUBSCRIBED: "50"
+
+  AWS_COGNITO_REGION: "${AWS_REGION}"
+  AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"
+
+  # member-service 구독 상태 조회(MemberSubscriptionClient). 같은 네임스페이스
+  # ClusterIP라 환경마다 안 바뀐다 — envsubst 변수로 안 두고 고정값으로 둔다.
+  # 이게 없으면 Spring 기본값(http://localhost:8083)으로 떨어져 매번 연결 실패,
+  # 구독 여부가 항상 "비구독"으로 강등된다(2026-09-01 dev에서 실제로 겪음).
+  SERVICES_MEMBER_URL: "http://member-service:8080"
+
+  REDIS_HOST: "${REDIS_HOST}"
+
+  # EPUB 원본 버킷. 벡터 버킷과 다르다 — 원본은 관리자가 올린 파일, 벡터는 파생물이라
+  # 수명도 권한도 다르다. SQS 메시지의 epubS3Key 는 키만 담고 버킷명은 안 담는다.
+  # catalog configmap의 EBOOK_S3_BUCKET과 동일한 버킷이라 같은 셸 변수를 재사용한다 —
+  # AI_EPUB_BUCKET이라는 별도 GH Actions 변수는 없어서, 그 이름으로 두면 envsubst가
+  # 치환 못 하고 리터럴 "${AI_EPUB_BUCKET}"이 그대로 박혀 Spring이 순환 참조로 기동에
+  # 실패한다.
+  AI_EPUB_BUCKET: "${EBOOK_S3_BUCKET}"
+
+  # enabled 가 true 인데 URL 이 비면 기동은 되고 워커만 조용히 안 돈다.
+  # "왜 메시지가 안 처리되지"로만 보이므로 둘을 같이 관리할 것.
+  # 큐는 콘솔에서 수작업으로 만들었고 IaC 가 없다 — 재시도 정책은 .env.example 참고.
+  SQS_INGEST_ENABLED: "true"
+  SQS_INGEST_QUEUE_URL: "${SQS_INGEST_QUEUE_URL}"
+  SQS_PURCHASE_ENABLED: "true"
+  SQS_PURCHASE_QUEUE_URL: "${SQS_PURCHASE_QUEUE_URL}"
+
+  # 🔴 브라우저는 WebSocket 에 CORS preflight 를 보내지 않아 Ingress 의 CORS 애노테이션이
+  # 안 먹는다. 이 값이 /ws/ai 의 유일한 Origin 방어선이므로 prod 에서 * 로 두지 말 것.
+  CHAT_ALLOWED_ORIGINS: "${CHAT_ALLOWED_ORIGINS}"

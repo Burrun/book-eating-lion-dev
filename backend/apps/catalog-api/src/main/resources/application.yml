@@ -1,0 +1,77 @@
+spring:
+  profiles:
+    active: local
+  application:
+    name: catalog-service
+  cloud:
+    openfeign:
+      circuitbreaker:
+        # fallback 이 동작하려면 Feign 이 CircuitBreaker 를 태워야 한다.
+        # 꺼져 있으면 @FeignClient 의 fallback 속성이 조용히 무시되고,
+        # Phase 2-3 의 "5xx 없이 fallback" 검증이 실패한다.
+        enabled: true
+
+server:
+  port: 8081
+
+# 서비스 간 동기 통신 대상. 운영에서는 ConfigMap 이 덮어쓴다(§7.5).
+services:
+  order:
+    url: ${SERVICES_ORDER_URL:http://localhost:8082}
+  member:
+    url: ${SERVICES_MEMBER_URL:http://localhost:8083}
+  ai:
+    url: ${SERVICES_AI_URL:http://localhost:8084}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+
+notifications:
+  email:
+    from-address: ${SES_FROM_ADDRESS:no-reply@example.com}
+  restock:
+    max-retries: ${RESTOCK_EMAIL_MAX_RETRIES:3}
+    retry-delay: ${RESTOCK_EMAIL_RETRY_DELAY:PT5M}
+    retry-scan-delay: ${RESTOCK_EMAIL_RETRY_SCAN_DELAY:60000}
+
+ebooks:
+  # local: frontend/public/ebooks, s3: 비공개 S3 + Presigned GET URL
+  storage: ${EBOOK_STORAGE:local}
+  read-url-validity: ${EBOOK_READ_URL_VALIDITY:PT10M}
+  upload-url-validity: ${EBOOK_UPLOAD_URL_VALIDITY:PT10M}
+  s3:
+    bucket-name: ${EBOOK_S3_BUCKET:}
+
+# 신간 등록(EPUB) 발행 큐. ai-service 의 SQS_INGEST_QUEUE_URL과 같은 큐를 가리킨다 — 로컬에
+# 큐 URL이 없으면 SqsBookIngestPublisher가 발행 실패를 로그로만 남긴다(도서 등록 자체는 이미
+# 커밋돼 있어 afterCommit 이후라 영향 없음).
+sqs:
+  ingest:
+    queue-url: ${SQS_INGEST_QUEUE_URL:}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      order-inventory:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      order-inventory:
+        timeoutDuration: 2s
+
+catalog:
+  reading:
+    # 완독 판정 임계값(%). 구텐베르크 EPUB처럼 본문 뒤에 라이선스 고지문이 붙은 책은
+    # 100%가 안 나와서 100으로 두면 아무도 완독 처리가 안 된다. 책 꼬리 길이에 따라
+    # 조절하는 값이다 — ReadingProgressService 참고.
+    completion-percentage: ${CATALOG_READING_COMPLETION_PERCENTAGE:95}
+  highlight:
+    # EPUB 뷰어에서 한 번에 긁을 수 있는 원문 길이(자). "1페이지까지"가 요구사항이지만
+    # 화면 페이지 경계는 창 크기/폰트에 따라 달라져 저장 규칙으로 못 쓴다 — 글자 수로 건다.
+    # 프론트도 같은 값을 VITE_HIGHLIGHT_MAX_SELECTED_CHARS로 알고 있어야 한다.
+    max-selected-chars: ${CATALOG_HIGHLIGHT_MAX_SELECTED_CHARS:1000}

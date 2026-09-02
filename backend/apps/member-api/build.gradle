@@ -1,0 +1,30 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = false
+}
+
+dependencies {
+    implementation project(':modules:common')
+    implementation project(':modules:member')
+
+    // Liquibase — member_db 스키마만 (Phase 2-5)
+    implementation 'org.liquibase:liquibase-core'
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.h2database:h2'
+}
+
+// 의도적으로 지루한 서비스다. 여기에 RAG 나 무거운 의존성이 들어오면
+// 인증이 CPU 경쟁에 노출되고 판단 ①이 무효화된다(§5 리스크 표).
+// modules:ai 를 추가하는 순간 backend-ci.yml 의 경계 검사가 빌드를 깨뜨린다.

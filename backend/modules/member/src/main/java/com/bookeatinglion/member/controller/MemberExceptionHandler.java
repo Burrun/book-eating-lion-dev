@@ -3,15 +3,15 @@ package com.bookeatinglion.member.controller;
 import com.bookeatinglion.common.dto.ApiResponse;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import com.bookeatinglion.member.exception.DuplicateEmailException;
+import com.bookeatinglion.member.exception.DuplicateNicknameException;
 import com.bookeatinglion.member.exception.MemberNotFoundException;
 import com.bookeatinglion.member.exception.UnauthorizedException;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.util.Set;
 
 @RestControllerAdvice(basePackages = "com.bookeatinglion.member.controller")
 public class MemberExceptionHandler {
@@ -25,6 +25,11 @@ public class MemberExceptionHandler {
 
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateEmail(DuplicateEmailException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getCode(), e.getMessage()));
+    }
+
+    @ExceptionHandler(DuplicateNicknameException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateNickname(DuplicateNicknameException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 

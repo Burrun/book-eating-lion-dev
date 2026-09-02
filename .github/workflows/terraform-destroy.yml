@@ -6,12 +6,12 @@ on:
       environment:
         description: "삭제할 환경"
         type: choice
-        options: [dev, prod]
+        options: [dev, prod, integrated]
         required: true
       layer:
         description: "삭제할 Terraform 계층"
         type: choice
-        options: [02-runtime, 01-data, 00-base, all]
+        options: [03-deploy, 02-runtime, 01-data, 00-base, all]
         default: 02-runtime
         required: true
       confirmation:
@@ -32,7 +32,7 @@ jobs:
     name: ${{ inputs.environment }} / ${{ inputs.layer }} 삭제
     if: inputs.confirmation == format('DESTROY-{0}', inputs.environment)
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment == 'integrated' && 'integrated-prod' || inputs.environment }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       TF_IN_AUTOMATION: "true"
@@ -47,9 +47,14 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.TERRAFORM_AWS_ROLE_ARN }}
           role-session-name: terraform-destroy-${{ inputs.environment }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
+
+      # 권한이 빠져 있으면 리소스를 절반쯤 지운 뒤 AccessDenied 로 멈춘다.
+      # 시작 전에 role 을 대조해서 그 상태를 만들지 않는다.
+      - name: Verify terraform role IAM coverage
+        run: python3 scripts/check-terraform-iam-coverage.py "${{ vars.TERRAFORM_AWS_ROLE_ARN }}"
 
       - name: Destroy Terraform layers
         env:
@@ -58,6 +63,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          # deletion_protection 이 켜진 DB 는 destroy 가 "Cannot delete protected
+          # DB Instance" 로 죽는다 - terraform 은 한 plan 안에서 이 플래그를 먼저
+          # 끄고 지우지 못한다. 그래서 DB 모듈만 target 해서 보호를 끄는 apply 를
+          # 선행한다. 변수 이름은 환경마다 다르고, dev 는 EC2 Postgres 라 없다.
+          disable_deletion_protection() {
+            local directory="$1"
+            local var_name module_target
+
+            case "$TARGET_ENV" in
+              integrated) var_name="rds_deletion_protection"; module_target="module.rds_postgres" ;;
+              prod)       var_name="aurora_deletion_protection"; module_target="module.aurora_pg" ;;
+              *)          return 0 ;;
+            esac
+
+            echo "::group::Disable deletion protection (${TARGET_ENV}/01-data)"
+            terraform -chdir="$directory" apply \
+              -input=false \
+              -auto-approve \
+              "-var=${var_name}=false" \
+              -target="$module_target"
+            echo "::endgroup::"
+          }
+
           destroy_layer() {
             local layer="$1"
             local directory="terraform/environments/${TARGET_ENV}/${layer}"
@@ -65,6 +93,9 @@ jobs:
 
             echo "::group::Terraform destroy ${TARGET_ENV}/${layer}"
             terraform -chdir="$directory" init -input=false
+            if [ "$layer" = "01-data" ]; then
+              disable_deletion_protection "$directory"
+            fi
             terraform -chdir="$directory" plan -destroy -input=false -out="$plan_file"
             terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
             echo "::endgroup::"
@@ -74,11 +105,21 @@ jobs:
             all)
               # 의존성의 역순으로 삭제한다. 01-data/00-base는 DB와 저장소 등
               # 데이터 손실을 포함하므로 confirmation 없이는 실행되지 않는다.
+              if [ "$TARGET_ENV" = "prod" ]; then
+                destroy_layer 03-deploy
+              fi
               destroy_layer 02-runtime
               destroy_layer 01-data
               destroy_layer 00-base
               ;;
             02-runtime|01-data|00-base)
+              destroy_layer "$TARGET_LAYER"
+              ;;
+            03-deploy)
+              if [ "$TARGET_ENV" != "prod" ]; then
+                echo "::error::03-deploy는 현재 prod 전용입니다. dev CloudFront는 기존 02-runtime 상태를 유지합니다."
+                exit 1
+              fi
               destroy_layer "$TARGET_LAYER"
               ;;
             *)

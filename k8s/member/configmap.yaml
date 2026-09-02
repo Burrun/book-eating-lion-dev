@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: member-config
+  namespace: ${K8S_NAMESPACE}
+data:
+  SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
+  SERVER_PORT: "8080"
+
+  DB_HOST: "db-primary-service.${K8S_NAMESPACE}.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "${DB_NAME}"
+  # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
+  DB_SSL_MODE: "${DB_SSL_MODE}"
+  # dev EC2 PostgreSQL의 연결 한도를 여러 Pod가 나눠 쓰도록 풀을 작게 유지한다.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "0"
+
+  REDIS_HOST: "${REDIS_HOST}"
+
+  AWS_REGION: "${AWS_REGION}"
+  AWS_COGNITO_REGION: "${AWS_REGION}"
+  AWS_COGNITO_USER_POOL_ID: "${AWS_COGNITO_USER_POOL_ID}"

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
 import { useToast } from "../components/Toast.jsx";
@@ -11,6 +12,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const { login: authLogin } = useAuth();
 
   const [email, setEmail] = useState(location.state?.prefillEmail ?? "");
@@ -36,9 +38,10 @@ export default function Login() {
         await mergeCart(guestItems);
         clearGuestCart();
       } catch {
-        // 백엔드 cart 모듈이 아직 없어 병합은 항상 실패할 수 있다(BOO-23 TODO).
         // 병합 실패가 로그인 자체(토큰 저장, 리다이렉트)를 막으면 안 되므로 여기서 무시한다.
       }
+      // 병합 성공/실패와 무관하게 헤더 뱃지는 로그인 후 기준(서버 장바구니)으로 다시 조회해야 한다.
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
 
       navigate(redirectTo, { replace: true });
     } catch (err) {

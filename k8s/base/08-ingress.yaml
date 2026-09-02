@@ -1,0 +1,137 @@
+# ingress-nginx 컨트롤러가 설치돼 있어야 한다.
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/aws/deploy.yaml
+# 프론트엔드는 S3 + CloudFront 로 나가므로 여기서는 API 경로만 다룬다.
+#
+# 이것이 유일한 외부 진입점이다. API Gateway(Spring Cloud Gateway)를 두지 않는 이유는
+# ALB Ingress 의 경로 라우팅으로 충분하고, 게이트웨이를 추가하면 SPOF 만 하나 늘기 때문이다(§4).
+#
+# 규칙은 위에서부터 매칭된다. 더 구체적인 경로를 먼저 둘 것.
+#
+# nginx/default.conf 와 반드시 같은 규칙이어야 한다(둘 다 전체 컨트롤러를 전수 스캔해
+# 대조했다) — 한쪽만 고치면 "로컬에선 되는데 클러스터에선 404"(또는 그 반대)가 난다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lion-ingress
+  namespace: ${K8S_NAMESPACE}
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "${FRONTEND_ORIGIN}"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, X-Member-Id"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+    # 상담 채팅(/ws/ai). 기본 60초면 대화가 잠시 멈춘 사이 소켓이 끊긴다.
+    # 서버 Ping 주기가 20초이므로 그보다 충분히 길어야 한다.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    # host를 반드시 지정한다 - dev/prod가 namespace로만 나뉘어도 이 host 규칙이
+    # 없으면 ingress-nginx가 도메인 구분 없이 아무 요청이나 이 네임스페이스의
+    # Ingress로 매칭시킨다. dev.ajttk.com / book.ajttk.com을 API_HOST로 각 환경의
+    # GitHub Environment Variable에 등록해서 배포 시 여기 주입한다.
+    - host: ${API_HOST}
+      http:
+        paths:
+          # --- ai-service: 경로로 Deployment 가 갈린다 (판단 ④) ---
+          # 서비스는 1개지만 Deployment 는 2개이고, Service 도 워크로드별로 나눠
+          # 각각 다른 Pod 집합을 가리킨다. 부하가 서로 섞이지 않는 지점이다.
+          - path: /api/ai/lion
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-rag
+                port:
+                  number: 8080
+          - path: /api/ai/bot
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-bot
+                port:
+                  number: 8080
+          # 1:1 상담 채팅 WebSocket. 티켓 발급(/api/ai/bot/chat/ticket)과 같은
+          # 워크로드(ai-bot)로 보낸다 — 상담 채팅 기능 하나를 두 Pod 집합에
+          # 걸치지 않기 위해서다. ingress-nginx 는 별도 어노테이션 없이도
+          # WebSocket 업그레이드를 그대로 프록시한다.
+          - path: /ws/ai/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-bot
+                port:
+                  number: 8080
+
+          # --- order-service ---
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+          - path: /api/cart
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+          - path: /api/coupons
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+          - path: /api/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8080
+
+          # --- member-service ---
+          - path: /api/members
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+          - path: /api/cards
+            pathType: Prefix
+            backend:
+              service:
+                name: member-service
+                port:
+                  number: 8080
+
+          # --- catalog-service ---
+          # 도서/리뷰/찜/최근본상품/카테고리/FAQ/상품문의/추천/이어읽기/관리자 API
+          # 전부 컨트롤러가 /api/catalog/** 아래 있다(전수 스캔 결과 예외 없음) —
+          # 서비스 접두사 하나로 라우팅한다. 예전엔 /api/books, /api/reviews,
+          # /api/wishlist, /api/recent-books 를 개별 path 로 뒀었는데, 지금 컨트롤러
+          # 경로(/api/catalog/books 등)와 더 이상 맞지 않는 죽은 규칙이었다 — 실제로
+          # 매칭되는 요청이 없었다(프론트엔드도 이미 /api/catalog/* 로 호출 중).
+          - path: /api/catalog
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog-service
+                port:
+                  number: 8080
+
+# /internal/** 은 여기에 없다. 의도적이다 — 서비스 간 전용 경로라
+# 외부에서 도달할 수 없어야 한다(09-networkpolicy.yaml 이 2차 방어선).
+# 전수 스캔 기준 해당 경로: /internal/cards/**(member), /internal/members/**(member),
+# /internal/inventory/**(order), /internal/ai/recommendations/**(ai).

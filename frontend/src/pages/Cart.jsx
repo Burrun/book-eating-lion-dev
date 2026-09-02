@@ -1,36 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, Ticket, BookOpen } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Minus, Plus, Trash2, BookOpen } from "lucide-react";
 import Button from "../components/Button.jsx";
 import Skeleton from "../components/Skeleton.jsx";
-import { fetchCartItems, fetchCartBenefits, updateQuantity, removeFromCart } from "../api/cart.js";
+import { fetchCartItems, updateQuantity, removeFromCart } from "../api/cart.js";
 
 const FREE_SHIPPING_THRESHOLD = 30000;
 
 export default function Cart() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // 이 페이지는 자체 useState로 아이템을 들고 있어 react-query를 쓰지 않는다.
+  // 헤더 뱃지(App.jsx의 ["cart"] 쿼리)만 여기서 갱신 신호를 보낸다.
+  const invalidateHeaderCart = () => queryClient.invalidateQueries({ queryKey: ["cart"] });
   const [items, setItems] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [benefits, setBenefits] = useState({ availableCoupon: null, availablePoints: 0 });
-  const [couponApplied, setCouponApplied] = useState(false);
-  const [pointsUsed, setPointsUsed] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 쿠폰 적용은 체크아웃 화면(fetchCoupons → GET /coupons/me)에서 이뤄진다 — 장바구니
+  // 단계의 "적용 가능 쿠폰" 미리보기는 백엔드에 대응 API가 없어 제거했다.
   useEffect(() => {
     let ignore = false;
-    Promise.all([fetchCartItems(), fetchCartBenefits()]).then(([fetchedItems, fetchedBenefits]) => {
-      if (ignore) return;
-      setItems(fetchedItems);
-      setSelectedIds(new Set(fetchedItems.map((i) => i.id)));
-      setBenefits(fetchedBenefits);
-      setIsLoading(false);
-    });
+    fetchCartItems()
+      .then((fetchedItems) => {
+        if (ignore) return;
+        setItems(fetchedItems);
+        setSelectedIds(new Set(fetchedItems.map((i) => i.id)));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
     return () => {
       ignore = true;
     };
   }, []);
 
-  const { availableCoupon, availablePoints } = benefits;
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -40,9 +46,7 @@ export default function Cart() {
     if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
     return Math.max(...selectedItems.map((item) => item.shippingFee));
   }, [selectedItems, subtotal]);
-  const couponDiscount =
-    couponApplied && availableCoupon ? Math.min(availableCoupon.discount, subtotal) : 0;
-  const finalTotal = Math.max(subtotal + shippingFee - couponDiscount - pointsUsed, 0);
+  const finalTotal = Math.max(subtotal + shippingFee, 0);
 
   const toggleSelectAll = () => {
     setSelectedIds(allSelected ? new Set() : new Set(items.map((i) => i.id)));
@@ -63,9 +67,10 @@ export default function Cart() {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item)),
     );
-    // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다
-    // (백엔드 cart 모듈 미구현으로 로그인 상태의 실API 호출은 항상 실패할 수 있음 — BOO-23 TODO).
-    updateQuantity(id, newQuantity).catch(() => {});
+    // 낙관적으로 화면은 먼저 갱신하고, 저장소 반영 실패는 조용히 무시한다.
+    updateQuantity(id, newQuantity)
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   const removeItem = (id) => {
@@ -75,20 +80,18 @@ export default function Cart() {
       next.delete(id);
       return next;
     });
-    removeFromCart(id).catch(() => {});
+    removeFromCart(id)
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   const removeSelected = () => {
     const idsToRemove = [...selectedIds];
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
-    idsToRemove.forEach((id) => removeFromCart(id).catch(() => {}));
-  };
-
-  const togglePoints = () => {
-    setPointsUsed((prev) =>
-      prev > 0 ? 0 : Math.min(availablePoints, subtotal + shippingFee - couponDiscount),
-    );
+    Promise.all(idsToRemove.map((id) => removeFromCart(id)))
+      .then(invalidateHeaderCart)
+      .catch(() => {});
   };
 
   return (
@@ -137,49 +140,6 @@ export default function Cart() {
                 onRemove={() => removeItem(item.id)}
               />
             ))}
-
-            {/* 쿠폰/포인트 - 티어오프 영수증 느낌 */}
-            <div className="relative mt-2 rounded-2xl border-2 border-dashed border-[var(--color-honey)]/60 bg-[var(--color-honey)]/10 p-5 shadow-[0_2px_10px_rgba(242,169,59,0.15)]">
-              <span className="absolute top-1/2 -left-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
-              <span className="absolute top-1/2 -right-2.5 h-5 w-5 -translate-y-1/2 rounded-full bg-[var(--color-paper)]" />
-
-              <div className="mb-3 flex items-center gap-2 text-[var(--color-forest)]">
-                <Ticket size={18} />
-                <h2 className="font-display text-base">쿠폰 · 포인트 할인 적용</h2>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
-                  <p className="text-sm text-[var(--color-ink)]">
-                    적용 가능 쿠폰: <span className="font-medium">{availableCoupon?.label}</span>
-                  </p>
-                  <Button
-                    variant={couponApplied ? "secondary" : "primary"}
-                    size="sm"
-                    shimmer={false}
-                    onClick={() => setCouponApplied((prev) => !prev)}
-                  >
-                    {couponApplied ? "적용 취소" : "쿠폰 적용"}
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/70 px-4 py-3">
-                  <p className="text-sm text-[var(--color-ink)]">
-                    보유 포인트:{" "}
-                    <span className="font-medium">{availablePoints.toLocaleString()}P</span>
-                    <span className="ml-1 text-[var(--color-ink)]/50">(전액 사용 가능)</span>
-                  </p>
-                  <Button
-                    variant={pointsUsed > 0 ? "secondary" : "primary"}
-                    size="sm"
-                    shimmer={false}
-                    onClick={togglePoints}
-                  >
-                    {pointsUsed > 0 ? "사용 취소" : "전액 사용"}
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* 결제 금액 요약 */}
@@ -193,16 +153,6 @@ export default function Cart() {
                 <Row
                   label="배송비"
                   value={shippingFee > 0 ? `+${shippingFee.toLocaleString()}원` : "무료"}
-                />
-                <Row
-                  label="쿠폰 할인"
-                  value={couponDiscount > 0 ? `-${couponDiscount.toLocaleString()}원` : "-"}
-                  tone={couponDiscount > 0 ? "coral" : undefined}
-                />
-                <Row
-                  label="포인트 사용"
-                  value={pointsUsed > 0 ? `-${pointsUsed.toLocaleString()}원` : "-"}
-                  tone={pointsUsed > 0 ? "coral" : undefined}
                 />
               </dl>
 
@@ -218,7 +168,7 @@ export default function Cart() {
                 size="lg"
                 fullWidth
                 disabled={selectedItems.length === 0}
-                onClick={() => navigate("/checkout")}
+                onClick={() => navigate("/checkout", { state: { items: selectedItems } })}
                 className="mt-5"
               >
                 주문 / 결제하기
@@ -265,11 +215,6 @@ function CartItemRow({ item, selected, onToggleSelect, onChangeQuantity, onRemov
           <div>
             <p className="text-sm font-medium text-[var(--color-ink)]">{item.title}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              {item.condition && (
-                <span className="rounded-full border border-[var(--color-forest)]/30 px-2 py-0.5 text-[11px] font-medium text-[var(--color-forest)]">
-                  중고 · {item.condition}급
-                </span>
-              )}
               <span className="text-sm text-[var(--color-ink)] opacity-70">
                 {item.option ? `${item.option} · ` : ""}배송비 {item.shippingFee.toLocaleString()}원
               </span>

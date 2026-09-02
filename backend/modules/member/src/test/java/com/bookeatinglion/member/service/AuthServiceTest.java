@@ -1,5 +1,12 @@
 package com.bookeatinglion.member.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.bookeatinglion.member.dto.LoginRequest;
 import com.bookeatinglion.member.dto.RefreshRequest;
 import com.bookeatinglion.member.dto.SignupRequest;
@@ -7,6 +14,7 @@ import com.bookeatinglion.member.dto.SignupResponse;
 import com.bookeatinglion.member.dto.TokenResponse;
 import com.bookeatinglion.member.exception.CognitoAuthException;
 import com.bookeatinglion.member.exception.DuplicateEmailException;
+import com.bookeatinglion.member.exception.DuplicateNicknameException;
 import com.bookeatinglion.member.infra.cognito.CognitoAuthClient;
 import com.bookeatinglion.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
@@ -15,13 +23,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.AuthenticationResultType;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -38,23 +39,39 @@ class AuthServiceTest {
     @Test
     void 회원가입시_Cognito에_등록하고_DB에_동기화한다() {
         when(memberRepository.existsByEmail("lion@bookeating.com")).thenReturn(false);
-        when(cognitoAuthClient.signUp("lion@bookeating.com", "password1234", "책먹는사자")).thenReturn("sub-1");
+        when(cognitoAuthClient.signUp("lion@bookeating.com", "password1234", "책먹는사자"))
+                .thenReturn("sub-1");
         when(memberRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SignupResponse response = authService.signup(
-                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자"));
+        SignupResponse response =
+                authService.signup(new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕"));
 
         assertThat(response.email()).isEqualTo("lion@bookeating.com");
         assertThat(response.name()).isEqualTo("책먹는사자");
+        assertThat(response.nickname()).isEqualTo("사자왕");
+        // memberId 는 DB PK 가 아니라 Cognito sub 여야 한다.
+        assertThat(response.memberId()).isEqualTo("sub-1");
     }
 
     @Test
     void 이미_가입된_이메일이면_Cognito_호출없이_예외를_던진다() {
         when(memberRepository.existsByEmail("lion@bookeating.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> authService.signup(
-                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자")))
+        assertThatThrownBy(() ->
+                        authService.signup(new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕")))
                 .isInstanceOf(DuplicateEmailException.class);
+
+        verify(cognitoAuthClient, never()).signUp(any(), any(), any());
+    }
+
+    @Test
+    void 이미_사용중인_닉네임이면_Cognito_호출없이_예외를_던진다() {
+        when(memberRepository.existsByEmail("lion@bookeating.com")).thenReturn(false);
+        when(memberRepository.existsByNickname("사자왕")).thenReturn(true);
+
+        assertThatThrownBy(() ->
+                        authService.signup(new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕")))
+                .isInstanceOf(DuplicateNicknameException.class);
 
         verify(cognitoAuthClient, never()).signUp(any(), any(), any());
     }
@@ -65,8 +82,8 @@ class AuthServiceTest {
         when(cognitoAuthClient.signUp("lion@bookeating.com", "password1234", "책먹는사자"))
                 .thenThrow(new CognitoAuthException("COGNITO_SIGNUP_FAILED", "Cognito 가입에 실패했습니다."));
 
-        assertThatThrownBy(() -> authService.signup(
-                new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자")))
+        assertThatThrownBy(() ->
+                        authService.signup(new SignupRequest("lion@bookeating.com", "password1234", "책먹는사자", "사자왕")))
                 .isInstanceOf(CognitoAuthException.class);
 
         verify(memberRepository, never()).save(any());

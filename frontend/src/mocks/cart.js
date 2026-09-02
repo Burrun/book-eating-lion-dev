@@ -23,19 +23,12 @@ export const MOCK_CART_ITEMS = [
     cartItemId: 3,
     bookId: 3,
     title: "해리 포터와 마법사의 돌",
-    option: "중고 직거래 증정",
-    condition: "A",
     price: 12000,
     shippingFee: 3000,
     quantity: 1,
     coverImageUrl: null,
   },
 ];
-
-export const MOCK_CART_BENEFITS = {
-  availableCoupon: { label: "신규 가입 3,000원 할인 쿠폰", discount: 3000 },
-  availablePoints: 5400,
-};
 
 // 비회원 장바구니 화면 표시용 — 실제로는 GET /api/books/{bookId}에서 내려오는 정보를 대신한다.
 export const MOCK_BOOK_CATALOG = {
@@ -49,16 +42,23 @@ export const MOCK_BOOK_CATALOG = {
 let mockServerCart = MOCK_CART_ITEMS.map((item) => ({ ...item }));
 let nextMockCartItemId = mockServerCart.length + 1;
 
+// CartItemView 는 subtotal(price*quantity)을 서버가 계산해서 내려준다. mock도 동일하게 맞춘다.
+function withSubtotal(item) {
+  return { ...item, subtotal: item.price * item.quantity };
+}
+
 export function mockGetCart() {
-  const totalPrice = mockServerCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  return { items: mockServerCart.map((item) => ({ ...item })), totalPrice };
+  const items = mockServerCart.map(withSubtotal);
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.subtotal, 0);
+  return { items, totalQuantity, totalPrice };
 }
 
 export function mockAddToCart(bookId, quantity) {
   const existing = mockServerCart.find((item) => item.bookId === bookId);
   if (existing) {
     existing.quantity += quantity;
-    return { ...existing };
+    return withSubtotal(existing);
   }
   const book = MOCK_BOOK_CATALOG[bookId] ?? {
     bookId,
@@ -75,16 +75,17 @@ export function mockAddToCart(bookId, quantity) {
     quantity,
   };
   mockServerCart.push(item);
-  return { ...item };
+  return withSubtotal(item);
 }
 
 export function mockUpdateQuantity(cartItemId, quantity) {
   const found = mockServerCart.find((item) => item.cartItemId === cartItemId);
   if (!found) throw new Error(`mock cart item not found: ${cartItemId}`);
   found.quantity = quantity;
-  return { ...found };
+  return withSubtotal(found);
 }
 
+// 실제 DELETE /api/cart/{cartItemId} 가 204 No Content(반환값 없음)라 mock도 아무것도 반환하지 않는다.
 export function mockRemoveFromCart(cartItemId) {
   mockServerCart = mockServerCart.filter((item) => item.cartItemId !== cartItemId);
 }

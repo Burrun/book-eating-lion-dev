@@ -1,19 +1,22 @@
 package com.bookeatinglion.book.dto;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.bookeatinglion.book.domain.Book;
 import com.bookeatinglion.book.domain.SaleStatus;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDate;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 class BookDtoTest {
 
     private Book sampleBook() {
         return Book.builder()
-                .title("제목").author("저자").publisher("출판사").isbn("9791100000001")
-                .category("소설").price(15000).stockQuantity(7)
+                .title("제목")
+                .author("저자")
+                .publisher("출판사")
+                .isbn("9791100000001")
+                .category("소설")
+                .price(15000)
                 .coverImageUrl("https://example.com/cover.jpg")
                 .description("짧은 소개")
                 .detailedSynopsis("상세 줄거리")
@@ -37,7 +40,8 @@ class BookDtoTest {
 
     @Test
     void BookDetailResponse는_상세_필드를_매핑한다() {
-        BookDetailResponse response = BookDetailResponse.from(sampleBook());
+        // 재고는 Book 이 아니라 order-service 에서 조합해 넘어온다.
+        BookDetailResponse response = BookDetailResponse.from(sampleBook(), 7);
 
         assertThat(response.publisher()).isEqualTo("출판사");
         assertThat(response.isbn()).isEqualTo("9791100000001");

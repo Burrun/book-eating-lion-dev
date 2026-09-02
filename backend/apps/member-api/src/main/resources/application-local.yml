@@ -1,0 +1,45 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=member_db
+    username: member_svc
+    password: member_pw
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+        default_schema: member_db
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+
+app:
+  cognito:
+    region: ${AWS_COGNITO_REGION:ap-northeast-2}
+    # 값을 비워두거나(기본값) "mock"으로 두면 CognitoAuthClient 가 실제 AWS 호출 없이
+    # 로컬 목업 인증(회원가입/로그인/재발급)으로 우회한다. 실제 Cognito User Pool 을
+    # 붙이려면 이 값을 진짜 user-pool-id 로 덮어써야 한다.
+    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:mock}
+    client-id: ${AWS_COGNITO_CLIENT_ID:local_dummy_client_id}
+    client-secret: ${AWS_COGNITO_CLIENT_SECRET:}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

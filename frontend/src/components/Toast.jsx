@@ -30,7 +30,7 @@ export function ToastProvider({ children }) {
       }
       return id;
     },
-    [dismiss]
+    [dismiss],
   );
 
   const toast = {
@@ -78,7 +78,7 @@ export function ToastProvider({ children }) {
             })}
           </AnimatePresence>
         </div>,
-        document.body
+        document.body,
       )}
     </ToastContext.Provider>
   );

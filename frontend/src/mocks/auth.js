@@ -30,7 +30,7 @@ export function mockLogin(email, password) {
 
 let nextMockMemberId = 2;
 
-export function mockSignup(email, password, name) {
+export function mockSignup(email, password, name, nickname) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (email === "duplicate@test.com") {
@@ -46,7 +46,20 @@ export function mockSignup(email, password, name) {
         });
         return;
       }
-      resolve({ memberId: nextMockMemberId++, email, name });
+      if (nickname === "duplicate") {
+        const message = `이미 사용 중인 닉네임입니다: ${nickname}`;
+        reject({
+          response: {
+            data: {
+              success: false,
+              message,
+              error: { code: "DUPLICATE_NICKNAME", message },
+            },
+          },
+        });
+        return;
+      }
+      resolve({ memberId: nextMockMemberId++, email, name, nickname });
     }, 400);
   });
 }

@@ -6,11 +6,18 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
+      # 아래 둘은 프론트 코드가 아니지만 배포 경로다. main-cd 는 스스로 트리거되지 않고
+      # 이 CI 가 성공해야 workflow_run 으로 깨어나므로, 여기 없으면 배포 배선을 고쳐도
+      # CD 가 아예 안 뜬다 — 실패가 아니라 "아무 일도 안 일어나는" 형태라 알아채기 어렵다.
+      - 'scripts/**'
+      - '.github/workflows/main-cd.yml'
   push:
     branches: [ "main", "dev" ]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
+      - 'scripts/**'
+      - '.github/workflows/main-cd.yml'
   workflow_dispatch:
 
 permissions:

@@ -1,8 +1,0 @@
-spring:
-  profiles:
-    active: local
-  application:
-    name: book-eating-lion-api
-
-server:
-  port: 8080

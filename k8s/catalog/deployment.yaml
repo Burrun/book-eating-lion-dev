@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-deployment
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: catalog-service
+    tier: backend
+spec:
+  # replicas 는 일부러 두지 않는다. HPA 가 소유하며,
+  # 여기에 값을 적으면 apply 할 때마다 HPA 가 늘려둔 수를 되돌린다.
+  selector:
+    matchLabels:
+      app: catalog-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - catalog-service
+                topologyKey: "kubernetes.io/hostname"
+      # k8s/base/10-priorityclass.yaml 참고 — dev/prod 가 같은 노드풀을 공유해서,
+      # 노드 압박 시 어느 쪽이 먼저 밀려날지를 이걸로 정한다.
+      priorityClassName: ${K8S_NAMESPACE}-workload
+      serviceAccountName: catalog-service
+      containers:
+        - name: catalog-service
+          # CD 워크플로가 커밋 SHA 로 치환한다. ECR 리포지터리도 서비스별로 나뉜다.
+          image: "${ECR_REGISTRY}/${ECR_CATALOG_REPO}:${IMAGE_TAG}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: catalog-config
+            - secretRef:
+                name: catalog-secret
+
+          resources:
+            requests:
+              cpu: "250m"
+              # 512Mi는 Spring Boot 기동 직후 idle 메모리(실측 470~537Mi)보다
+              # 낮아서, HPA의 memory 80% 목표가 트래픽 없이도 항상 넘는다.
+              # 그래서 replica를 늘려도 새 pod 역시 곧장 100%를 찍어 스케일업이
+              # 멈추지 않고 maxReplicas까지 밀린다(2026-09-02 prod catalog가
+              # 20/20까지 올라간 원인 - CPU는 4%로 유휴였다). 실측값보다
+              # 여유를 두고 80% 목표(614Mi)가 idle 위에 오도록 올린다.
+              memory: "768Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30

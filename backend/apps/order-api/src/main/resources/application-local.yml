@@ -1,0 +1,35 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=order_db
+    username: order_svc
+    password: order_pw
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+        default_schema: order_db
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,0 +1,63 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = false
+}
+
+dependencyManagement {
+    imports {
+        mavenBom 'software.amazon.awssdk:bom:2.46.7'
+    }
+}
+
+dependencies {
+    implementation project(':modules:common')
+    implementation project(':modules:ai')
+
+    // 임베딩·LLM(Bedrock Runtime) + 벡터 검색(S3 Vectors).
+    // 두 클라이언트가 같은 SDK 코어를 공유하므로 버전은 BOM 으로 묶는다.
+    implementation 'software.amazon.awssdk:bedrockruntime'
+    implementation 'software.amazon.awssdk:s3vectors'
+
+    // IRSA(WebIdentityTokenFileCredentialsProvider)가 웹아이덴티티 토큰을 실제
+    // AWS 자격증명으로 교환하려면 sts 모듈이 클래스패스에 있어야 한다 - 없으면
+    // "the 'sts' service module must be on the class path" 로 전체 자격증명
+    // 체인이 실패하며 기동이 죽는다.
+    implementation 'software.amazon.awssdk:sts'
+
+    // 자동 인제스트 — EPUB 원본은 S3, 등록 이벤트는 SQS 로 온다.
+    // SQS — order-service 의 구매 이벤트를 수신한다.
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:sqs'
+
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // 사자 먹이기 EXP 2배 판정을 위해 member-service 구독 상태를 동기 조회한다(§7.6 예외 —
+    // 이 서비스는 원래 다른 서비스와 통신하지 않지만, 실패해도 1배로 안전 강등되는 부가
+    // 기능이라 장애 격리 원칙을 깨지 않는다. order-service 의 CardClient와 동일 패턴).
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+
+    // 문의봇 WebSocket. modules:ai 가 implementation 으로 선언해 전이되지 않으므로 여기서도 건다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // Liquibase — ai_db 스키마만. 다른 서비스와 같은 클러스터지만 계정이 달라 남의 스키마는 못 본다.
+    implementation 'org.liquibase:liquibase-core'
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.h2database:h2'
+}
+
+// 이미지는 1개지만 Deployment 는 2개다 (ai-rag / ai-bot, 판단 ④).
+// 자원 격리는 YAML 1개로 얻을 수 있고, 서비스 분리는 그보다 10배 비싸다.

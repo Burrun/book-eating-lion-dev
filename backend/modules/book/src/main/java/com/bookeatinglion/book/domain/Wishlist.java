@@ -19,14 +19,14 @@ public class Wishlist extends BaseEntity {
     private Long wishlistId;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private String memberId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id", nullable = false)
     private Book book;
 
     @Builder
-    public Wishlist(Long memberId, Book book) {
+    public Wishlist(String memberId, Book book) {
         this.memberId = memberId;
         this.book = book;
     }

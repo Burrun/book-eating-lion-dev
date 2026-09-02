@@ -1,0 +1,36 @@
+# §7.2 의 "기계적 강제 2단" 중 2단.
+#
+# 1단은 backend-ci.yml 의 경계 검사(빌드 실패), 2단이 이 파일(리뷰 차단)이다.
+# 저장소를 4개로 쪼개지 않기로 했으므로(§7.0), 코드 경계는 이 둘이 지킨다.
+#
+# ⚠️ GitHub 팀 슬러그는 실제 조직에 맞게 채울 것. 아래는 자리표시자다.
+
+# 계약 변경은 전원 합의 사항이다. 한 팀이 조용히 바꾸면 나머지가 깨진다.
+/backend/contracts/                 @Burrun/backend
+
+# 도메인 소유권
+/backend/modules/book/              @Burrun/catalog-team
+/backend/apps/catalog-api/          @Burrun/catalog-team
+/k8s/catalog/                       @Burrun/catalog-team
+
+/backend/modules/order/             @Burrun/order-team
+/backend/apps/order-api/            @Burrun/order-team
+/k8s/order/                         @Burrun/order-team
+
+/backend/modules/member/            @Burrun/member-team
+/backend/apps/member-api/           @Burrun/member-team
+/k8s/member/                        @Burrun/member-team
+
+# RAG 코드가 member 로 흘러들어가는 것이 §5 의 치명적 리스크다.
+# 담당이 갈라져 있으면 그런 PR 이 리뷰에서 걸린다.
+/backend/modules/ai/                @Burrun/ai-team
+/backend/apps/ai-api/               @Burrun/ai-team
+/k8s/ai/                            @Burrun/ai-team
+
+# 공통 코드와 배포 파이프라인은 전 서비스에 영향을 준다.
+/backend/modules/common/            @Burrun/backend
+/backend/build.gradle               @Burrun/backend
+/backend/settings.gradle            @Burrun/backend
+/k8s/base/                          @Burrun/backend
+/.github/                           @Burrun/backend
+/db/                                @Burrun/backend

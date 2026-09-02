@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    # catalog_svc 계정은 catalog_db 스키마에만 권한이 있다.
+    # 다른 서비스 테이블에 조인을 걸면 여기서 런타임 권한 에러가 난다 — 의도된 설계다.
+    url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=catalog_db
+    username: catalog_svc
+    password: catalog_pw
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+        default_schema: catalog_db
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://cognito-idp.${AWS_COGNITO_REGION:ap-northeast-2}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:local_dummy_pool}
+
+springdoc:
+  # Pageable 을 JSON 객체 하나로 표시하면 Swagger UI 가 비정상적으로 큰 page/size 예시를
+  # 생성한다. page, size, sort 개별 쿼리 파라미터로 펼쳐 로컬 API 테스트가 가능하게 한다.
+  default-flat-param-object: true
+  swagger-ui:
+    path: /swagger-ui.html
