@@ -66,17 +66,37 @@ put FRONTEND_S3_BUCKET "$(ssm "$DATA_ENV" storage/frontend_bucket_id)"
 put EBOOK_S3_BUCKET "$(ssm "$DATA_ENV" storage/media_bucket_id)"
 put DB_WRITER_ENDPOINT "$(ssm "$DATA_ENV" data/db_endpoint)"
 put DB_READER_ENDPOINT "$(ssm "$DATA_ENV" data/db_reader_endpoint)"
+# HPA maxReplicas 와 ResourceQuota 는 한 쌍이다. k8s/base/11-quota.yaml 의
+# 불변식(quota >= Σ maxReplicas × 요청량 + 롤링 서지)이 깨지면 배포가 막히므로,
+# 한쪽만 고치지 않도록 같은 자리에 둔다. member 6 / ai-rag 6 / ai-bot 10 은
+# 매니페스트에 하드코딩돼 있어 환경 구분이 없다.
+#
+# quota 값은 "maxReplicas 합 + 서비스당 서지 1 pod"를 올림한 것이다. quota 는
+# 예약이 아니라 상한이라 넉넉히 잡아도 pod 가 실제로 뜨지 않으면 비용이 없다.
 if [[ "$DEPLOY_ENV" == "dev" ]]; then
   put CATALOG_HPA_MAX_REPLICAS "6"
   put ORDER_HPA_MAX_REPLICAS "8"
+  # 합: 10.7 cpu / 21.5Gi requests, 30 cpu / 38Gi limits, 36 pods
+  put QUOTA_REQUESTS_CPU "14"
+  put QUOTA_REQUESTS_MEMORY "26Gi"
+  put QUOTA_LIMITS_CPU "36"
+  put QUOTA_LIMITS_MEMORY "46Gi"
+  put QUOTA_MAX_PODS "45"
 else
   # 20에서 10으로 낮췄다(2026-09-02). maxUnavailable=0/maxSurge=1 롤링 업데이트 중
   # HPA가 desired를 계속 밀어올리면(오늘 2->8까지 감) kubectl rollout status가
   # 그 목표를 따라잡지 못해 main-cd의 600s 타임아웃에 걸리고, Rollback on failure가
-  # 방금 배포한 이미지를 되돌려버린다. 상한을 낮추면 롤아웃 중 흔들릴 수 있는
-  # 범위 자체가 줄어든다.
+  # 방금 배포한 이미지를 되돌려버린다. 폭주의 원인이던 memory request 부족은
+  # 1497555에서 고쳤으니, prod에서 유휴 시 안 오르는 걸 확인한 뒤 20으로 되돌린다.
   put CATALOG_HPA_MAX_REPLICAS "10"
   put ORDER_HPA_MAX_REPLICAS "30"
+  # catalog 20 복귀를 미리 감안한 값이다(합: 25.2 cpu / 54Gi requests,
+  # 55 cpu / 74Gi limits, 72 pods). 그래야 되돌릴 때 이 값을 또 안 건드린다.
+  put QUOTA_REQUESTS_CPU "28"
+  put QUOTA_REQUESTS_MEMORY "60Gi"
+  put QUOTA_LIMITS_CPU "62"
+  put QUOTA_LIMITS_MEMORY "84Gi"
+  put QUOTA_MAX_PODS "80"
 fi
 put DB_NAME "bookdb_${DEPLOY_ENV}"
 put AI_DB_NAME "bookdb_${DEPLOY_ENV}"
