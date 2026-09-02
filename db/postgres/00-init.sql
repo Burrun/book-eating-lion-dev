@@ -40,6 +40,10 @@ BEGIN
 END
 $$;
 
+-- RDS PostgreSQL 16에서는 superuser가 아니므로 스키마 생성/소유권 변경(AUTHORIZATION/OWNER TO)을
+-- 수행하려면 bookadmin에게 해당 서비스 롤의 멤버십(SET ROLE 권한)이 있어야 한다.
+GRANT catalog_svc, order_svc, member_svc, ai_svc TO bookadmin;
+
 ALTER ROLE catalog_svc PASSWORD :'catalog_pw';
 ALTER ROLE order_svc   PASSWORD :'order_pw';
 ALTER ROLE member_svc  PASSWORD :'member_pw';
