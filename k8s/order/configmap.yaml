@@ -9,7 +9,7 @@ data:
 
   # 쓰기 서비스라 Writer 로 간다. RDS Proxy 는 이쪽에만 붙인다
   # (ai_db 에 붙이면 Serverless v2 auto-pause 와 상충한다 — 판단 ②).
-  DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
+  DB_HOST: "db-primary-service.${K8S_NAMESPACE}.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).

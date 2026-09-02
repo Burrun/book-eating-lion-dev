@@ -71,6 +71,53 @@ set_secret_from_stdin "AWS_COGNITO_CLIENT_ID" "$(ssm "$DATA_ENV" auth/user_pool_
 
 echo "  ⚠️  SKIP  AWS_COGNITO_CLIENT_SECRET — Cognito 클라이언트가 generate_secret=false(공개 클라이언트)라 시크릿 자체가 없음"
 
+# 서비스별 DB 계정 시크릿. 01-data의 db_service_accounts 모듈이 만들고
+# /{env}/data/db_{catalog,order,member,ai}_secret_arn 으로 등록한다.
+#
+# 2026-09-02 이전에는 아래 마스터 시크릿 하나를 8개 값에 그대로 복제했다.
+# 그래서 배포 환경의 4개 서비스가 전부 bookadmin으로 DB에 붙었고, README와
+# k8s/base/03-secret.yaml이 주장하는 "서비스별 계정 권한이 경계를 만든다"가
+# 실제로는 성립하지 않았다(라이브 DB의 테이블 owner가 전부 bookadmin이었다).
+#
+# 계정별 시크릿이 없는 환경(dev의 EC2 Postgres)은 마스터 폴백으로 간다.
+read_secret_json() {
+  aws secretsmanager get-secret-value \
+    --secret-id "$1" \
+    --region "$REGION" --query SecretString --output text 2>/dev/null || true
+}
+
+json_field() {
+  python3 -c "import json,sys; print(json.load(sys.stdin)[sys.argv[1]])" "$1"
+}
+
+DB_ACCOUNTS_SYNCED=0
+
+for svc in catalog order member ai; do
+  SVC_UPPER=$(echo "$svc" | tr '[:lower:]' '[:upper:]')
+  SVC_SECRET_ARN=$(ssm "$DATA_ENV" "data/db_${svc}_secret_arn")
+  [[ -z "$SVC_SECRET_ARN" ]] && continue
+
+  SVC_SECRET_JSON=$(read_secret_json "$SVC_SECRET_ARN")
+  if [[ -z "$SVC_SECRET_JSON" ]]; then
+    echo "  ⚠️  SKIP  ${SVC_UPPER}_DB_USERNAME/PASSWORD — Secrets Manager에서 $SVC_SECRET_ARN 조회 실패"
+    continue
+  fi
+
+  set_secret_from_stdin "${SVC_UPPER}_DB_USERNAME" "$(echo "$SVC_SECRET_JSON" | json_field username)"
+  set_secret_from_stdin "${SVC_UPPER}_DB_PASSWORD" "$(echo "$SVC_SECRET_JSON" | json_field password)"
+  DB_ACCOUNTS_SYNCED=$((DB_ACCOUNTS_SYNCED + 1))
+done
+
+# 4개 중 일부만 성공하면 나머지엔 이전 값(= 마스터 계정)이 남는다. 그 상태로
+# 배포하면 일부 서비스만 계정 분리가 적용돼 원인 파악이 어려워진다.
+if [[ "$DB_ACCOUNTS_SYNCED" -ne 0 && "$DB_ACCOUNTS_SYNCED" -ne 4 ]]; then
+  echo "  ⚠️  계정 4개 중 $DB_ACCOUNTS_SYNCED 개만 동기화됨 — 나머지는 이전 값이 남아 파드가 인증 실패할 수 있습니다"
+fi
+
+if [[ "$DB_ACCOUNTS_SYNCED" -eq 0 ]]; then
+echo "  ℹ️  계정별 시크릿이 없어 마스터 계정으로 폴백합니다 (계정 분리 전 환경)"
+
+
 # dev(ec2_postgres)/prod(aurora_pg) 둘 다 같은 이름으로 SSM에 등록돼 있다
 # (terraform/environments/{env}/01-data/main.tf의 db_master_secret_arn 참고) -
 # 환경별로 시크릿 이름 자체가 다르므로(EC2용 vs Aurora 자동 발급) 하드코딩 대신
@@ -97,6 +144,7 @@ else
     set_secret_from_stdin "${svc}_DB_USERNAME" "$DB_USER"
     set_secret_from_stdin "${svc}_DB_PASSWORD" "$DB_PASS"
   done
+fi
 fi
 
 echo "  ⚠️  SKIP  KAKAOPAY_SECRET_KEY — AWS에 없는 외부(카카오 개발자센터) 값, 직접 등록할 것: gh secret set KAKAOPAY_SECRET_KEY --repo $REPO --env $GH_ENV"

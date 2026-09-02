@@ -6,15 +6,15 @@ name: Main CD (EKS Production)
 # dev/prod는 GitHub Environments(integrated-dev / integrated-prod)로 분리돼 있다.
 on:
   workflow_run:
-    workflows: [ "Backend CI", "Frontend CI" ]
-    types: [ completed ]
-    branches: [ "dev" ]
+    workflows: ["Backend CI", "Frontend CI"]
+    types: [completed]
+    branches: ["dev"]
   workflow_dispatch:
     inputs:
       environment:
         description: "배포 대상 환경"
         type: choice
-        options: [ dev, prod ]
+        options: [dev, prod]
         default: dev
         required: true
       services:
@@ -24,7 +24,7 @@ on:
         required: false
 
 permissions:
-  id-token: write   # AWS OIDC AssumeRole 용
+  id-token: write # AWS OIDC AssumeRole 용
   contents: read
 
 concurrency:
@@ -78,8 +78,8 @@ jobs:
           # 원인: 얕은 체크아웃이라 main 히스토리 자체가 없어 diff 를 못 한 것이었다).
           # 직전 커밋 SHA 로 명시해 "이 push 직전 dev 커밋"과만 비교한다.
           base: ${{ steps.revs.outputs.base }}
-          head: ${{ steps.revs.outputs.head }}
-          predicate-quantifier: 'some'
+          ref: ${{ steps.revs.outputs.head }}
+          predicate-quantifier: "some"
           filters: |
             shared: &shared
               - 'backend/build.gradle'
@@ -196,6 +196,8 @@ jobs:
           set -euo pipefail
           for v in DEPLOY_ENV K8S_NAMESPACE API_HOST FRONTEND_ORIGIN VPC_CIDR \
                    DB_WRITER_ENDPOINT DB_READER_ENDPOINT \
+                   QUOTA_REQUESTS_CPU QUOTA_REQUESTS_MEMORY QUOTA_LIMITS_CPU \
+                   QUOTA_LIMITS_MEMORY QUOTA_MAX_PODS \
                    CATALOG_DB_USERNAME CATALOG_DB_PASSWORD ORDER_DB_USERNAME ORDER_DB_PASSWORD \
                    KAKAOPAY_SECRET_KEY \
                    MEMBER_DB_USERNAME MEMBER_DB_PASSWORD AI_DB_USERNAME AI_DB_PASSWORD; do
@@ -205,7 +207,7 @@ jobs:
             fi
           done
 
-          VARS='$DEPLOY_ENV $SPRING_PROFILE $K8S_NAMESPACE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
+          VARS='$DEPLOY_ENV $SPRING_PROFILE $K8S_NAMESPACE $API_HOST $FRONTEND_ORIGIN $VPC_CIDR $DB_WRITER_ENDPOINT $DB_READER_ENDPOINT $QUOTA_REQUESTS_CPU $QUOTA_REQUESTS_MEMORY $QUOTA_LIMITS_CPU $QUOTA_LIMITS_MEMORY $QUOTA_MAX_PODS $AWS_COGNITO_CLIENT_ID $AWS_COGNITO_CLIENT_SECRET $CATALOG_DB_USERNAME $CATALOG_DB_PASSWORD $ORDER_DB_USERNAME $ORDER_DB_PASSWORD $KAKAOPAY_SECRET_KEY $MEMBER_DB_USERNAME $MEMBER_DB_PASSWORD $AI_DB_USERNAME $AI_DB_PASSWORD'
           mkdir -p rendered
           for f in k8s/base/*.yaml; do
             envsubst "$VARS" < "$f" > "rendered/$(basename "$f")"
@@ -449,8 +451,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install & build

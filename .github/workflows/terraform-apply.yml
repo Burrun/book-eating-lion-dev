@@ -263,13 +263,13 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // main-cd 는 integrated 클러스터 고정이라 deployment_mode 입력을
+            // 더는 받지 않는다(5b74b9b 에서 제거). 선언되지 않은 입력을 넘기면
+            // createWorkflowDispatch 가 422 Unexpected inputs 로 거절한다.
             const target = '${{ inputs.environment }}';
             const deployments = target === 'integrated'
-              ? [
-                  { environment: 'dev', deployment_mode: 'integrated' },
-                  { environment: 'prod', deployment_mode: 'integrated' },
-                ]
-              : [{ environment: target, deployment_mode: 'split' }];
+              ? [{ environment: 'dev' }, { environment: 'prod' }]
+              : [{ environment: target }];
 
             for (const inputs of deployments) {
               await github.rest.actions.createWorkflowDispatch({

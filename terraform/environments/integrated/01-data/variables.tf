@@ -48,3 +48,57 @@ variable "cognito_callback_urls" {
 variable "cognito_logout_urls" {
   type = list(string)
 }
+
+# ── RDS (2026-09-02 EC2 Postgres에서 분리) ──────────────────────────
+# 기본값은 비교 대상인 dev EC2(t4g.micro / gp3 30GiB / postgresql16)와 같은 급이다.
+variable "rds_engine_version" {
+  type    = string
+  default = "16.14"
+}
+
+variable "rds_instance_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+
+variable "rds_allocated_storage" {
+  type    = number
+  default = 30
+}
+
+variable "rds_multi_az" {
+  description = "EC2(단일)와 비교 조건을 맞추려고 false. 운영 승격 시 true"
+  type        = bool
+  default     = false
+}
+
+variable "rds_backup_retention_period" {
+  type    = number
+  default = 7
+}
+
+variable "rds_deletion_protection" {
+  type    = bool
+  default = true
+}
+
+variable "rds_skip_final_snapshot" {
+  type    = bool
+  default = false
+}
+
+variable "rds_apply_immediately" {
+  description = "비교 실험 중 인스턴스 클래스를 바꿔가며 볼 거라 true"
+  type        = bool
+  default     = true
+}
+
+# catalog-api에 RoutingDataSourceConfig(app.datasource.writer/reader,
+# @Transactional(readOnly=true) 기준 자동 분기)가 들어간 뒤에만 1 이상으로
+# 올린다. 그 전에 올리면 catalog의 쓰기(리뷰/찜/관리자 CRUD)와 startup
+# Liquibase가 read-only 트랜잭션 에러로 죽는다 - modules/data/rds_postgres의
+# read_replica_count 주석 참고.
+variable "rds_read_replica_count" {
+  type    = number
+  default = 0
+}

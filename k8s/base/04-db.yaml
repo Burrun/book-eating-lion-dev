@@ -21,7 +21,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: db-primary-service
-  namespace: lion-db
+  namespace: ${K8S_NAMESPACE}
 spec:
   type: ExternalName
   externalName: "${DB_WRITER_ENDPOINT}"
@@ -34,7 +34,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: db-reader-service
-  namespace: lion-db
+  namespace: ${K8S_NAMESPACE}
 spec:
   type: ExternalName
   externalName: "${DB_READER_ENDPOINT}"

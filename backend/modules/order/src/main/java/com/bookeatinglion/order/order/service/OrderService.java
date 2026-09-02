@@ -174,7 +174,7 @@ public class OrderService {
                 }
                 deductStock(inventories, quantityByBookId);
                 cartItemRepository.deleteByMemberIdAndBookIdIn(memberId, bookIds);
-                createDelivery(order.getId());
+                createDelivery(order.getId(), items);
                 return OrderResponse.of(order, items, payment);
             }
 
@@ -250,7 +250,7 @@ public class OrderService {
 
             deductStock(inventories, quantityByBookId);
             cartItemRepository.deleteByMemberIdAndBookIdIn(memberId, bookIds);
-            createDelivery(orderId);
+            createDelivery(orderId, items);
 
             return OrderResponse.of(order, items, payment);
         });
@@ -342,12 +342,19 @@ public class OrderService {
      * find-or-create — 재시도로 이 지점이 두 번 불리는 경우, 이미 있으면 새로 만들지 않는다. orderId 에는
      * DB unique 제약도 걸려 있어(Delivery 참고) 이 조회와 저장 사이의 아주 좁은 동시성 창을 뚫고 들어와도
      * 중복 행 자체는 만들어지지 않는다 — 다만 그 경우엔 이 메서드가 처리하지 않은 제약 위반 예외를 던진다.
+     *
+     * <p>구독권은 실물 배송이 없다 — PENDING 으로 만들면 관리자가 실물 책처럼
+     * SHIPPED/IN_TRANSIT 단계를 밟아야 한다. 결제 확정 = 배송 완료로 바로 만든다.
      */
-    private void createDelivery(Long orderId) {
+    private void createDelivery(Long orderId, List<OrderItem> items) {
         if (deliveryRepository.findByOrderId(orderId).isPresent()) {
             return;
         }
-        deliveryRepository.save(Delivery.builder().orderId(orderId).build());
+        DeliveryStatus initialStatus = containsSubscription(items) ? DeliveryStatus.DELIVERED : DeliveryStatus.PENDING;
+        deliveryRepository.save(Delivery.builder()
+                .orderId(orderId)
+                .deliveryStatus(initialStatus)
+                .build());
     }
 
     /**

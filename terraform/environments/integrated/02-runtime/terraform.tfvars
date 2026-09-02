@@ -40,6 +40,7 @@ prod_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:0610398046
 # 중복 등록 제거 커밋 참고). 여기(admin_principal_arns)는 클러스터를 "만들지
 # 않은" 다른 사람/role한테 나중에 kubectl 권한을 추가로 줄 때만 쓸 것.
 admin_principal_arns = [
+  "arn:aws:iam::061039804626:user/b-student-01",
   "arn:aws:iam::061039804626:user/b-student-02",
 ]
 # 현재 dev.ajttk.com은 integrated CloudFront가 담당한다. 운영 상태와 코드 기본값을

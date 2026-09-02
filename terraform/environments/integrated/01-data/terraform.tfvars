@@ -2,7 +2,17 @@ environment = "integrated"
 aws_region  = "ap-northeast-2"
 
 database_name   = "bookdb_prod"
-master_username = "bookadmin" # dev EC2 인스턴스에 이미 있는 계정과 반드시 일치해야 함
+master_username = "bookadmin" # RDS 마스터. 앱은 이 계정을 쓰지 않는다(서비스 계정 4개 사용)
+
+# 비교 대상인 dev EC2 Postgres와 같은 급으로 맞춘다 (t4g.micro / gp3 30GiB / pg16).
+# 이 값을 바꾸면 "EC2 대비 RDS" 비교 조건이 깨진다.
+rds_instance_class    = "db.t4g.micro"
+rds_allocated_storage = 30
+rds_engine_version    = "16.14"
+rds_multi_az          = false
+
+# catalog-api의 RoutingDataSourceConfig(app.datasource.writer/reader) 배포 완료 후 켬.
+rds_read_replica_count = 1
 
 valkey_node_type     = "cache.t4g.medium"
 valkey_replica_count = 1
