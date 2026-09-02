@@ -11,6 +11,9 @@ rds_allocated_storage = 30
 rds_engine_version    = "16.14"
 rds_multi_az          = false
 
+# catalog-api의 RoutingDataSourceConfig(app.datasource.writer/reader) 배포 완료 후 켬.
+rds_read_replica_count = 1
+
 valkey_node_type     = "cache.t4g.medium"
 valkey_replica_count = 1
 

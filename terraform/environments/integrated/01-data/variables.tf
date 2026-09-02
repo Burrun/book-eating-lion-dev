@@ -92,3 +92,13 @@ variable "rds_apply_immediately" {
   type        = bool
   default     = true
 }
+
+# catalog-api에 RoutingDataSourceConfig(app.datasource.writer/reader,
+# @Transactional(readOnly=true) 기준 자동 분기)가 들어간 뒤에만 1 이상으로
+# 올린다. 그 전에 올리면 catalog의 쓰기(리뷰/찜/관리자 CRUD)와 startup
+# Liquibase가 read-only 트랜잭션 에러로 죽는다 - modules/data/rds_postgres의
+# read_replica_count 주석 참고.
+variable "rds_read_replica_count" {
+  type    = number
+  default = 0
+}

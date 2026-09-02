@@ -2,16 +2,6 @@ spring:
   config:
     import: classpath:application-redis-prod.yml,classpath:application-security-prod.yml
 
-  datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=catalog_db&sslmode=${DB_SSL_MODE:require}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      # catalog 는 읽기 95% 라 커넥션을 넉넉히 잡는다.
-      maximum-pool-size: 15
-      connection-timeout: 10000
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -41,6 +31,36 @@ spring:
 
   # JWT(Cognito) 검증 설정은 application-security-prod.yml import 로 온다
   # (공유 파일 참고 — 4개 서비스가 같은 값을 쓴다).
+
+# 표준 spring.datasource가 아니라 app.datasource.{writer,reader}로 둔 이유는
+# RoutingDataSourceConfig가 이 둘을 각각 HikariDataSource로 바인딩해서 하나의
+# RoutingDataSource로 합치기 때문이다. spring.datasource를 그대로 쓰면 Spring
+# Boot가 자동으로 또 다른 DataSource를 만들려고 해서 충돌한다.
+#
+# 읽기 95%라 reader 풀을 writer보다 넉넉히 잡는다. dev EC2/prod RDS 둘 다
+# 여러 Pod가 커넥션 한도를 나눠 써야 해서 Pod당 풀 크기를 configmap으로
+# 조절할 수 있게 남겨둔다(DB_WRITER_POOL_SIZE/DB_READER_POOL_SIZE).
+# reader는 RDS Proxy를 거치지 않고 리플리카에 직접 붙는다 - Proxy가 커넥션을
+# 흡수해주는 writer와 달리, Pod 수 × 이 값이 DB 자체의 max_connections를
+# 그대로 압박한다.
+app:
+  datasource:
+    writer:
+      jdbc-url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=catalog_db&sslmode=${DB_SSL_MODE:require}
+      username: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+      maximum-pool-size: ${DB_WRITER_POOL_SIZE:3}
+      minimum-idle: 0
+      connection-timeout: 10000
+    reader:
+      jdbc-url: jdbc:postgresql://${DB_READER_HOST}:${DB_PORT}/${DB_NAME}?currentSchema=catalog_db&sslmode=${DB_SSL_MODE:require}
+      username: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+      maximum-pool-size: ${DB_READER_POOL_SIZE:8}
+      minimum-idle: 0
+      connection-timeout: 10000
 
 management:
   endpoints:

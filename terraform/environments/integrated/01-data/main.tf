@@ -66,6 +66,7 @@ module "rds_postgres" {
   deletion_protection     = var.rds_deletion_protection
   skip_final_snapshot     = var.rds_skip_final_snapshot
   apply_immediately       = var.rds_apply_immediately
+  read_replica_count      = var.rds_read_replica_count
 }
 
 # 서비스별 DB 계정 비밀번호. DB 안의 롤 생성은 db/postgres/00-init.sql이 담당한다
@@ -100,10 +101,10 @@ module "database_private_dns" {
 
   writer_target = module.rds_proxy.proxy_endpoint
 
-  # 지금은 리드 리플리카가 없어(read_replica_count = 0) Writer와 같은 인스턴스를
-  # 가리킨다. catalog가 이 이름으로 쓰기까지 하고 있어서, 라우팅이 들어가기 전에
-  # 진짜 리플리카를 붙이면 catalog가 죽는다 - rds_postgres 모듈 주석 참고.
-  # Reader는 Proxy를 거치지 않는다(쓰기만 커넥션 풀링 대상).
+  # catalog-api의 RoutingDataSourceConfig(app.datasource.reader)가 이 이름으로
+  # 붙는다 - read_replica_count > 0 일 때만 진짜 리플리카를 가리킨다. 0이면
+  # rds_postgres 모듈이 writer와 같은 인스턴스 주소를 돌려준다(reader_endpoint
+  # 출력 참고). Reader는 Proxy를 거치지 않는다(쓰기만 커넥션 풀링 대상).
   reader_target = module.rds_postgres.reader_endpoint
 }
 
