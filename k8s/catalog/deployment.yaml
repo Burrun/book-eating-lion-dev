@@ -15,7 +15,13 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
+      # pod 하나가 Ready 되기까지 실측 ~78초다. maxSurge: 1 은 완전 직렬 교체라
+      # 롤아웃 시간이 replica 수에 정비례한다 - HPA 가 8까지 올려둔 상태에서
+      # 8 x 78 = 624초가 걸려 main-cd 의 rollout 타임아웃을 넘겼다(2026-09-02
+      # prod 배포 실패). 2개씩 교체해 그 시간을 절반으로 줄인다.
+      # maxUnavailable: 0 은 유지한다 - 가용성 보장은 그대로고, ResourceQuota 에
+      # surge 2개를 받을 여유가 있다(k8s/base/11-quota.yaml).
+      maxSurge: 2
       maxUnavailable: 0
   template:
     metadata:
