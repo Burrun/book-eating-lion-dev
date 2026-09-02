@@ -351,8 +351,10 @@ public class OrderService {
             return;
         }
         DeliveryStatus initialStatus = containsSubscription(items) ? DeliveryStatus.DELIVERED : DeliveryStatus.PENDING;
-        deliveryRepository.save(
-                Delivery.builder().orderId(orderId).deliveryStatus(initialStatus).build());
+        deliveryRepository.save(Delivery.builder()
+                .orderId(orderId)
+                .deliveryStatus(initialStatus)
+                .build());
     }
 
     /**
