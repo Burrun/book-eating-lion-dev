@@ -12,7 +12,7 @@ data:
   #
   # 그리고 질의 경로(POST /api/ai/ask)는 애초에 DB 를 타지 않는다. 먹인 책 목록은
   # Redis 에서 읽고 벡터는 S3 Vectors 에 있다. DB 는 먹이기/문의 같은 쓰기에만 쓴다.
-  AI_DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
+  AI_DB_HOST: "db-primary-service.${K8S_NAMESPACE}.svc.cluster.local"
   AI_DB_PORT: "5432"
   AI_DB_NAME: "${AI_DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
