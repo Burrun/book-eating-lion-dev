@@ -70,7 +70,12 @@ if [[ "$DEPLOY_ENV" == "dev" ]]; then
   put CATALOG_HPA_MAX_REPLICAS "6"
   put ORDER_HPA_MAX_REPLICAS "8"
 else
-  put CATALOG_HPA_MAX_REPLICAS "20"
+  # 20에서 10으로 낮췄다(2026-09-02). maxUnavailable=0/maxSurge=1 롤링 업데이트 중
+  # HPA가 desired를 계속 밀어올리면(오늘 2->8까지 감) kubectl rollout status가
+  # 그 목표를 따라잡지 못해 main-cd의 600s 타임아웃에 걸리고, Rollback on failure가
+  # 방금 배포한 이미지를 되돌려버린다. 상한을 낮추면 롤아웃 중 흔들릴 수 있는
+  # 범위 자체가 줄어든다.
+  put CATALOG_HPA_MAX_REPLICAS "10"
   put ORDER_HPA_MAX_REPLICAS "30"
 fi
 put DB_NAME "bookdb_${DEPLOY_ENV}"

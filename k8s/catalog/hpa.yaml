@@ -32,3 +32,18 @@ spec:
         target:
           type: Utilization
           averageUtilization: 80
+  # 기본 scaleUp은 stabilizationWindowSeconds=0이라 매 reconcile(~15s)마다
+  # 그 순간 지표로 즉시 반응한다. 롤링 업데이트 중엔 구/신 pod가 섞여 지표가
+  # 출렁이는데, 이 기본값 때문에 2->3->4->...->8로 몇 분 만에 계속 오르며
+  # kubectl rollout status가 목표를 못 따라잡고(main-cd 600s 타임아웃) Rollback
+  # on failure가 방금 배포한 이미지를 되돌리는 사고로 이어졌다(2026-09-02,
+  # RoutingDataSourceConfig 배포 시도 중). 60초 안정화 + 60초당 +2 pod로
+  # 스케일업 속도 자체를 제한한다. scaleDown은 기본(300s)이 이미 보수적이라
+  # 안 건드린다.
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
