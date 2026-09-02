@@ -7,8 +7,13 @@ data:
   SPRING_PROFILES_ACTIVE: "${SPRING_PROFILE}"
   SERVER_PORT: "8080"
 
-  # 읽기 95% 이므로 Reader 엔드포인트로 간다(§2 읽기/쓰기 비대칭).
-  DB_HOST: "db-reader-service.lion-db.svc.cluster.local"
+  # Proxy 엔드포인트(db-primary-service)로 간다 — order/member/ai 와 동일.
+  # Reader 엔드포인트(db-reader-service → reader.db.integrated.internal.ajttk.com)는
+  # RDS 인스턴스로 직결이라 RDS Proxy 를 우회한다. 게다가 현재 read replica 가 없어서
+  # (rds_postgres read_replica_count=0) "Reader"는 사실상 같은 인스턴스다. 풀을 12로
+  # 키운 catalog 가 HPA 로 확장되면 Proxy 없이 수백 개 직결이 열려 max_connections(≈110)
+  # 를 넘긴다. read replica + 앱 read/write 라우팅이 들어오면 그때 Reader 경로로 되돌린다.
+  DB_HOST: "db-primary-service.lion-db.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "${DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
