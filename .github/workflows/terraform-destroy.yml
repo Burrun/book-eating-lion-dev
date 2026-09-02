@@ -63,6 +63,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          # deletion_protection 이 켜진 DB 는 destroy 가 "Cannot delete protected
+          # DB Instance" 로 죽는다 - terraform 은 한 plan 안에서 이 플래그를 먼저
+          # 끄고 지우지 못한다. 그래서 DB 모듈만 target 해서 보호를 끄는 apply 를
+          # 선행한다. 변수 이름은 환경마다 다르고, dev 는 EC2 Postgres 라 없다.
+          disable_deletion_protection() {
+            local directory="$1"
+            local var_name module_target
+
+            case "$TARGET_ENV" in
+              integrated) var_name="rds_deletion_protection"; module_target="module.rds_postgres" ;;
+              prod)       var_name="aurora_deletion_protection"; module_target="module.aurora_pg" ;;
+              *)          return 0 ;;
+            esac
+
+            echo "::group::Disable deletion protection (${TARGET_ENV}/01-data)"
+            terraform -chdir="$directory" apply \
+              -input=false \
+              -auto-approve \
+              "-var=${var_name}=false" \
+              -target="$module_target"
+            echo "::endgroup::"
+          }
+
           destroy_layer() {
             local layer="$1"
             local directory="terraform/environments/${TARGET_ENV}/${layer}"
@@ -70,6 +93,9 @@ jobs:
 
             echo "::group::Terraform destroy ${TARGET_ENV}/${layer}"
             terraform -chdir="$directory" init -input=false
+            if [ "$layer" = "01-data" ]; then
+              disable_deletion_protection "$directory"
+            fi
             terraform -chdir="$directory" plan -destroy -input=false -out="$plan_file"
             terraform -chdir="$directory" apply -input=false -auto-approve "$plan_file"
             echo "::endgroup::"
