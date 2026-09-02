@@ -271,6 +271,20 @@ data "aws_iam_policy_document" "terraform_permissions" {
     }
   }
 
+  # CreateNodegroup은 SLR을 실제로 만들기 전에 이미 있는지부터 GetRole로 확인한다.
+  # 이미 존재해도(=CreateServiceLinkedRole을 안 타도) 이 GetRole 자체가 없으면
+  # "Failed to validate if SLR ... already exists due to missing permissions for
+  # 'iam:GetRole'"로 막힌다(2026-09-01 integrated 최초 구축 시도에서 겪음 - node
+  # group 생성 자체가 처음이라 이 경로를 처음 탔다). 조건 키(iam:AWSServiceName)는
+  # CreateServiceLinkedRole 전용이라 위 ServiceLinkedRoles statement에 얹을 수
+  # 없어 별도 statement로 둔다.
+  statement {
+    sid       = "ServiceLinkedRoleRead"
+    effect    = "Allow"
+    actions   = ["iam:GetRole"]
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"]
+  }
+
   statement {
     sid    = "IamReadOnly"
     effect = "Allow"

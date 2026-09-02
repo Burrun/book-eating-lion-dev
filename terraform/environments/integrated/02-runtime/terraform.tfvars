@@ -31,13 +31,16 @@ dev_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:06103980462
 prod_recommendation_index_arn     = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-prod-vectors/index/recommendation-books-v1"
 prod_purchased_book_rag_index_arn = "arn:aws:s3vectors:ap-northeast-2:061039804626:bucket/lion-team3-prod-vectors/index/wiki-v1"
 
+# github-actions-lion-team3-integrated-terraform role 은 여기 넣지 않는다 - 이 role이
+# 바로 이 클러스터를 만드는 principal이라, access_config의
+# bootstrap_cluster_creator_admin_permissions=true로 AWS가 access entry를 이미
+# 자동 생성해준다. 여기 또 넣으면 aws_eks_access_entry가 중복 생성을 시도해
+# EKS API가 ResourceInUseException(409)으로 거부한다 - dev/02-runtime에서
+# 2026-08-20에 b-student-02로 이미 겪은 것과 같은 패턴(admin_principal_arns
+# 중복 등록 제거 커밋 참고). 여기(admin_principal_arns)는 클러스터를 "만들지
+# 않은" 다른 사람/role한테 나중에 kubectl 권한을 추가로 줄 때만 쓸 것.
 admin_principal_arns = [
   "arn:aws:iam::061039804626:user/b-student-02",
-  # terraform-apply.yml / terraform-destroy.yml 이 쓰는 role. 02-runtime 에는
-  # helm_release·kubernetes_manifest 가 있어서 plan 단계부터 k8s API 인증이 필요한데,
-  # bootstrap_cluster_creator_admin_permissions 는 클러스터 생성 시점 1회성이라
-  # 사람이 만든 클러스터에는 이 role 이 소급 등록되지 않는다 - 없으면 401 로 죽는다.
-  "arn:aws:iam::061039804626:role/github-actions-lion-team3-integrated-terraform",
 ]
 # 현재 dev.ajttk.com은 integrated CloudFront가 담당한다. 운영 상태와 코드 기본값을
 # 일치시켜 옵션 없는 apply가 dev edge 리소스를 제거하지 않게 한다. split dev로
