@@ -48,3 +48,47 @@ variable "cognito_callback_urls" {
 variable "cognito_logout_urls" {
   type = list(string)
 }
+
+# ── RDS (2026-09-02 EC2 Postgres에서 분리) ──────────────────────────
+# 기본값은 비교 대상인 dev EC2(t4g.micro / gp3 30GiB / postgresql16)와 같은 급이다.
+variable "rds_engine_version" {
+  type    = string
+  default = "16.14"
+}
+
+variable "rds_instance_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+
+variable "rds_allocated_storage" {
+  type    = number
+  default = 30
+}
+
+variable "rds_multi_az" {
+  description = "EC2(단일)와 비교 조건을 맞추려고 false. 운영 승격 시 true"
+  type        = bool
+  default     = false
+}
+
+variable "rds_backup_retention_period" {
+  type    = number
+  default = 7
+}
+
+variable "rds_deletion_protection" {
+  type    = bool
+  default = true
+}
+
+variable "rds_skip_final_snapshot" {
+  type    = bool
+  default = false
+}
+
+variable "rds_apply_immediately" {
+  description = "비교 실험 중 인스턴스 클래스를 바꿔가며 볼 거라 true"
+  type        = bool
+  default     = true
+}

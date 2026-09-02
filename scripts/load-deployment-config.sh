@@ -75,7 +75,14 @@ else
 fi
 put DB_NAME "bookdb_${DEPLOY_ENV}"
 put AI_DB_NAME "bookdb_${DEPLOY_ENV}"
-put DB_SSL_MODE "disable"
+# dev는 EC2에 직접 설치한 Postgres라 TLS를 안 켰다. prod는 RDS Proxy를 거치는데
+# Proxy가 require_tls=true라 sslmode를 낮추면 전 연결이 거부된다
+# (terraform/modules/data/rds_proxy/main.tf 참고).
+if [[ "$DEPLOY_ENV" == "prod" ]]; then
+  put DB_SSL_MODE "require"
+else
+  put DB_SSL_MODE "disable"
+fi
 put SPRING_PROFILE "prod"
 put REDIS_HOST "$(ssm "$DATA_ENV" data/valkey_endpoint)"
 put AWS_COGNITO_USER_POOL_ID "$(ssm "$DATA_ENV" auth/user_pool_id)"
