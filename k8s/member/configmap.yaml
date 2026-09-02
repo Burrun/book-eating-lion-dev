@@ -12,9 +12,13 @@ data:
   DB_NAME: "${DB_NAME}"
   # application-prod.yml의 sslmode=${DB_SSL_MODE:require} 기본값용 (dev EC2 Postgres는 SSL 미지원).
   DB_SSL_MODE: "${DB_SSL_MODE}"
-  # dev EC2 PostgreSQL의 연결 한도를 여러 Pod가 나눠 쓰도록 풀을 작게 유지한다.
-  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "3"
+  # RDS Proxy가 앞단에서 커넥션을 멀티플렉싱하므로 Pod 풀은 Tomcat 스레드가 굶지
+  # 않을 정도로 키운다. RDS(db.t4g.micro, max_connections≈110) 쪽 실제 커넥션은
+  # Proxy MaxConnectionsPercent가 캡한다. (1차: 풀 3 → 스레드 200개가 대기하다 붕괴)
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "12"
   SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "0"
+  # 커넥션을 못 얻으면 10초 매달리지 말고 3초에 fail-fast → 서킷브레이커가 제때 열린다.
+  SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "3000"
 
   REDIS_HOST: "${REDIS_HOST}"
 
