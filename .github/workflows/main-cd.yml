@@ -413,20 +413,27 @@ jobs:
           done
           kubectl apply -f rendered/
 
+      # 롤아웃 시간은 replica 수에 비례한다 - maxUnavailable:0 이라 pod 를 한 번에
+      # maxSurge 개씩만 교체하고, catalog pod 는 Ready 까지 실측 ~78초다. HPA 가
+      # 8까지 올려둔 상태에서 600s 로는 모자라 타임아웃이 났다(2026-09-02 prod
+      # 배포 실패 - pod 는 전부 정상이었고 단지 느렸다). catalog max 10 기준
+      # 최악을 담고도 남게 잡는다.
       - name: Wait for rollout
         if: matrix.changed == 'true'
         run: |
           for d in ${{ matrix.deployments }}; do
-            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=600s
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=1200s
           done
 
+      # 롤백도 같은 속도 제약을 받는다. 300s 로는 되돌리다 중간에 끊겨 구/신
+      # 이미지가 섞인 채로 남는다(2026-09-02 prod catalog 가 6/8 에서 끊겼다).
       - name: Rollback on failure
         if: failure() && matrix.changed == 'true'
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
           for d in ${{ matrix.deployments }}; do
             kubectl -n "$K8S_NAMESPACE" rollout undo "deployment/$d" || true
-            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=300s || true
+            kubectl -n "$K8S_NAMESPACE" rollout status "deployment/$d" --timeout=600s || true
           done
 
   deploy-frontend:

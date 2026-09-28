@@ -6,7 +6,7 @@
 
 ## 처음 왔으면 이 순서로 읽으세요
 
-1. **[`/README.md`](../../README.md)** (저장소 최상위) — 가장 먼저. MSA 전환 배경, 서비스 4개 구성, 핵심 설계 결정 4가지, 로컬 실행법(`docker compose up`), "검증된 항목"/"남은 작업" 체크리스트가 있습니다. **이게 사실상 온보딩 문서입니다.**
+1. **[`/README.md`](../../README.md)** (저장소 최상위) — 가장 먼저. 설계 하이라이트, 서비스 4개 구성, 주요 백엔드 로직(이벤트 발행·메시징·동시성·DB 읽기/쓰기 분리·RAG·장애 격리·상담·보안), 인프라·비용 설계, 부하 테스트, CI/CD·롤백, 로컬 실행법, 트러블슈팅 문서(`docs/troubleshooting-*.md`) 목록이 있습니다. **이게 사실상 온보딩 문서입니다.**
 2. **[`db-erd-v2.md`](db-erd-v2.md)** — 실제 DB 스키마(`db/postgres/*.sql` 기준, 코드 검증됨). 어떤 테이블이 어느 서비스 소유인지 여기서 확인하세요.
 3. **[`이벤트-메시징-명세.md`](이벤트-메시징-명세.md)** — 서비스 간 비동기 통신(SQS/Redis Streams) 전부. 코드 파일·라인까지 인용돼 있어 가장 정밀합니다.
 4. **[`k8s-명세.md`](k8s-명세.md)** — 배포 스펙(HPA, Probe, Ingress 라우팅, ConfigMap). ⚠️ Ingress 라우팅 표에 알려진 버그가 있으니 §3 경고 박스 꼭 읽으세요.
@@ -40,6 +40,6 @@
 
 ## 알려진 문서 공백
 
-- `docs/msa-migration-plan.md`, `docs/ai-api-plan.md` — 루트 `README.md`가 참조하지만 저장소에 커밋된 적이 없습니다. README 자체가 그 내용을 상당 부분 대신합니다.
+- `docs/msa-migration-plan.md`, `docs/ai-api-plan.md` — 이전 README와 일부 코드 주석이 참조하지만 저장소에 커밋된 적이 없습니다. 설계 결정의 결과는 루트 `README.md`의 "설계 하이라이트"와 "주요 백엔드 로직"에 정리돼 있습니다.
 - 프론트엔드(`frontend/`) 아키텍처 문서 없음.
 - 결제 수단 값(`payment_method`)이 DB 제약(`CARD`/`KAKAOPAY`)과 OpenAPI 계약(`VIRTUAL_CARD`/`KAKAO_PAY`, `k6/README.md` 근거) 사이에 표기가 다릅니다 — 아직 어디가 맞는지 정리되지 않았습니다.
